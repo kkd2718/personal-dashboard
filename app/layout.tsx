@@ -1,0 +1,35 @@
+import type { Metadata, Viewport } from 'next';
+import type { ReactNode } from 'react';
+import './globals.css';
+import { themeInitScript } from '@/components/theme-toggle';
+
+export const metadata: Metadata = {
+  title: 'Command Center',
+  description: '개인 메모함 + 프로젝트/논문/마감 커맨드 센터',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'CC',
+  },
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: '#0b1120',
+};
+
+export default function RootLayout({ children }: { children: ReactNode }) {
+  return (
+    <html lang="ko" suppressHydrationWarning>
+      <head>
+        {/* eslint-disable-next-line @next/next/no-sync-scripts */}
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
+      <body className="min-h-dvh antialiased" suppressHydrationWarning>
+        {children}
+      </body>
+    </html>
+  );
+}
