@@ -2,15 +2,15 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { CalendarClock, FolderKanban, Home, Inbox, LayoutDashboard, Notebook } from 'lucide-react';
+import { CalendarClock, FolderKanban, Home, LayoutDashboard, NotebookText, StickyNote } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 
 const NAV_ITEMS = [
   { href: '/', label: '홈', icon: Home },
-  { href: '/inbox', label: '인박스', icon: Inbox },
+  { href: '/memo', label: '메모', icon: StickyNote },
   { href: '/projects', label: '프로젝트', icon: FolderKanban },
-  { href: '/papers', label: '논문', icon: Notebook },
-  { href: '/deadlines', label: '마감', icon: CalendarClock },
+  { href: '/papers', label: '논문', icon: NotebookText },
+  { href: '/calendar', label: '캘린더', icon: CalendarClock },
 ] as const;
 
 function isActive(pathname: string, href: string): boolean {
@@ -46,7 +46,7 @@ export function Sidebar() {
         })}
       </nav>
       <div className="flex items-center justify-between px-5 py-4">
-        <span className="text-xs text-foreground/50">Phase 1a</span>
+        <span className="text-xs text-foreground/50">Phase 1c</span>
         <ThemeToggle />
       </div>
     </aside>

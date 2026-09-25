@@ -128,7 +128,12 @@ Deadlines: seed none with invented dates. ReviewJobs: none. (User fills real one
 
 ## 7. Phases
 - **1a (now)** — scaffold, LocalRepo, seed, all screens above, PWA manifest, logic + tests. Run on :3100 for GUI feedback.
+- Repo stays **private** (user decision 2026-09-25; no public-release/PII-scrub work), but keep an **isolated design** just in case — first task of 1b:
+  - `lib/seed.example.ts` (fictional sample, committed) + `data/seed.local.json` (real data, gitignored). Loader: local file if present, else example.
+  - No personal constants in code (email, paths, hostnames, project names) — only in seed data or env (`ALLOWED_EMAIL`, `TRADING_URL`, etc.; documented in `.env.example`).
+  - Secrets only in Vercel env / `.env.local`. `scripts/import-to-supabase` one-shot import from local seed / `.data/db.json`.
 - **1b** — Supabase: SQL migration (`supabase/migrations/0001_init.sql`, RLS `owner = auth.uid()` on every table, deny anon), SupabaseRepo, magic-link login restricted to `ALLOWED_EMAIL`, Vercel deploy, `/api/cron/heartbeat` daily (CRON_SECRET) → upsert `heartbeat` row.
+- **2 (addition)** — progress from repo backlog files: collector parses existing progress docs (e.g. Amgi `docs/BACKLOG.md`, realty `docs/DECISIONS.md`, per-project configurable glob) counting `- [ ]` / `- [x]` / ✅ items → ProjectActivity.metrics {backlogOpen, backlogDone}; app projects' % comes from there (no double entry). Inspired by Backlog.md.
 - **2** — Collector (Node script, Windows Task Scheduler hourly, + WSL paths via `\\wsl$`): git last commit/branch/dirty per project, memory MEMORY.md digest, trading `data/state/portfolio_*.json` → summary numbers only; POST to `/api/ingest` (bearer token), write only on change. Idea dispatch: notes with status 'sent' → collector appends to `<project>/.claude/inbox.md`; plus a tiny MCP/CLI `cc inbox <slug>` for Claude sessions.
 - **3** — Google Calendar sync, Telegram bot (capture + D-7/3/1 reminders), Gmail Apps Script review-deadline extraction, Obsidian two-way (vault folder `Inbox/CC`), per-project summary widgets.
 

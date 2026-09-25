@@ -19,7 +19,12 @@ export default async function ProjectsPage({
   const active: Group = GROUPS.includes(group as Group) ? (group as Group) : 'app';
 
   const repo = getRepo();
-  const [projects, activity] = await Promise.all([repo.listProjects(), repo.listProjectActivity()]);
+  const [projects, activity, tasks, milestones] = await Promise.all([
+    repo.listProjects(),
+    repo.listProjectActivity(),
+    repo.listTasks(),
+    repo.listMilestones(),
+  ]);
   const grouped = groupProjects(projects);
   const activityByProject = new Map(activity.map((a) => [a.projectId, a]));
 
@@ -44,9 +49,15 @@ export default async function ProjectsPage({
       {Object.entries(grouped[active]).map(([subgroup, list]) => (
         <section key={subgroup} className="flex flex-col gap-2">
           <h2 className="text-sm font-medium text-foreground/60">{subgroup}</h2>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
             {list.map((p) => (
-              <ProjectCard key={p.id} project={p} activity={activityByProject.get(p.id)} />
+              <ProjectCard
+                key={p.id}
+                project={p}
+                activity={activityByProject.get(p.id)}
+                tasks={tasks}
+                milestones={milestones}
+              />
             ))}
           </div>
         </section>

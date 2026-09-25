@@ -4,6 +4,8 @@ import { ProjectEditForm } from '@/components/project-edit-form';
 import { NoteItem } from '@/components/note-item';
 import { DdayChip } from '@/components/dday-chip';
 import { PaperSubmissions } from '@/components/paper-submissions';
+import { QueueStrip } from '@/components/queue-strip';
+import { TaskBoard } from '@/components/task-board';
 import { dday, todayKST } from '@/lib/logic/dates';
 
 // D-day depends on "today" in KST; never cache this page.
@@ -19,12 +21,14 @@ export default async function ProjectDetailPage({
   const project = await repo.getProjectBySlug(slug);
   if (!project) notFound();
 
-  const [notes, deadlines, papers, projects, activityList] = await Promise.all([
+  const [notes, deadlines, papers, projects, activityList, milestones, tasks] = await Promise.all([
     repo.listNotes(),
     repo.listDeadlines(),
     repo.listPapers(),
     repo.listProjects(),
     repo.listProjectActivity(),
+    repo.listMilestones(),
+    repo.listTasks(),
   ]);
   const activity = activityList.find((a) => a.projectId === project.id);
 
@@ -32,6 +36,8 @@ export default async function ProjectDetailPage({
   const linkedNotes = notes.filter((n) => n.projectId === project.id);
   const linkedDeadlines = deadlines.filter((d) => d.projectId === project.id);
   const linkedPapers = papers.filter((p) => p.projectId === project.id);
+  const linkedMilestones = milestones.filter((m) => m.projectId === project.id);
+  const linkedTasks = tasks.filter((t) => t.projectId === project.id);
 
   return (
     <div className="flex flex-col gap-6">
@@ -53,6 +59,13 @@ export default async function ProjectDetailPage({
       </div>
 
       <ProjectEditForm project={project} />
+
+      <QueueStrip projectId={project.id} milestones={linkedMilestones} tasks={linkedTasks} />
+
+      <section className="flex flex-col gap-2">
+        <h2 className="text-sm font-medium text-foreground/60">할 일</h2>
+        <TaskBoard project={project} initialTasks={linkedTasks} milestones={linkedMilestones} />
+      </section>
 
       {linkedPapers.length > 0 && (
         <section className="flex flex-col gap-2">
@@ -94,7 +107,7 @@ export default async function ProjectDetailPage({
         ) : (
           <ul className="flex flex-col gap-2">
             {linkedNotes.map((n) => (
-              <NoteItem key={n.id} note={n} projects={projects} />
+              <NoteItem key={n.id} note={n} projects={projects} milestones={milestones} />
             ))}
           </ul>
         )}

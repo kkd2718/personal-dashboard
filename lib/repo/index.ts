@@ -1,11 +1,15 @@
 import type {
   Deadline,
+  Milestone,
+  MilestoneStatus,
   Note,
   Paper,
   PaperStage,
   Project,
   ProjectActivity,
   ReviewJob,
+  Task,
+  TaskStatus,
 } from '@/lib/types';
 import { LocalRepo } from '@/lib/repo/local';
 
@@ -53,6 +57,36 @@ export interface Repo {
     reviewId?: string | null;
   }): Promise<Deadline>;
   updateDeadline(id: string, patch: Partial<Omit<Deadline, 'id'>>): Promise<Deadline>;
+
+  // --- queues (큐) ---
+  listMilestones(): Promise<Milestone[]>;
+  createMilestone(input: {
+    projectId: string;
+    title: string;
+    startDate?: string | null;
+    endDate?: string | null;
+    status?: MilestoneStatus;
+  }): Promise<Milestone>;
+  updateMilestone(id: string, patch: Partial<Omit<Milestone, 'id' | 'projectId'>>): Promise<Milestone>;
+
+  // --- tasks ---
+  listTasks(): Promise<Task[]>;
+  createTask(input: {
+    projectId?: string | null;
+    milestoneId?: string | null;
+    title: string;
+    description?: string | null;
+    dueDate?: string | null;
+    status?: TaskStatus;
+  }): Promise<Task>;
+  updateTask(id: string, patch: Partial<Omit<Task, 'id' | 'createdAt'>>): Promise<Task>;
+  moveTask(id: string, toStatus: TaskStatus, toIndex: number): Promise<Task[]>;
+
+  /** Creates a Task from a Note and atomically marks the note done + linked (single write). */
+  convertNoteToTask(
+    noteId: string,
+    input: { projectId: string; milestoneId?: string | null; title: string; dueDate?: string | null }
+  ): Promise<Task>;
 }
 
 /** Chooses the adapter by env: LocalRepo unless NEXT_PUBLIC_SUPABASE_URL is set (SupabaseRepo lands in phase 1b). */

@@ -4,15 +4,20 @@ import path from 'node:path';
 import type {
   Db,
   Deadline,
+  Milestone,
+  MilestoneStatus,
   Note,
   Paper,
   PaperStage,
   Project,
   ProjectActivity,
   ReviewJob,
+  Task,
+  TaskStatus,
 } from '@/lib/types';
 import { seedDb } from '@/lib/seed';
 import { movePaper as movePaperLogic } from '@/lib/logic/papers';
+import { moveTask as moveTaskLogic } from '@/lib/logic/tasks';
 import type { Repo } from '@/lib/repo/index';
 
 const DB_PATH = path.join(process.cwd(), '.data', 'db.json');
@@ -23,6 +28,31 @@ function isEnoent(err: unknown): boolean {
 
 function notFound(entity: string, id: string): never {
   throw new Error(`${entity} not found: ${id}`);
+}
+
+const PROJECT_COLORS = ['blue', 'emerald', 'violet', 'amber', 'rose', 'cyan', 'lime', 'fuchsia'];
+
+/**
+ * Tolerant loader: fills in arrays/fields added after a db.json was first written,
+ * so an old file never crashes the app. New arrays default to []; new fields on
+ * existing rows default to null (or a generated fallback for `color`).
+ */
+function normalizeDb(raw: Partial<Db>): Db {
+  const projects = (raw.projects ?? []).map((p, i) => ({
+    ...p,
+    color: p.color ?? PROJECT_COLORS[i % PROJECT_COLORS.length],
+  }));
+  const notes = (raw.notes ?? []).map((n) => ({ ...n, taskId: n.taskId ?? null }));
+  return {
+    projects,
+    projectActivity: raw.projectActivity ?? [],
+    papers: raw.papers ?? [],
+    reviews: raw.reviews ?? [],
+    deadlines: raw.deadlines ?? [],
+    notes,
+    milestones: raw.milestones ?? [],
+    tasks: raw.tasks ?? [],
+  };
 }
 
 /**
@@ -52,7 +82,7 @@ export class LocalRepo implements Repo {
   private async readDb(): Promise<Db> {
     try {
       const raw = await readFile(DB_PATH, 'utf-8');
-      return JSON.parse(raw) as Db;
+      return normalizeDb(JSON.parse(raw) as Partial<Db>);
     } catch (err) {
       if (isEnoent(err)) {
         const fresh = seedDb();
@@ -95,6 +125,7 @@ export class LocalRepo implements Repo {
         pinned: false,
         source: input.source,
         deliveredAt: null,
+        taskId: null,
         createdAt: now,
         updatedAt: now,
       };
@@ -249,6 +280,135 @@ export class LocalRepo implements Repo {
       if (!deadline) notFound('Deadline', id);
       Object.assign(deadline, patch, { updatedAt: new Date().toISOString() });
       return deadline;
+    });
+  }
+
+  // --- milestones (큐) ---
+
+  listMilestones(): Promise<Milestone[]> {
+    return this.withLock((db) => [...db.milestones]);
+  }
+
+  createMilestone(input: {
+    projectId: string;
+    title: string;
+    startDate?: string | null;
+    endDate?: string | null;
+    status?: MilestoneStatus;
+  }): Promise<Milestone> {
+    return this.withLock((db) => {
+      const now = new Date().toISOString();
+      const siblings = db.milestones.filter((m) => m.projectId === input.projectId);
+      const milestone: Milestone = {
+        id: randomUUID(),
+        projectId: input.projectId,
+        title: input.title,
+        startDate: input.startDate ?? null,
+        endDate: input.endDate ?? null,
+        status: input.status ?? 'planned',
+        sort: siblings.length,
+        updatedAt: now,
+      };
+      db.milestones.push(milestone);
+      return milestone;
+    });
+  }
+
+  updateMilestone(
+    id: string,
+    patch: Partial<Omit<Milestone, 'id' | 'projectId'>>
+  ): Promise<Milestone> {
+    return this.withLock((db) => {
+      const milestone = db.milestones.find((m) => m.id === id);
+      if (!milestone) notFound('Milestone', id);
+      Object.assign(milestone, patch, { updatedAt: new Date().toISOString() });
+      return milestone;
+    });
+  }
+
+  // --- tasks ---
+
+  listTasks(): Promise<Task[]> {
+    return this.withLock((db) => [...db.tasks]);
+  }
+
+  createTask(input: {
+    projectId?: string | null;
+    milestoneId?: string | null;
+    title: string;
+    description?: string | null;
+    dueDate?: string | null;
+    status?: TaskStatus;
+  }): Promise<Task> {
+    return this.withLock((db) => {
+      const now = new Date().toISOString();
+      const status = input.status ?? 'todo';
+      const projectId = input.projectId ?? null;
+      const siblings = db.tasks.filter((t) => t.projectId === projectId && t.status === status);
+      const task: Task = {
+        id: randomUUID(),
+        projectId,
+        milestoneId: input.milestoneId ?? null,
+        title: input.title,
+        description: input.description ?? null,
+        status,
+        dueDate: input.dueDate ?? null,
+        doneAt: status === 'done' ? now : null,
+        sort: siblings.length,
+        createdAt: now,
+        updatedAt: now,
+      };
+      db.tasks.push(task);
+      return task;
+    });
+  }
+
+  updateTask(id: string, patch: Partial<Omit<Task, 'id' | 'createdAt'>>): Promise<Task> {
+    return this.withLock((db) => {
+      const task = db.tasks.find((t) => t.id === id);
+      if (!task) notFound('Task', id);
+      const now = new Date().toISOString();
+      const wasDone = task.status === 'done';
+      Object.assign(task, patch, { updatedAt: now });
+      if (task.status === 'done' && !wasDone && patch.doneAt === undefined) task.doneAt = now;
+      if (task.status !== 'done' && patch.doneAt === undefined) task.doneAt = null;
+      return task;
+    });
+  }
+
+  moveTask(id: string, toStatus: TaskStatus, toIndex: number): Promise<Task[]> {
+    return this.withLock((db) => {
+      db.tasks = moveTaskLogic(db.tasks, id, toStatus, toIndex);
+      return [...db.tasks];
+    });
+  }
+
+  convertNoteToTask(
+    noteId: string,
+    input: { projectId: string; milestoneId?: string | null; title: string; dueDate?: string | null }
+  ): Promise<Task> {
+    return this.withLock((db) => {
+      const note = db.notes.find((n) => n.id === noteId);
+      if (!note) notFound('Note', noteId);
+      const now = new Date().toISOString();
+      const projectId = input.projectId;
+      const siblings = db.tasks.filter((t) => t.projectId === projectId && t.status === 'todo');
+      const task: Task = {
+        id: randomUUID(),
+        projectId,
+        milestoneId: input.milestoneId ?? null,
+        title: input.title,
+        description: note.body,
+        status: 'todo',
+        dueDate: input.dueDate ?? null,
+        doneAt: null,
+        sort: siblings.length,
+        createdAt: now,
+        updatedAt: now,
+      };
+      db.tasks.push(task);
+      Object.assign(note, { status: 'done', taskId: task.id, updatedAt: now });
+      return task;
     });
   }
 }

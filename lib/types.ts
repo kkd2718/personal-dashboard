@@ -22,6 +22,37 @@ export interface Project {
   paths: string[]; // Windows or WSL paths, e.g. 'C:\\Users\\...\\trading-system', '/home/.../amgi'
   pinned: boolean;
   sort: number;
+  color: string; // tailwind palette key, e.g. 'blue', 'emerald' — accent for calendar/cards
+  updatedAt: string;
+}
+
+export type MilestoneStatus = 'planned' | 'active' | 'done';
+
+/** UI name: 큐. A dated (or undated) chunk of work inside a project. */
+export interface Milestone {
+  id: string;
+  projectId: string;
+  title: string;
+  startDate: string | null; // 'YYYY-MM-DD', inclusive
+  endDate: string | null; // 'YYYY-MM-DD', inclusive
+  status: MilestoneStatus;
+  sort: number;
+  updatedAt: string;
+}
+
+export type TaskStatus = 'todo' | 'doing' | 'done';
+
+export interface Task {
+  id: string;
+  projectId: string | null;
+  milestoneId: string | null;
+  title: string;
+  description: string | null;
+  status: TaskStatus;
+  dueDate: string | null; // 'YYYY-MM-DD'
+  doneAt: string | null;
+  sort: number; // dense per (projectId, status)
+  createdAt: string;
   updatedAt: string;
 }
 
@@ -135,6 +166,7 @@ export interface Note {
   pinned: boolean;
   source: 'web' | 'share' | 'telegram' | 'obsidian' | 'gmail' | 'collector';
   deliveredAt: string | null; // set when dispatched to a project's .claude/inbox.md (phase 2)
+  taskId: string | null; // set when converted to a Task via convertNoteToTask
   createdAt: string;
   updatedAt: string;
 }
@@ -146,4 +178,6 @@ export interface Db {
   reviews: ReviewJob[];
   deadlines: Deadline[];
   notes: Note[];
+  milestones: Milestone[];
+  tasks: Task[];
 }

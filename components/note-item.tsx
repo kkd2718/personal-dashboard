@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useTransition } from 'react';
-import { Archive, Check, Pencil, Pin, Send } from 'lucide-react';
+import { useMemo, useState, useTransition } from 'react';
+import { Archive, Check, Pencil, Pin, Repeat } from 'lucide-react';
 import { updateNoteAction } from '@/app/actions/notes';
-import type { Note, Project } from '@/lib/types';
+import { convertNoteToTaskAction } from '@/app/actions/tasks';
+import type { Milestone, Note, Project } from '@/lib/types';
 
 const KIND_LABEL: Record<Note['kind'], string> = {
   idea: '아이디어',
@@ -12,8 +13,118 @@ const KIND_LABEL: Record<Note['kind'], string> = {
   link: '링크',
 };
 
-export function NoteItem({ note, projects }: { note: Note; projects: Project[] }) {
+function ConvertToTaskForm({
+  note,
+  projects,
+  milestones,
+  onDone,
+}: {
+  note: Note;
+  projects: Project[];
+  milestones: Milestone[];
+  onDone: () => void;
+}) {
+  const firstLine = note.body.split('\n')[0]?.slice(0, 120) ?? '';
+  const [projectId, setProjectId] = useState(note.projectId ?? projects[0]?.id ?? '');
+  const [milestoneId, setMilestoneId] = useState('');
+  const [title, setTitle] = useState(firstLine);
+  const [dueDate, setDueDate] = useState('');
+  const [pending, startTransition] = useTransition();
+
+  const queues = useMemo(
+    () => milestones.filter((m) => m.projectId === projectId),
+    [milestones, projectId]
+  );
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!projectId || !title.trim()) return;
+    startTransition(async () => {
+      await convertNoteToTaskAction({
+        noteId: note.id,
+        projectId,
+        milestoneId: milestoneId || null,
+        title: title.trim(),
+        dueDate: dueDate || null,
+      });
+      onDone();
+    });
+  }
+
+  return (
+    <form
+      onSubmit={submit}
+      className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-2 text-sm"
+    >
+      <input
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder="할 일 제목"
+        className="rounded-md border border-border bg-transparent px-2 py-1.5"
+      />
+      <div className="flex flex-wrap gap-2">
+        <select
+          value={projectId}
+          onChange={(e) => {
+            setProjectId(e.target.value);
+            setMilestoneId('');
+          }}
+          required
+          className="rounded-md border border-border bg-transparent px-2 py-1.5"
+        >
+          <option value="">프로젝트 선택</option>
+          {projects.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+        <select
+          value={milestoneId}
+          onChange={(e) => setMilestoneId(e.target.value)}
+          className="rounded-md border border-border bg-transparent px-2 py-1.5"
+        >
+          <option value="">큐 없음</option>
+          {queues.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.title}
+            </option>
+          ))}
+        </select>
+        <input
+          type="date"
+          value={dueDate}
+          onChange={(e) => setDueDate(e.target.value)}
+          className="rounded-md border border-border bg-transparent px-2 py-1.5"
+        />
+      </div>
+      <div className="flex gap-2">
+        <button
+          type="submit"
+          disabled={pending || !projectId || !title.trim()}
+          className="rounded-md bg-blue-600 px-3 py-1.5 text-white disabled:opacity-40"
+        >
+          전환
+        </button>
+        <button type="button" onClick={onDone} className="rounded-md border border-border px-3 py-1.5">
+          취소
+        </button>
+      </div>
+    </form>
+  );
+}
+
+export function NoteItem({
+  note,
+  projects,
+  milestones = [],
+}: {
+  note: Note;
+  projects: Project[];
+  milestones?: Milestone[];
+}) {
   const [editing, setEditing] = useState(false);
+  const [converting, setConverting] = useState(false);
   const [body, setBody] = useState(note.body);
   const [pending, startTransition] = useTransition();
 
@@ -109,16 +220,30 @@ export function NoteItem({ note, projects }: { note: Note; projects: Project[] }
           ))}
         </select>
         {project && <span>→ {project.name}</span>}
-        <button
-          type="button"
-          title="프로젝트로 보내기 (준비 중)"
-          disabled
-          className="ml-auto flex items-center gap-1 rounded-md border border-border px-2 py-1 opacity-50"
-        >
-          <Send size={12} />
-          프로젝트로 보내기
-        </button>
+        {note.taskId ? (
+          <span className="ml-auto text-foreground/40">할 일로 전환됨</span>
+        ) : (
+          !converting && (
+            <button
+              type="button"
+              onClick={() => setConverting(true)}
+              className="ml-auto flex items-center gap-1 rounded-md border border-border px-2 py-1 hover:bg-foreground/5"
+            >
+              <Repeat size={12} />
+              할 일로 전환
+            </button>
+          )
+        )}
       </div>
+
+      {converting && (
+        <ConvertToTaskForm
+          note={note}
+          projects={projects}
+          milestones={milestones}
+          onDone={() => setConverting(false)}
+        />
+      )}
     </li>
   );
 }
