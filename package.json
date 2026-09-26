@@ -8,11 +8,16 @@
     "start": "next start -p 3100",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "db:migrate": "node --env-file=.env.local --experimental-strip-types scripts/migrate.mjs",
+    "db:import": "node --env-file=.env.local --experimental-strip-types scripts/import-to-supabase.mjs",
+    "export-seed": "node --experimental-strip-types scripts/export-seed.mjs",
+    "push-status": "node --env-file=.env.local --experimental-strip-types scripts/push-status.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
+    "@supabase/supabase-js": "^2.117.2",
     "date-fns": "^4.4.0",
     "lucide-react": "^1.48.0",
     "next": "16.3.6",

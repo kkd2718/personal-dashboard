@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { getRepo } from '@/lib/repo';
 import type { ReviewJob } from '@/lib/types';
 import { revalidateAll } from '@/app/actions/revalidate';
+import { requireUser } from '@/lib/auth/require-user';
 
 const dateSchema = z
   .string()
@@ -19,6 +20,7 @@ const createSchema = z.object({
 });
 
 export async function createReviewAction(input: unknown): Promise<ReviewJob> {
+  await requireUser();
   const parsed = createSchema.parse(input);
   const review = await getRepo().createReview(parsed);
   revalidateAll();
@@ -34,6 +36,7 @@ const updateSchema = z.object({
 });
 
 export async function updateReviewAction(input: unknown): Promise<ReviewJob> {
+  await requireUser();
   const { id, ...patch } = updateSchema.parse(input);
   const review = await getRepo().updateReview(id, patch);
   revalidateAll();

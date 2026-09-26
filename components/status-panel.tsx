@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { RefreshCw } from 'lucide-react';
 import type { StatusItem } from '@/lib/status/types';
 
@@ -21,13 +21,18 @@ export function urgentOnly(items: StatusItem[]): StatusItem[] {
   return items.filter((i) => i.severity === 'critical' || i.severity === 'warn');
 }
 
+const STALE_MS = 3 * 60 * 60 * 1000;
+
 export function StatusPanel({
   initialItems,
   checkedAt,
+  remote = false,
   mobileUrgentOnly = false,
 }: {
   initialItems: StatusItem[];
   checkedAt: string;
+  /** True when items come from the last /api/ingest snapshot (cloud, LOCAL_PROBES=0), not a live probe. */
+  remote?: boolean;
   mobileUrgentOnly?: boolean;
 }) {
   const [items, setItems] = useState(initialItems);
@@ -47,6 +52,19 @@ export function StatusPanel({
     });
   }
 
+  // Date.now() is impure, so staleness is computed in an effect (client-only,
+  // re-checked every minute) rather than during render.
+  const [stale, setStale] = useState(false);
+  useEffect(() => {
+    if (!remote) return;
+    function check() {
+      setStale(Date.now() - new Date(lastChecked).getTime() > STALE_MS);
+    }
+    check();
+    const id = setInterval(check, 60_000);
+    return () => clearInterval(id);
+  }, [remote, lastChecked]);
+
   const shown = mobileUrgentOnly ? urgentOnly(items) : items;
 
   return (
@@ -54,7 +72,19 @@ export function StatusPanel({
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold">상황 체크</h2>
         <div className="flex items-center gap-2 text-[11px] text-foreground/40">
-          <span>마지막 확인 {fmtTime(lastChecked)}</span>
+          {remote ? (
+            <span
+              className={
+                stale
+                  ? 'rounded-full border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-amber-700 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300'
+                  : ''
+              }
+            >
+              PC 기준 {fmtTime(lastChecked)}
+            </span>
+          ) : (
+            <span>마지막 확인 {fmtTime(lastChecked)}</span>
+          )}
           <button
             type="button"
             onClick={refresh}

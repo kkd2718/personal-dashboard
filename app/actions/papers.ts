@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { getRepo } from '@/lib/repo';
 import type { Paper } from '@/lib/types';
 import { revalidateAll } from '@/app/actions/revalidate';
+import { requireUser } from '@/lib/auth/require-user';
 
 const stageSchema = z.enum([
   'idea',
@@ -22,6 +23,7 @@ const moveSchema = z.object({
 });
 
 export async function movePaperAction(input: unknown): Promise<Paper[]> {
+  await requireUser();
   const { id, toStage, toIndex } = moveSchema.parse(input);
   const papers = await getRepo().movePaper(id, toStage, toIndex);
   revalidateAll();
@@ -47,6 +49,7 @@ const updateSchema = z.object({
 });
 
 export async function updatePaperAction(input: unknown): Promise<Paper> {
+  await requireUser();
   const { id, ...patch } = updateSchema.parse(input);
   const paper = await getRepo().updatePaper(id, patch);
   revalidateAll();

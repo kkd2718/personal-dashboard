@@ -2,8 +2,9 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { CalendarClock, FolderKanban, Home, LayoutDashboard, NotebookText, StickyNote } from 'lucide-react';
+import { CalendarClock, FolderKanban, Home, LayoutDashboard, LogOut, NotebookText, StickyNote } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { logoutAction } from '@/app/actions/auth';
 
 const NAV_ITEMS = [
   { href: '/', label: '홈', icon: Home },
@@ -18,7 +19,7 @@ function isActive(pathname: string, href: string): boolean {
   return pathname.startsWith(href);
 }
 
-export function Sidebar() {
+export function Sidebar({ authEnabled = false }: { authEnabled?: boolean }) {
   const pathname = usePathname();
   return (
     <aside className="hidden w-56 shrink-0 flex-col border-r border-border bg-surface md:flex">
@@ -46,8 +47,20 @@ export function Sidebar() {
         })}
       </nav>
       <div className="flex items-center justify-between px-5 py-4">
-        <span className="text-xs text-foreground/50">Phase 1c</span>
-        <ThemeToggle />
+        <span className="text-xs text-foreground/50">Phase 1b</span>
+        <div className="flex items-center gap-1">
+          {authEnabled && (
+            <button
+              type="button"
+              onClick={() => logoutAction()}
+              aria-label="로그아웃"
+              className="rounded-md p-1.5 text-foreground/50 hover:bg-foreground/5"
+            >
+              <LogOut size={16} />
+            </button>
+          )}
+          <ThemeToggle />
+        </div>
       </div>
     </aside>
   );

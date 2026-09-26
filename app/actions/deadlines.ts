@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { getRepo } from '@/lib/repo';
 import type { Deadline } from '@/lib/types';
 import { revalidateAll } from '@/app/actions/revalidate';
+import { requireUser } from '@/lib/auth/require-user';
 
 const kindSchema = z.enum([
   'paper',
@@ -29,6 +30,7 @@ const createSchema = z.object({
 });
 
 export async function createDeadlineAction(input: unknown): Promise<Deadline> {
+  await requireUser();
   const parsed = createSchema.parse(input);
   const deadline = await getRepo().createDeadline(parsed);
   revalidateAll();
@@ -51,6 +53,7 @@ const updateSchema = z.object({
 });
 
 export async function updateDeadlineAction(input: unknown): Promise<Deadline> {
+  await requireUser();
   const { id, ...patch } = updateSchema.parse(input);
   const deadline = await getRepo().updateDeadline(id, patch);
   revalidateAll();

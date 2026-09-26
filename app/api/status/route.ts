@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
 import { getRepo } from '@/lib/repo';
-import { runStatusProbes } from '@/lib/status';
+import { getStatusPanelData } from '@/lib/status';
 
 export const dynamic = 'force-dynamic';
 
-/** Client refresh button target — same probes the home page runs server-side. */
+/** Client refresh button target — same source the home page renders server-side. */
 export async function GET() {
-  const projects = await getRepo().listProjects();
-  const items = await runStatusProbes(projects);
-  return NextResponse.json({ items, checkedAt: new Date().toISOString() });
+  const repo = getRepo();
+  const projects = await repo.listProjects();
+  const data = await getStatusPanelData(repo, projects);
+  return NextResponse.json(data);
 }

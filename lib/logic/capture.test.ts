@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseCapture } from './capture';
+import { captureNoteInput, parseCapture } from './capture';
 import type { Project } from '@/lib/types';
 
 function project(overrides: Partial<Project>): Project {
@@ -87,5 +87,23 @@ describe('parseCapture', () => {
   it('keeps a new tag as typed when no existing tag normalizes the same', () => {
     const r = parseCapture('#새태그', projects, ['다른태그']);
     expect(r.tags).toEqual(['새태그']);
+  });
+});
+
+describe('captureNoteInput', () => {
+  it('builds a note-creation input with source "shortcut"', () => {
+    const input = captureNoteInput('@brainct-fu 회의 메모 #연구', '2026-09-26', projects);
+    expect(input).toEqual({
+      body: '@brainct-fu 회의 메모 #연구',
+      kind: 'memo',
+      projectId: 'p-brainct-fu',
+      tags: ['연구'],
+      date: '2026-09-26',
+      source: 'shortcut',
+    });
+  });
+
+  it('defaults date to null when omitted', () => {
+    expect(captureNoteInput('plain text', undefined, projects).date).toBeNull();
   });
 });

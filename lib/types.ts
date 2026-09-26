@@ -1,5 +1,7 @@
 // Core data model. Same shape is mirrored in SQL for phase 1b (Supabase).
 
+import type { StatusItem } from '@/lib/status/types';
+
 export type Group = 'app' | 'research' | 'personal';
 export type ProjectStatus = 'active' | 'paused' | 'done' | 'archived';
 
@@ -171,11 +173,17 @@ export interface Note {
   tags: string[]; // stored as entered; compare case-insensitively
   date: string | null; // 'YYYY-MM-DD': memo pinned to a calendar day
   pinned: boolean;
-  source: 'web' | 'share' | 'telegram' | 'obsidian' | 'gmail' | 'collector';
+  source: 'web' | 'share' | 'shortcut' | 'telegram' | 'obsidian' | 'gmail' | 'collector';
   deliveredAt: string | null; // set when dispatched to a project's .claude/inbox.md (phase 2)
   taskId: string | null; // set when converted to a Task via convertNoteToTask
   createdAt: string;
   updatedAt: string;
+}
+
+/** Cloud status-panel cache, written by POST /api/ingest (see lib/repo Repo interface). */
+export interface StatusSnapshot {
+  items: StatusItem[];
+  collectedAt: string;
 }
 
 export interface Db {
@@ -187,4 +195,6 @@ export interface Db {
   notes: Note[];
   milestones: Milestone[];
   tasks: Task[];
+  statusSnapshot: StatusSnapshot | null;
+  heartbeatAt: string | null;
 }

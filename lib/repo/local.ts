@@ -13,10 +13,11 @@ import type {
   Project,
   ProjectActivity,
   ReviewJob,
+  StatusSnapshot,
   Task,
   TaskStatus,
 } from '@/lib/types';
-import { seedDb } from '@/lib/seed';
+import { seedDb } from '@/lib/seed/index';
 import { movePaper as movePaperLogic } from '@/lib/logic/papers';
 import { moveTask as moveTaskLogic } from '@/lib/logic/tasks';
 import type { Repo } from '@/lib/repo/index';
@@ -55,6 +56,8 @@ function normalizeDb(raw: Partial<Db>): Db {
     notes,
     milestones: raw.milestones ?? [],
     tasks,
+    statusSnapshot: raw.statusSnapshot ?? null,
+    heartbeatAt: raw.heartbeatAt ?? null,
   };
 }
 
@@ -442,6 +445,28 @@ export class LocalRepo implements Repo {
       db.tasks.push(task);
       Object.assign(note, { status: 'done', taskId: task.id, updatedAt: now });
       return task;
+    });
+  }
+
+  // --- machine APIs: cloud status cache + cron heartbeat ---
+
+  getStatusSnapshot(): Promise<StatusSnapshot | null> {
+    return this.withLock((db) => db.statusSnapshot);
+  }
+
+  setStatusSnapshot(snapshot: StatusSnapshot): Promise<void> {
+    return this.withLock((db) => {
+      db.statusSnapshot = snapshot;
+    });
+  }
+
+  getHeartbeat(): Promise<string | null> {
+    return this.withLock((db) => db.heartbeatAt);
+  }
+
+  setHeartbeat(at: string): Promise<void> {
+    return this.withLock((db) => {
+      db.heartbeatAt = at;
     });
   }
 }

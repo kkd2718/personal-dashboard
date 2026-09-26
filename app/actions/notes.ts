@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { getRepo } from '@/lib/repo';
 import type { Note } from '@/lib/types';
 import { revalidateAll } from '@/app/actions/revalidate';
+import { requireUser } from '@/lib/auth/require-user';
 
 const dateSchema = z
   .string()
@@ -18,11 +19,12 @@ const createSchema = z.object({
   tags: z.array(z.string()).optional(),
   date: dateSchema,
   source: z
-    .enum(['web', 'share', 'telegram', 'obsidian', 'gmail', 'collector'])
+    .enum(['web', 'share', 'shortcut', 'telegram', 'obsidian', 'gmail', 'collector'])
     .default('web'),
 });
 
 export async function createNoteAction(input: unknown): Promise<Note> {
+  await requireUser();
   const parsed = createSchema.parse(input);
   const note = await getRepo().createNote(parsed);
   revalidateAll();
@@ -41,6 +43,7 @@ const updateSchema = z.object({
 });
 
 export async function updateNoteAction(input: unknown): Promise<Note> {
+  await requireUser();
   const { id, ...patch } = updateSchema.parse(input);
   const note = await getRepo().updateNote(id, patch);
   revalidateAll();
@@ -56,6 +59,7 @@ const mergeTagSchema = z.object({ from: z.string().trim().min(1), to: z.string()
 
 /** Rename a tag, or merge it into an existing one, across every note. */
 export async function mergeTagAction(input: unknown): Promise<number> {
+  await requireUser();
   const { from, to } = mergeTagSchema.parse(input);
   const count = await getRepo().mergeTag(from, to);
   revalidateAll();

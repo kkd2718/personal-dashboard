@@ -81,3 +81,21 @@ export function parseCapture(text: string, projects: Project[], existingTags: st
 }
 
 export { normalize };
+
+/** Note-creation input for POST /api/capture (iOS Shortcut). Pure — no repo/network. */
+export function captureNoteInput(
+  text: string,
+  date: string | null | undefined,
+  projects: Project[],
+  existingTags: string[] = []
+): { body: string; kind: NoteKind; projectId: string | null; tags: string[]; date: string | null; source: 'shortcut' } {
+  const parsed = parseCapture(text, projects, existingTags);
+  return {
+    body: parsed.body,
+    kind: parsed.kind,
+    projectId: parsed.projectId,
+    tags: parsed.tags,
+    date: date ?? null,
+    source: 'shortcut',
+  };
+}

@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { getRepo } from '@/lib/repo';
 import type { Task } from '@/lib/types';
 import { revalidateAll } from '@/app/actions/revalidate';
+import { requireUser } from '@/lib/auth/require-user';
 
 const statusSchema = z.enum(['todo', 'doing', 'done']);
 const assigneeSchema = z.enum(['me', 'agent']);
@@ -24,6 +25,7 @@ const createSchema = z.object({
 });
 
 export async function createTaskAction(input: unknown): Promise<Task> {
+  await requireUser();
   const parsed = createSchema.parse(input);
   const task = await getRepo().createTask(parsed);
   revalidateAll();
@@ -43,6 +45,7 @@ const updateSchema = z.object({
 });
 
 export async function updateTaskAction(input: unknown): Promise<Task> {
+  await requireUser();
   const { id, ...patch } = updateSchema.parse(input);
   const task = await getRepo().updateTask(id, patch);
   revalidateAll();
@@ -61,6 +64,7 @@ const moveSchema = z.object({
 });
 
 export async function moveTaskAction(input: unknown): Promise<Task[]> {
+  await requireUser();
   const { id, toStatus, toIndex } = moveSchema.parse(input);
   const tasks = await getRepo().moveTask(id, toStatus, toIndex);
   revalidateAll();
@@ -77,6 +81,7 @@ const convertSchema = z.object({
 
 /** Memo → Task: creates the task and marks the memo done+linked in one atomic write. */
 export async function convertNoteToTaskAction(input: unknown): Promise<Task> {
+  await requireUser();
   const { noteId, ...rest } = convertSchema.parse(input);
   const task = await getRepo().convertNoteToTask(noteId, rest);
   revalidateAll();

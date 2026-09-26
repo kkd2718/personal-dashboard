@@ -9,10 +9,12 @@ import type {
   Project,
   ProjectActivity,
   ReviewJob,
+  StatusSnapshot,
   Task,
   TaskStatus,
 } from '@/lib/types';
 import { LocalRepo } from '@/lib/repo/local';
+import { SupabaseRepo } from '@/lib/repo/supabase';
 
 /** Adapter-agnostic data access. All methods are async and return plain objects. */
 export interface Repo {
@@ -92,12 +94,21 @@ export interface Repo {
     noteId: string,
     input: { projectId: string; milestoneId?: string | null; title: string; dueDate?: string | null }
   ): Promise<Task>;
+
+  // --- machine APIs (phase 1b): cloud status cache + cron heartbeat ---
+  getStatusSnapshot(): Promise<StatusSnapshot | null>;
+  setStatusSnapshot(snapshot: StatusSnapshot): Promise<void>;
+  getHeartbeat(): Promise<string | null>;
+  setHeartbeat(at: string): Promise<void>;
 }
 
-/** Chooses the adapter by env: LocalRepo unless NEXT_PUBLIC_SUPABASE_URL is set (SupabaseRepo lands in phase 1b). */
+/**
+ * Chooses the adapter by env: SupabaseRepo when NEXT_PUBLIC_SUPABASE_URL is set, else
+ * LocalRepo. Both `lib/repo/index.ts` and `lib/repo/supabase.ts` are server-only (never
+ * imported from a 'use client' component), so this never pulls the service-role key or
+ * @supabase/supabase-js into a client bundle — see rubric item 1 in docs/PLAN_1b.md.
+ */
 export function getRepo(): Repo {
-  if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
-    throw new Error('SupabaseRepo is not implemented yet (phase 1b). Unset NEXT_PUBLIC_SUPABASE_URL.');
-  }
+  if (process.env.NEXT_PUBLIC_SUPABASE_URL) return SupabaseRepo.instance();
   return LocalRepo.instance();
 }

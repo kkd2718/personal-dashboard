@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { getRepo } from '@/lib/repo';
 import type { Project } from '@/lib/types';
 import { revalidateAll } from '@/app/actions/revalidate';
+import { requireUser } from '@/lib/auth/require-user';
 
 const linkSchema = z.object({
   label: z.string().trim().min(1),
@@ -22,6 +23,7 @@ const updateSchema = z.object({
 });
 
 export async function updateProjectAction(input: unknown): Promise<Project> {
+  await requireUser();
   const { id, ...patch } = updateSchema.parse(input);
   const project = await getRepo().updateProject(id, patch);
   revalidateAll();

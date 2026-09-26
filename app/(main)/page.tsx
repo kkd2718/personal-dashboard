@@ -1,5 +1,5 @@
 import { getRepo } from '@/lib/repo';
-import { runStatusProbes } from '@/lib/status';
+import { getStatusPanelData } from '@/lib/status';
 import { QuickCapture } from '@/components/quick-capture';
 import { ChecklistPanel } from '@/components/checklist-panel';
 import { CommandCalendar } from '@/components/command-calendar';
@@ -21,8 +21,7 @@ export default async function HomePage() {
     repo.listReviews(),
     repo.listNotes(),
   ]);
-  const statusItems = await runStatusProbes(projects);
-  const checkedAt = new Date().toISOString();
+  const status = await getStatusPanelData(repo, projects);
   const activeProjects = projects.filter((p) => p.status === 'active');
   const activeMilestoneIds = milestones.filter((m) => m.status === 'active').map((m) => m.id);
 
@@ -32,7 +31,7 @@ export default async function HomePage() {
 
       {/* mobile: capture -> status(urgent) -> checklist -> memo panel -> calendar -> progress */}
       <div className="lg:hidden">
-        <StatusPanel initialItems={statusItems} checkedAt={checkedAt} mobileUrgentOnly />
+        <StatusPanel initialItems={status.items} checkedAt={status.checkedAt} remote={status.remote} mobileUrgentOnly />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -54,7 +53,7 @@ export default async function HomePage() {
         </div>
 
         <div className="order-4 hidden lg:order-none lg:block lg:h-[min(640px,calc(100dvh-200px))]">
-          <StatusPanel initialItems={statusItems} checkedAt={checkedAt} />
+          <StatusPanel initialItems={status.items} checkedAt={status.checkedAt} remote={status.remote} />
         </div>
 
         {/* row 2: memo (spans 2 cols) | progress, equal height */}

@@ -32,6 +32,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -42,3 +43,9 @@ next-env.d.ts
 
 # local JSON "database" (LocalRepo)
 /.data/
+
+# personal seed data (real projects/notes/etc) — see lib/seed.example.ts for the committed sample
+/data/*.local.json
+
+# Supabase CLI local state
+supabase/.temp/

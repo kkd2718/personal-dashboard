@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { getRepo } from '@/lib/repo';
 import type { Milestone } from '@/lib/types';
 import { revalidateAll } from '@/app/actions/revalidate';
+import { requireUser } from '@/lib/auth/require-user';
 
 const statusSchema = z.enum(['planned', 'active', 'done']);
 const dateSchema = z
@@ -21,6 +22,7 @@ const createSchema = z.object({
 });
 
 export async function createMilestoneAction(input: unknown): Promise<Milestone> {
+  await requireUser();
   const parsed = createSchema.parse(input);
   const milestone = await getRepo().createMilestone(parsed);
   revalidateAll();
@@ -37,6 +39,7 @@ const updateSchema = z.object({
 });
 
 export async function updateMilestoneAction(input: unknown): Promise<Milestone> {
+  await requireUser();
   const { id, ...patch } = updateSchema.parse(input);
   const milestone = await getRepo().updateMilestone(id, patch);
   revalidateAll();
