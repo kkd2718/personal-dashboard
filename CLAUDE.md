@@ -85,8 +85,9 @@ project's DB password isn't always available/known. Run scripts with
   phase 2's SessionStart hook will deliver into that project's Claude session** — in 1d the user
   still ticks them manually from the checklist's 에이전트 tab.
 - **1b (done)**: Supabase migration + SupabaseRepo, email-OTP auth, machine APIs (capture/ingest/
-  export/cron), floating calendar popover, `lib/seed.example.ts` isolation. Vercel deploy itself is
-  a manual step for the user (see `docs/SETUP.md`) — not run by an agent.
+  export/cron), floating calendar popover, `lib/seed.example.ts` isolation. Deploys: the Vercel
+  project is connected to GitHub, so every push to `main` auto-deploys to production
+  (`npx vercel deploy --prod` with `VERCEL_TOKEN` still works for manual deploys).
 - **2a (done)**: PC collector (`scripts/collector.mjs`, hourly Task Scheduler) posts git/session/
   backlog status to `/api/ingest`; `Project.backlogGlobs` + a second progress bar for markdown-backlog
   projects (e.g. Amgi); SessionStart hook (`scripts/cc-inbox.mjs` + `/api/agent-inbox`) delivers a
