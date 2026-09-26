@@ -117,7 +117,7 @@ Projects:
 - research/AI: BrainCT_FU (next: 1차 평가지표 지도교수 논의), DeepVitalSignal.
 - research/역학: 학위논문 FRE-NICE g-formula (본심사 후 수정 7건), CXR2BC_TKR (57명 데이터 확인), YMC_MPH.
 - research/개인연구: 연구과제(제안서/중간보고서), 특허 (CXR2BodyComposition, SimChest).
-- personal/커리어: 펠로우 지원 (강남세브란스, Portfolio).
+- personal/커리어: 전공의 지원 (강남세브란스 영상의학과 레지던트, Portfolio).
 - personal/공부: Obsidian vault, 시험 우선순위 (WSL ~/prio.json).
 - personal/일상: 데이트 · 약속.
 - archived: quant-lab (Fable 세션이 만든 trading 게이트 실험, 결과 반영 완료).
