@@ -234,6 +234,37 @@ export class LocalRepo implements Repo {
     return this.withLock((db) => [...db.papers]);
   }
 
+  createPaper(input: {
+    shortName: string;
+    title: string;
+    track: Paper['track'];
+    stage?: PaperStage;
+    projectId?: string | null;
+  }): Promise<Paper> {
+    return this.withLock((db) => {
+      const stage = input.stage ?? 'idea';
+      const sort = db.papers.filter((p) => p.stage === stage).length;
+      const paper: Paper = {
+        id: randomUUID(),
+        title: input.title,
+        shortName: input.shortName,
+        stage,
+        track: input.track,
+        journal: null,
+        manuscriptId: null,
+        targetJournals: [],
+        folderPath: null,
+        nextAction: null,
+        projectId: input.projectId ?? null,
+        submissions: [],
+        sort,
+        updatedAt: new Date().toISOString(),
+      };
+      db.papers.push(paper);
+      return paper;
+    });
+  }
+
   updatePaper(id: string, patch: Partial<Omit<Paper, 'id'>>): Promise<Paper> {
     return this.withLock((db) => {
       const paper = db.papers.find((p) => p.id === id);
@@ -499,6 +530,16 @@ export class LocalRepo implements Repo {
   setMeta(key: string, value: unknown): Promise<void> {
     return this.withLock((db) => {
       db.meta[key] = value;
+    });
+  }
+
+  listMetaByPrefix(prefix: string): Promise<Record<string, unknown>> {
+    return this.withLock((db) => {
+      const out: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(db.meta)) {
+        if (key.startsWith(prefix)) out[key] = value;
+      }
+      return out;
     });
   }
 

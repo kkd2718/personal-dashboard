@@ -189,6 +189,38 @@ export class SupabaseRepo implements Repo {
     return this.selectAll('papers', paperFromRow);
   }
 
+  async createPaper(input: {
+    shortName: string;
+    title: string;
+    track: Paper['track'];
+    stage?: PaperStage;
+    projectId?: string | null;
+  }): Promise<Paper> {
+    const stage = input.stage ?? 'idea';
+    const existing = await this.listPapers();
+    const sort = existing.filter((p) => p.stage === stage).length;
+    const n = now();
+    const paper: Paper = {
+      id: randomUUID(),
+      title: input.title,
+      shortName: input.shortName,
+      stage,
+      track: input.track,
+      journal: null,
+      manuscriptId: null,
+      targetJournals: [],
+      folderPath: null,
+      nextAction: null,
+      projectId: input.projectId ?? null,
+      submissions: [],
+      sort,
+      updatedAt: n,
+    };
+    const { error } = await this.sb.from('papers').insert(paperToRow(paper));
+    if (error) throw new Error(`createPaper: ${error.message}`);
+    return paper;
+  }
+
   async updatePaper(id: string, patch: Partial<Omit<Paper, 'id'>>): Promise<Paper> {
     const { data, error } = await this.sb
       .from('papers')
@@ -487,6 +519,14 @@ export class SupabaseRepo implements Repo {
   async setMeta(key: string, value: unknown): Promise<void> {
     const { error } = await this.sb.from('app_meta').upsert({ key, value, updated_at: now() }, { onConflict: 'key' });
     if (error) throw new Error(`setMeta: ${error.message}`);
+  }
+
+  async listMetaByPrefix(prefix: string): Promise<Record<string, unknown>> {
+    const { data, error } = await this.sb.from('app_meta').select('key, value').like('key', `${prefix}%`);
+    if (error) throw new Error(`listMetaByPrefix: ${error.message}`);
+    const out: Record<string, unknown> = {};
+    for (const row of data ?? []) out[row.key as string] = row.value;
+    return out;
   }
 
   // --- calendar events (phase 3) ---

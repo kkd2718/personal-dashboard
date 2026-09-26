@@ -8,11 +8,16 @@ import {
   acceptReviewCandidateAction,
   acceptRevisionCandidateAction,
   dismissReviewCandidateAction,
+  undoDismissReviewCandidateAction,
   updateReviewCandidateDueDateAction,
 } from '@/app/actions/reviews';
 import { dday, todayKST } from '@/lib/logic/dates';
 import { DdayChip } from '@/components/dday-chip';
-import { acceptButtonLabel, findMatchingPaper } from '@/lib/logic/review-candidates';
+import { Chip } from '@/components/ui/chip';
+import { EmptyState } from '@/components/ui/empty-state';
+import { useToast } from '@/components/ui/toast';
+import { acceptButtonLabel, candidateHeadline, findMatchingPaper } from '@/lib/logic/review-candidates';
+import { relTime } from '@/lib/logic/dates';
 import type { Paper, ReviewCandidate, ReviewJob } from '@/lib/types';
 
 const STATUS_LABEL: Record<ReviewJob['status'], string> = {
@@ -22,17 +27,13 @@ const STATUS_LABEL: Record<ReviewJob['status'], string> = {
   declined: '거절',
 };
 
-const CANDIDATE_KIND_LABEL: Record<ReviewCandidate['kind'], string> = {
-  invitation: '초대',
-  reminder: '리마인더',
-  confirmation: '확인',
-  revision: '리비전',
-  other: '기타',
-};
-
-function CandidateRow({ candidate: c, reviews, papers }: { candidate: ReviewCandidate; reviews: ReviewJob[]; papers: Paper[] }) {
+function CandidateCard({ candidate: c, reviews, papers }: { candidate: ReviewCandidate; reviews: ReviewJob[]; papers: Paper[] }) {
   const [pending, startTransition] = useTransition();
   const [paperId, setPaperId] = useState('');
+  const [dueDateOpen, setDueDateOpen] = useState(false);
+  const { show } = useToast();
+  const today = todayKST();
+  const now = new Date().toISOString();
   const primaryAccount = c.account === 'main';
   const mailLink = primaryAccount ? `https://mail.google.com/mail/#all/${c.messageId}` : null;
 
@@ -40,6 +41,7 @@ function CandidateRow({ candidate: c, reviews, papers }: { candidate: ReviewCand
   const matchedPaper = isRevision ? findMatchingPaper(c, papers) : null;
   const needsPaperSelect = isRevision && !matchedPaper;
   const canAccept = !needsPaperSelect || paperId !== '';
+  const headline = candidateHeadline(c, matchedPaper ?? (paperId ? papers.find((p) => p.id === paperId) ?? null : null), today);
 
   function accept() {
     startTransition(async () => {
@@ -51,63 +53,86 @@ function CandidateRow({ candidate: c, reviews, papers }: { candidate: ReviewCand
     });
   }
 
+  function dismiss() {
+    startTransition(async () => {
+      await dismissReviewCandidateAction(c.id);
+    });
+    show('무시했어요', {
+      action: { label: '실행 취소', onClick: () => undoDismissReviewCandidateAction(c.id) },
+    });
+  }
+
   return (
-    <li className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface p-2 text-sm">
-      <span className="flex items-center gap-1 rounded-full bg-foreground/10 px-2 py-0.5 text-[11px]">
-        <Mail size={11} />
-        {CANDIDATE_KIND_LABEL[c.kind]}
-      </span>
-      <span className="font-medium">{c.journal ?? '(저널 미상)'}</span>
-      {c.manuscriptId && <span className="text-xs text-foreground/50">{c.manuscriptId}</span>}
-      {mailLink ? (
-        <a href={mailLink} target="_blank" rel="noreferrer" className="min-w-0 truncate text-xs text-blue-600 hover:underline">
-          {c.subject}
-        </a>
-      ) : (
-        <span className="min-w-0 truncate text-xs text-foreground/50">{c.subject}</span>
-      )}
-      <input
-        type="date"
-        value={c.dueDate ?? ''}
-        onChange={(e) => {
-          startTransition(async () => {
-            await updateReviewCandidateDueDateAction({ id: c.id, dueDate: e.target.value || null });
-          });
-        }}
-        className="rounded-md border border-border bg-transparent px-1.5 py-0.5 text-xs"
-      />
-      <span className="text-[11px] text-foreground/40">수신 {c.receivedAt.slice(0, 10)}</span>
+    <li className="flex flex-col gap-1.5 rounded-xl border border-border bg-surface p-3 text-sm">
+      <div className="flex items-start gap-2">
+        <Mail size={14} className="mt-0.5 shrink-0 text-foreground/40" />
+        <p className="min-w-0 flex-1">{headline}</p>
+      </div>
+      <p className="pl-[22px] text-xs text-foreground/50">
+        {mailLink ? (
+          <a href={mailLink} target="_blank" rel="noreferrer" className="min-w-0 truncate text-accent hover:underline">
+            {c.subject}
+          </a>
+        ) : (
+          <span className="truncate">{c.subject}</span>
+        )}
+        {' · 수신 '}
+        {relTime(c.receivedAt, now)} · {c.account}
+      </p>
+
       {needsPaperSelect && (
-        <select
-          value={paperId}
-          onChange={(e) => setPaperId(e.target.value)}
-          className="rounded-md border border-border bg-transparent px-1.5 py-0.5 text-xs"
-        >
-          <option value="">논문 선택…</option>
-          {papers.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.shortName}
-            </option>
-          ))}
-        </select>
+        <div className="pl-[22px]">
+          <select
+            value={paperId}
+            onChange={(e) => setPaperId(e.target.value)}
+            className="rounded-md border border-border bg-transparent px-1.5 py-1 text-xs"
+          >
+            <option value="">어느 논문인가요?</option>
+            {papers.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.shortName}
+              </option>
+            ))}
+          </select>
+        </div>
       )}
-      <div className="ml-auto flex gap-1">
-        <button
-          type="button"
-          disabled={pending || !canAccept}
-          onClick={accept}
-          className="rounded-md bg-blue-600 px-2 py-1 text-xs text-white disabled:opacity-40"
-        >
-          {isRevision ? '적용' : acceptButtonLabel(c, reviews)}
-        </button>
-        <button
-          type="button"
-          disabled={pending}
-          onClick={() => startTransition(async () => { await dismissReviewCandidateAction(c.id); })}
-          className="rounded-md border border-border px-2 py-1 text-xs text-foreground/70 hover:bg-foreground/5 disabled:opacity-40"
-        >
-          무시
-        </button>
+
+      <div className="flex items-center gap-2 pl-[22px]">
+        {dueDateOpen || c.dueDate ? (
+          <input
+            type="date"
+            value={c.dueDate ?? ''}
+            autoFocus={dueDateOpen && !c.dueDate}
+            onChange={(e) => {
+              startTransition(async () => {
+                await updateReviewCandidateDueDateAction({ id: c.id, dueDate: e.target.value || null });
+              });
+            }}
+            className="rounded-md border border-border bg-transparent px-1.5 py-0.5 text-xs"
+          />
+        ) : (
+          <button type="button" onClick={() => setDueDateOpen(true)} className="text-xs text-foreground/40 hover:underline">
+            마감일 지정
+          </button>
+        )}
+        <div className="ml-auto flex gap-1.5">
+          <button
+            type="button"
+            disabled={pending || !canAccept}
+            onClick={accept}
+            className="rounded-[var(--r-sm)] bg-accent px-2.5 py-1 text-xs text-white disabled:opacity-40"
+          >
+            {isRevision ? '적용' : acceptButtonLabel(c, reviews)}
+          </button>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={dismiss}
+            className="rounded-[var(--r-sm)] border border-border px-2.5 py-1 text-xs text-foreground/70 hover:bg-foreground/5 disabled:opacity-40"
+          >
+            무시
+          </button>
+        </div>
       </div>
     </li>
   );
@@ -117,11 +142,11 @@ function CandidatePanel({ candidates, reviews, papers }: { candidates: ReviewCan
   if (candidates.length === 0) return null;
 
   return (
-    <div className="flex flex-col gap-2 rounded-xl border border-amber-500/40 bg-amber-500/5 p-3">
+    <div className="flex flex-col gap-2">
       <p className="text-sm font-medium">메일에서 감지됨 — 확인 필요 ({candidates.length})</p>
       <ul className="flex flex-col gap-2">
         {candidates.map((c) => (
-          <CandidateRow key={c.id} candidate={c} reviews={reviews} papers={papers} />
+          <CandidateCard key={c.id} candidate={c} reviews={reviews} papers={papers} />
         ))}
       </ul>
     </div>
@@ -184,7 +209,7 @@ export function ReviewList({
         <button
           type="submit"
           disabled={pending || !journal.trim()}
-          className="flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white disabled:opacity-40"
+          className="flex items-center gap-1 rounded-[var(--r-sm)] bg-accent px-3 py-1.5 text-sm text-white disabled:opacity-40"
         >
           <Plus size={14} />
           추가
@@ -192,7 +217,7 @@ export function ReviewList({
       </form>
 
       <ul className="flex flex-col gap-2">
-        {reviews.length === 0 && <li className="text-sm text-foreground/50">등록된 리뷰가 없습니다.</li>}
+        {reviews.length === 0 && <EmptyState>등록된 리뷰가 없어요.</EmptyState>}
         {reviews.map((r) => (
           <li
             key={r.id}
@@ -200,9 +225,7 @@ export function ReviewList({
           >
             <span className="font-medium">{r.journal}</span>
             {r.manuscriptId && <span className="text-xs text-foreground/50">{r.manuscriptId}</span>}
-            <span className="rounded-full bg-foreground/5 px-2 py-0.5 text-[11px]">
-              {STATUS_LABEL[r.status]}
-            </span>
+            <Chip>{STATUS_LABEL[r.status]}</Chip>
             {r.dueDate && <DdayChip n={dday(r.dueDate, today)} />}
             <select
               value={r.status}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { filterNotes, tagCounts } from './notes';
+import { filterNotes, groupNotesByDate, tagCounts } from './notes';
 import type { Note } from '@/lib/types';
 
 function note(overrides: Partial<Note>): Note {
@@ -36,6 +36,35 @@ describe('filterNotes', () => {
   it('filters by tag case-insensitively', () => {
     const notes = [note({ tags: ['연구아이디어'] }), note({ tags: ['다른'] })];
     expect(filterNotes(notes, { tag: '연구아이디어' })).toHaveLength(1);
+  });
+});
+
+describe('groupNotesByDate', () => {
+  const today = '2026-09-26'; // Saturday
+
+  it('floats pinned notes into a 고정 group regardless of date', () => {
+    const notes = [
+      note({ id: 'a', pinned: true, createdAt: '2026-01-01' }),
+      note({ id: 'b', createdAt: today }),
+    ];
+    const groups = groupNotesByDate(notes, today);
+    expect(groups[0]).toEqual({ label: '고정', notes: [notes[0]] });
+    expect(groups.map((g) => g.label)).toEqual(['고정', '오늘']);
+  });
+
+  it('buckets non-pinned notes into 오늘/어제/이번 주/이전 and omits empty groups', () => {
+    const notes = [
+      note({ id: 'today', createdAt: `${today}T09:00:00Z` }),
+      note({ id: 'yesterday', createdAt: '2026-09-25T09:00:00Z' }),
+      note({ id: 'thisweek', createdAt: '2026-09-22T09:00:00Z' }), // Tuesday, same ISO week
+      note({ id: 'old', createdAt: '2026-08-01T09:00:00Z' }),
+    ];
+    const groups = groupNotesByDate(notes, today);
+    expect(groups.map((g) => g.label)).toEqual(['오늘', '어제', '이번 주', '이전']);
+  });
+
+  it('returns no groups for an empty list', () => {
+    expect(groupNotesByDate([], today)).toEqual([]);
   });
 });
 

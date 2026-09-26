@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dday, ddayLabel, kstDateTime, relTime, urgency } from './dates';
+import { absoluteDateLabel, dday, ddayLabel, kstDateTime, relTime, urgency } from './dates';
 
 describe('dday', () => {
   it('computes forward, same-day, and backward diffs', () => {
@@ -28,6 +28,16 @@ describe('urgency', () => {
     expect(urgency(1)).toBe('soon');
     expect(urgency(7)).toBe('soon');
     expect(urgency(8)).toBe('later');
+  });
+});
+
+describe('absoluteDateLabel', () => {
+  it('omits the year when it matches today', () => {
+    expect(absoluteDateLabel('2026-10-15', '2026-09-26')).toBe('10월 15일 (목)');
+  });
+
+  it('prefixes the year when it differs from today', () => {
+    expect(absoluteDateLabel('2027-01-05', '2026-09-26')).toBe('2027년 1월 5일 (화)');
   });
 });
 

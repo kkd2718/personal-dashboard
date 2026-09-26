@@ -2,8 +2,9 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Pencil, Merge } from 'lucide-react';
+import { ChevronDown, Merge, Pencil } from 'lucide-react';
 import { mergeTagAction } from '@/app/actions/notes';
+import { Popover } from '@/components/ui/popover';
 
 interface TagRow {
   tag: string;
@@ -81,15 +82,31 @@ function TagActions({ tag, others }: { tag: string; others: string[] }) {
   );
 }
 
-/** Tag hygiene list for /memo: rename a tag, or merge it into another (single write, all notes). */
+/**
+ * "태그 ▾" popover next to the /memo filters (ux-advice.md §5.2): rename a tag,
+ * or merge it into another (single write, all notes) — replaces the old
+ * always-visible 태그 관리 card.
+ */
 export function TagManager({ tags }: { tags: TagRow[] }) {
+  const [open, setOpen] = useState(false);
   if (tags.length === 0) return null;
   return (
-    <div className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-3">
-      <h2 className="text-sm font-semibold">태그 관리</h2>
-      <ul className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs">
+    <Popover
+      open={open}
+      onClose={() => setOpen(false)}
+      trigger={
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="flex items-center gap-1 rounded-md border border-border px-2 py-1.5 text-sm hover:bg-foreground/5"
+        >
+          태그 <ChevronDown size={14} />
+        </button>
+      }
+    >
+      <ul className="flex max-h-72 w-64 flex-col gap-1 overflow-y-auto text-xs">
         {tags.map(({ tag, count }) => (
-          <li key={tag} className="flex items-center gap-1.5">
+          <li key={tag} className="flex items-center justify-between gap-1.5 px-1 py-0.5">
             <span>
               #{tag} <span className="text-foreground/40">({count})</span>
             </span>
@@ -97,6 +114,6 @@ export function TagManager({ tags }: { tags: TagRow[] }) {
           </li>
         ))}
       </ul>
-    </div>
+    </Popover>
   );
 }

@@ -2,13 +2,14 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Bot, Plus } from 'lucide-react';
+import { Bot, CalendarDays, Plus } from 'lucide-react';
 import { checklist, type ChecklistItem } from '@/lib/logic/checklist';
 import { dday, todayKST } from '@/lib/logic/dates';
 import { createTaskAction, toggleTaskDoneAction } from '@/app/actions/tasks';
 import { DdayChip } from '@/components/dday-chip';
+import { EmptyState } from '@/components/ui/empty-state';
 import { projectColorClasses } from '@/lib/project-colors';
-import type { Deadline, Project, ReviewJob, Task } from '@/lib/types';
+import type { CalendarEvent, Deadline, Project, ReviewJob, Task } from '@/lib/types';
 
 const DEADLINE_KIND_LABEL: Record<string, string> = {
   paper: '논문',
@@ -152,18 +153,34 @@ function AddTaskForm({ projects, onAdded }: { projects: Project[]; onAdded: () =
   );
 }
 
+/** Read-only row for a today's Google Calendar event, shown at the top of 오늘 (§5.1). */
+function EventRow({ event }: { event: CalendarEvent }) {
+  return (
+    <li className="flex items-center gap-2 rounded-lg border border-border bg-surface-2 px-2.5 py-2 text-sm text-foreground/70">
+      <CalendarDays size={14} className="shrink-0 text-foreground/40" />
+      <span className="min-w-0 flex-1 truncate">
+        {event.startTime && <span className="tnum mr-1">{event.startTime}</span>}
+        {event.title}
+      </span>
+    </li>
+  );
+}
+
 export function ChecklistPanel({
   initialTasks,
   deadlines,
   reviews,
   projects,
   activeMilestoneIds,
+  todayEvents = [],
 }: {
   initialTasks: Task[];
   activeMilestoneIds: string[];
   deadlines: Deadline[];
   reviews: ReviewJob[];
   projects: Project[];
+  /** Today's timed/all-day Google events, rendered as read-only rows inside 오늘 (§5.1). */
+  todayEvents?: CalendarEvent[];
 }) {
   const router = useRouter();
   const [tasks, setTasks] = useState(initialTasks);
@@ -195,13 +212,20 @@ export function ChecklistPanel({
     { key: 'today', label: '오늘' },
     { key: 'thisWeek', label: '이번 주' },
     { key: 'doing', label: '진행 중' },
-    { key: 'next', label: '다음 할 일 (진행 중인 큐)' },
+    { key: 'next', label: '다음 (진행 중인 큐)' },
   ];
+  // Empty sections are omitted entirely (ux-advice.md §5.1) — a section with
+  // nothing collapses to nothing instead of an "없음" line. Today's Google
+  // events count toward keeping 오늘 visible even with zero tasks.
+  const visibleSections = sections.filter(
+    ({ key }) => result[key].length > 0 || (key === 'today' && tab === 'me' && todayEvents.length > 0)
+  );
+  const isEmpty = visibleSections.length === 0;
 
   return (
     <div className="flex h-full flex-col gap-3 rounded-xl border border-border bg-surface p-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold">체크리스트</h2>
+        <h2 className="text-sm font-semibold">오늘</h2>
         <div className="flex gap-1 rounded-lg border border-border p-0.5 text-xs">
           <button
             type="button"
@@ -220,15 +244,20 @@ export function ChecklistPanel({
         </div>
       </div>
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto">
-        {sections.map(({ key, label }) => (
-          <section key={key} className="flex flex-col gap-1.5">
-            <h3 className="text-xs font-medium text-foreground/50">
-              {label} ({result[key].length})
-            </h3>
-            {result[key].length === 0 ? (
-              <p className="text-xs text-foreground/30">없음</p>
-            ) : (
+        {isEmpty ? (
+          <EmptyState action={<AddTaskForm projects={projects} onAdded={() => router.refresh()} />}>
+            오늘은 비어 있어요.
+          </EmptyState>
+        ) : (
+          visibleSections.map(({ key, label }) => (
+            <section key={key} className="flex flex-col gap-1.5">
+              <h3 className="text-xs font-medium text-foreground/50">
+                {label} ({result[key].length})
+              </h3>
               <ul className="flex flex-col gap-1">
+                {key === 'today' &&
+                  tab === 'me' &&
+                  todayEvents.map((e) => <EventRow key={e.id} event={e} />)}
                 {result[key].map((item) => (
                   <Row
                     key={item.id}
@@ -240,11 +269,11 @@ export function ChecklistPanel({
                   />
                 ))}
               </ul>
-            )}
-          </section>
-        ))}
+            </section>
+          ))
+        )}
       </div>
-      <AddTaskForm projects={projects} onAdded={() => router.refresh()} />
+      {!isEmpty && <AddTaskForm projects={projects} onAdded={() => router.refresh()} />}
     </div>
   );
 }

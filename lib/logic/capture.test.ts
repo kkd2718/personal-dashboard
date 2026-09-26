@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { captureNoteInput, parseCapture } from './capture';
+import { captureNoteInput, parseCapture, stripTokens } from './capture';
 import type { Project } from '@/lib/types';
 
 function project(overrides: Partial<Project>): Project {
@@ -106,5 +106,19 @@ describe('captureNoteInput', () => {
 
   it('defaults date to null when omitted', () => {
     expect(captureNoteInput('plain text', undefined, projects).date).toBeNull();
+  });
+});
+
+describe('stripTokens', () => {
+  it('removes @project and #tag tokens, collapsing extra spaces', () => {
+    expect(stripTokens('@brainct #연구아이디어 counterfactual RL 후속')).toBe('counterfactual RL 후속');
+  });
+
+  it('leaves plain text untouched', () => {
+    expect(stripTokens('그냥 메모입니다')).toBe('그냥 메모입니다');
+  });
+
+  it('preserves line breaks while trimming stray spaces they leave behind', () => {
+    expect(stripTokens('@brainct 첫줄\n#태그 둘째줄')).toBe('첫줄\n둘째줄');
   });
 });

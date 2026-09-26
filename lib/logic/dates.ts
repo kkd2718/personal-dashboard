@@ -109,6 +109,18 @@ export function relTime(iso: string, now: string): string {
   return `${d.getUTCFullYear()}년 ${d.getUTCMonth() + 1}월`;
 }
 
+const WEEKDAY_KO = ['일', '월', '화', '수', '목', '금', '토'];
+
+/** Absolute Korean date label (ux-advice.md §6): `10월 15일 (목)`, with the year
+ * prefixed only when `dateStr`'s year differs from `today`'s. */
+export function absoluteDateLabel(dateStr: string, today: string): string {
+  const d = toUtcDate(dateStr);
+  const [y] = dateStr.split('-').map(Number);
+  const [todayY] = today.split('-').map(Number);
+  const yearPrefix = y === todayY ? '' : `${y}년 `;
+  return `${yearPrefix}${d.getUTCMonth() + 1}월 ${d.getUTCDate()}일 (${WEEKDAY_KO[d.getUTCDay()]})`;
+}
+
 /** Converts an ISO instant to its Asia/Seoul calendar date ('YYYY-MM-DD') and
  * clock time ('HH:mm'). Used to convert Google Calendar event instants (phase 3). */
 export function kstDateTime(iso: string): { date: string; time: string } {

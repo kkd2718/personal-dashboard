@@ -18,9 +18,11 @@ const updateSchema = z.object({
   summary: z.string().optional(),
   nextAction: z.string().nullable().optional(),
   links: z.array(linkSchema).optional(),
+  paths: z.array(z.string()).optional(),
   aliases: z.array(z.string()).optional(),
   backlogGlobs: z.array(z.string()).optional(),
   pinned: z.boolean().optional(),
+  color: z.string().optional(),
 });
 
 export async function updateProjectAction(input: unknown): Promise<Project> {

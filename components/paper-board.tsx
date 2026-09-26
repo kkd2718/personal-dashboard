@@ -17,7 +17,10 @@ import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { movePaperAction } from '@/app/actions/papers';
-import type { Paper, PaperStage } from '@/lib/types';
+import { paperCardLine } from '@/lib/logic/papers';
+import { todayKST } from '@/lib/logic/dates';
+import { PaperDetail } from '@/components/papers/paper-detail';
+import type { Deadline, Paper, PaperStage, Project } from '@/lib/types';
 
 const STAGES: { key: PaperStage; label: string }[] = [
   { key: 'idea', label: '아이디어' },
@@ -38,27 +41,55 @@ function byStage(papers: Paper[]): Record<PaperStage, Paper[]> {
   return columns;
 }
 
-function Card({ paper }: { paper: Paper }) {
+function adjacentStage(stage: PaperStage, dir: -1 | 1): PaperStage | null {
+  const i = STAGES.findIndex((s) => s.key === stage);
+  const next = STAGES[i + dir];
+  return next ? next.key : null;
+}
+
+function Card({
+  paper,
+  deadlines,
+  today,
+  onSelect,
+  onKeyboardMove,
+}: {
+  paper: Paper;
+  deadlines: Deadline[];
+  today: string;
+  onSelect: () => void;
+  onKeyboardMove: (dir: -1 | 1) => void;
+}) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: paper.id,
   });
+  const line = paperCardLine(paper, deadlines, today);
   return (
     <div
       ref={setNodeRef}
       {...attributes}
       {...listeners}
+      role="button"
+      tabIndex={0}
+      onClick={onSelect}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') onSelect();
+        if (e.key === 'ArrowRight') onKeyboardMove(1);
+        if (e.key === 'ArrowLeft') onKeyboardMove(-1);
+      }}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={`cursor-grab rounded-lg border border-border bg-surface p-2.5 text-xs shadow-sm active:cursor-grabbing ${
+      className={`cursor-grab rounded-lg border border-border bg-surface p-2.5 text-xs shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-accent active:cursor-grabbing ${
         isDragging ? 'opacity-40' : ''
       }`}
     >
-      <p className="font-medium">{paper.shortName}</p>
-      <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px] text-foreground/50">
-        <span className="rounded-full bg-foreground/5 px-1.5 py-0.5">{paper.track}</span>
-        {paper.journal && <span className="truncate">{paper.journal}</span>}
-        {paper.submissions.length > 0 && <span>투고 {paper.submissions.length}회</span>}
-      </div>
-      {paper.nextAction && <p className="mt-1 truncate text-[11px] text-foreground/60">{paper.nextAction}</p>}
+      <p className="truncate font-medium" title={paper.title}>
+        {paper.shortName}
+      </p>
+      <p className="mt-0.5 truncate text-[10px] text-foreground/50">
+        {paper.track}
+        {paper.journal ? ` · ${paper.journal}` : paper.targetJournals[0] ? ` · 목표: ${paper.targetJournals[0]}` : ''}
+      </p>
+      {line && <p className="mt-1 truncate text-[11px] text-foreground/70">{line}</p>}
     </div>
   );
 }
@@ -67,49 +98,36 @@ function Column({
   stage,
   label,
   papers,
-  forceExpand,
+  deadlines,
+  today,
+  onSelect,
+  onKeyboardMove,
 }: {
   stage: PaperStage;
   label: string;
   papers: Paper[];
-  forceExpand: boolean;
+  deadlines: Deadline[];
+  today: string;
+  onSelect: (p: Paper) => void;
+  onKeyboardMove: (p: Paper, dir: -1 | 1) => void;
 }) {
-  const [hover, setHover] = useState(false);
-  const { setNodeRef: setDropRef } = useDroppable({ id: `col-${stage}` });
-  const collapsed = papers.length === 0 && !hover && !forceExpand;
-
-  if (collapsed) {
-    return (
-      <div
-        ref={setDropRef}
-        onMouseEnter={() => setHover(true)}
-        className="flex w-11 shrink-0 flex-col items-center justify-start gap-2 rounded-xl bg-foreground/[0.03] py-3"
-        title={label}
-      >
-        <span className="text-xs font-medium text-foreground/50">{papers.length}</span>
-        <span
-          className="text-xs font-medium text-foreground/60"
-          style={{ writingMode: 'vertical-rl' }}
-        >
-          {label}
-        </span>
-      </div>
-    );
-  }
-
   return (
-    <div
-      onMouseLeave={() => setHover(false)}
-      className="flex min-w-[180px] flex-1 flex-col gap-2 overflow-hidden rounded-xl bg-foreground/[0.03] p-2"
-    >
+    <div className="flex min-w-[180px] flex-1 flex-col gap-2 overflow-hidden rounded-xl bg-foreground/[0.03] p-2">
       <div className="flex shrink-0 items-center justify-between px-1 pt-1 text-xs font-medium text-foreground/60">
         <span>{label}</span>
         <span>{papers.length}</span>
       </div>
       <SortableContext items={papers.map((p) => p.id)} strategy={verticalListSortingStrategy}>
-        <div id={`col-${stage}`} className="flex min-h-12 flex-1 flex-col gap-2 overflow-y-auto">
+        <div id={`col-${stage}`} className="flex min-h-12 flex-col gap-2 overflow-y-auto">
           {papers.map((p) => (
-            <Card key={p.id} paper={p} />
+            <Card
+              key={p.id}
+              paper={p}
+              deadlines={deadlines.filter((d) => d.paperId === p.id)}
+              today={today}
+              onSelect={() => onSelect(p)}
+              onKeyboardMove={(dir) => onKeyboardMove(p, dir)}
+            />
           ))}
         </div>
       </SortableContext>
@@ -117,13 +135,37 @@ function Column({
   );
 }
 
-export function PaperBoard({ initialPapers }: { initialPapers: Paper[] }) {
+/** Empty-stage footer chip (ux-advice.md §2): droppable target, expands into a full
+ * column (handled by the caller re-classifying it as non-empty) only during drag. */
+function EmptyStageChip({ stage, label }: { stage: PaperStage; label: string }) {
+  const { setNodeRef } = useDroppable({ id: `col-${stage}` });
+  return (
+    <div
+      ref={setNodeRef}
+      className="flex shrink-0 items-center gap-1.5 rounded-full border border-dashed border-border px-3 py-1.5 text-xs text-foreground/40"
+    >
+      {label}
+    </div>
+  );
+}
+
+export function PaperBoard({
+  initialPapers,
+  deadlines = [],
+  projects = [],
+}: {
+  initialPapers: Paper[];
+  deadlines?: Deadline[];
+  projects?: Project[];
+}) {
   const router = useRouter();
   const [papers, setPapers] = useState(initialPapers);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [dragOverStage, setDragOverStage] = useState<PaperStage | null>(null);
+  const [selected, setSelected] = useState<Paper | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const columns = useMemo(() => byStage(papers), [papers]);
+  const today = todayKST();
 
   function stageOf(id: string): PaperStage | undefined {
     return papers.find((p) => p.id === id)?.stage;
@@ -164,22 +206,102 @@ export function PaperBoard({ initialPapers }: { initialPapers: Paper[] }) {
       .catch(() => router.refresh());
   }
 
+  function keyboardMove(p: Paper, dir: -1 | 1) {
+    const toStage = adjacentStage(p.stage, dir);
+    if (!toStage) return;
+    const toIndex = byStage(papers)[toStage].length;
+    movePaperAction({ id: p.id, toStage, toIndex })
+      .then((serverPapers) => setPapers(serverPapers))
+      .catch(() => router.refresh());
+  }
+
   const activePaper = activeId ? papers.find((p) => p.id === activeId) : null;
+  const nonEmpty = STAGES.filter((s) => columns[s.key].length > 0 || dragOverStage === s.key);
+  const empty = STAGES.filter((s) => columns[s.key].length === 0 && dragOverStage !== s.key);
 
   return (
-    <DndContext id="paper-board"
-      sensors={sensors}
-      collisionDetection={closestCorners}
-      onDragStart={handleDragStart}
-      onDragOver={handleDragOver}
-      onDragEnd={handleDragEnd}
-    >
-      <div className="flex h-[calc(100dvh-14rem)] min-h-[420px] w-full gap-2">
-        {STAGES.map(({ key, label }) => (
-          <Column key={key} stage={key} label={label} papers={columns[key]} forceExpand={dragOverStage === key} />
+    <div className="flex flex-col gap-2">
+      {/* Mobile: no kanban drag (ux-advice.md §7) — a stage-grouped list instead. */}
+      <div className="flex flex-col gap-3 md:hidden">
+        {STAGES.filter((s) => columns[s.key].length > 0).map(({ key, label }) => (
+          <section key={key} className="flex flex-col gap-1.5">
+            <h3 className="text-xs font-medium text-foreground/50">
+              {label} {columns[key].length}
+            </h3>
+            <div className="flex flex-col gap-1.5">
+              {columns[key].map((p) => {
+                const line = paperCardLine(p, deadlines.filter((d) => d.paperId === p.id), today);
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setSelected(p)}
+                    className="flex flex-col gap-0.5 rounded-lg border border-border bg-surface p-2.5 text-left text-xs"
+                  >
+                    <span className="font-medium">{p.shortName}</span>
+                    {line && <span className="text-foreground/60">{line}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
         ))}
       </div>
-      <DragOverlay>{activePaper ? <Card paper={activePaper} /> : null}</DragOverlay>
-    </DndContext>
+
+      <div className="hidden md:flex md:flex-col md:gap-2">
+      <DndContext id="paper-board"
+        sensors={sensors}
+        collisionDetection={closestCorners}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
+        onDragEnd={handleDragEnd}
+      >
+        <div className="flex max-h-[calc(100dvh-16rem)] w-full items-start gap-2">
+          {nonEmpty.map(({ key, label }) => (
+            <Column
+              key={key}
+              stage={key}
+              label={label}
+              papers={columns[key]}
+              deadlines={deadlines}
+              today={today}
+              onSelect={setSelected}
+              onKeyboardMove={keyboardMove}
+            />
+          ))}
+        </div>
+        <DragOverlay>
+          {activePaper ? (
+            <Card
+              paper={activePaper}
+              deadlines={deadlines.filter((d) => d.paperId === activePaper.id)}
+              today={today}
+              onSelect={() => {}}
+              onKeyboardMove={() => {}}
+            />
+          ) : null}
+        </DragOverlay>
+      </DndContext>
+
+      {empty.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-foreground/40">빈 단계:</span>
+          {empty.map(({ key, label }) => (
+            <EmptyStageChip key={key} stage={key} label={label} />
+          ))}
+        </div>
+      )}
+      </div>
+
+      {selected && (
+        <PaperDetail
+          paper={papers.find((p) => p.id === selected.id) ?? selected}
+          project={projects.find((pr) => pr.id === selected.projectId)}
+          deadlines={deadlines.filter((d) => d.paperId === selected.id && !d.done)}
+          open={selected != null}
+          onClose={() => setSelected(null)}
+        />
+      )}
+    </div>
   );
 }

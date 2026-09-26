@@ -43,6 +43,13 @@ export interface Repo {
   upsertProjectActivity(activity: ProjectActivity): Promise<ProjectActivity>;
 
   listPapers(): Promise<Paper[]>;
+  createPaper(input: {
+    shortName: string;
+    title: string;
+    track: Paper['track'];
+    stage?: PaperStage;
+    projectId?: string | null;
+  }): Promise<Paper>;
   updatePaper(id: string, patch: Partial<Omit<Paper, 'id'>>): Promise<Paper>;
   movePaper(id: string, toStage: PaperStage, toIndex: number): Promise<Paper[]>;
 
@@ -107,6 +114,9 @@ export interface Repo {
   // --- generic key/value metadata (phase 2b: telegram digest idempotency) ---
   getMeta<T>(key: string): Promise<T | null>;
   setMeta(key: string, value: unknown): Promise<void>;
+  /** Every key (and parsed value) starting with `prefix` — used by /settings to list
+   * dynamic per-account keys like `integration:google:<account>` (slice 4). */
+  listMetaByPrefix(prefix: string): Promise<Record<string, unknown>>;
 
   // --- calendar events (phase 3: one-way Google Calendar mirror) ---
   listCalendarEvents(from: string, to: string): Promise<CalendarEvent[]>;

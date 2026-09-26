@@ -85,14 +85,17 @@ export function ProjectCard({
           다음: <span className="text-foreground/70">{project.nextAction}</span>
         </p>
       )}
-      {progress.total > 0 && (
-        <div className="flex items-center gap-2">
-          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-foreground/10">
-            <div className={`h-full rounded-full ${colors.dot}`} style={{ width: `${progress.pct ?? 0}%` }} />
+      {progress.total > 0 &&
+        (progress.total >= 3 ? (
+          <div className="flex items-center gap-2">
+            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-foreground/10">
+              <div className={`h-full rounded-full ${colors.dot}`} style={{ width: `${progress.pct ?? 0}%` }} />
+            </div>
+            <span className="tnum shrink-0 text-[11px] text-foreground/50">{progressLabel(progress)}</span>
           </div>
-          <span className="tnum shrink-0 text-[11px] text-foreground/50">{progressLabel(progress)}</span>
-        </div>
-      )}
+        ) : (
+          <p className="tnum text-[11px] text-foreground/50">{progressLabel(progress)}</p>
+        ))}
       {showBacklog && backlog && (
         <div className="flex items-center gap-2">
           <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-foreground/10">

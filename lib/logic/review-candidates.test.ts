@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { acceptButtonLabel, decideAccept, decideRevisionAccept, findMatchingPaper } from '@/lib/logic/review-candidates';
+import {
+  acceptButtonLabel,
+  candidateHeadline,
+  decideAccept,
+  decideRevisionAccept,
+  findMatchingPaper,
+} from '@/lib/logic/review-candidates';
 import type { Paper, ReviewCandidate, ReviewJob } from '@/lib/types';
 
 function candidate(overrides: Partial<ReviewCandidate> = {}): ReviewCandidate {
@@ -158,5 +164,45 @@ describe('decideRevisionAccept', () => {
 
   it('null when the paper has no submissions', () => {
     expect(decideRevisionAccept(candidate(), paper({ submissions: [] }))).toBeNull();
+  });
+});
+
+describe('candidateHeadline', () => {
+  const today = '2026-01-01';
+
+  it('invitation with a due date', () => {
+    const c = candidate({ kind: 'invitation', journal: 'Fictional Journal', dueDate: '2026-01-20' });
+    expect(candidateHeadline(c, null, today)).toBe('Fictional Journal에서 리뷰 초대 · 마감 1월 20일 (화) (D-19)');
+  });
+
+  it('invitation with no due date omits the suffix', () => {
+    const c = candidate({ kind: 'invitation', journal: 'Fictional Journal', dueDate: null });
+    expect(candidateHeadline(c, null, today)).toBe('Fictional Journal에서 리뷰 초대');
+  });
+
+  it('reminder', () => {
+    const c = candidate({ kind: 'reminder', journal: 'Fictional Journal', dueDate: '2026-01-04' });
+    expect(candidateHeadline(c, null, today)).toBe('Fictional Journal 리뷰 마감 알림 · D-3');
+  });
+
+  it('confirmation', () => {
+    const c = candidate({ kind: 'confirmation', journal: 'Fictional Journal' });
+    expect(candidateHeadline(c, null, today)).toBe('Fictional Journal 리뷰 수락 확인됨');
+  });
+
+  it('revision with a matched paper', () => {
+    const p = paper({ shortName: 'FicTitle' });
+    const c = candidate({ kind: 'revision', revisionType: 'major', dueDate: '2026-03-01' });
+    expect(candidateHeadline(c, p, today)).toBe('FicTitle · Major revision 요청 · 제출 기한 3월 1일 (일) (D-59)');
+  });
+
+  it('revision with no matched paper asks which one', () => {
+    const c = candidate({ kind: 'revision', dueDate: null });
+    expect(candidateHeadline(c, null, today)).toBe('어느 논문인가요? · Major revision 요청');
+  });
+
+  it('other kind is a generic prompt', () => {
+    const c = candidate({ kind: 'other' });
+    expect(candidateHeadline(c, null, today)).toBe('리뷰 관련 메일 · 확인 필요');
   });
 });

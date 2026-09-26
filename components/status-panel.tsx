@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
-import { RefreshCw } from 'lucide-react';
+import Link from 'next/link';
+import { ChevronDown, RefreshCw } from 'lucide-react';
+import type { Project } from '@/lib/types';
 import type { StatusItem } from '@/lib/status/types';
 
 // Light mode: soft filled card. Dark mode never fills a solid color slab
@@ -31,16 +33,20 @@ export function StatusPanel({
   checkedAt,
   remote = false,
   mobileUrgentOnly = false,
+  projects = [],
 }: {
   initialItems: StatusItem[];
   checkedAt: string;
   /** True when items come from the last /api/ingest snapshot (cloud, LOCAL_PROBES=0), not a live probe. */
   remote?: boolean;
   mobileUrgentOnly?: boolean;
+  /** Resolves item.projectId to a project link (§5.1: "each item links to its project"). */
+  projects?: Project[];
 }) {
   const [items, setItems] = useState(initialItems);
   const [lastChecked, setLastChecked] = useState(checkedAt);
   const [pending, startTransition] = useTransition();
+  const [showCalm, setShowCalm] = useState(false);
 
   function refresh() {
     startTransition(async () => {
@@ -68,12 +74,40 @@ export function StatusPanel({
     return () => clearInterval(id);
   }, [remote, lastChecked]);
 
-  const shown = mobileUrgentOnly ? urgentOnly(items) : items;
+  const shownMobile = urgentOnly(items);
+  // Desktop: loud items (critical/warn) always open; info/ok collapse behind one toggle line (§5.1).
+  const loud = items.filter((i) => i.severity === 'critical' || i.severity === 'warn');
+  const calm = items.filter((i) => i.severity === 'info' || i.severity === 'ok');
+  const shownDesktop = showCalm ? items : loud;
+  const shown = mobileUrgentOnly ? shownMobile : shownDesktop;
+  const slugById = new Map(projects.map((p) => [p.id, p.slug]));
+
+  function ItemRow({ item }: { item: StatusItem }) {
+    const body = (
+      <>
+        <span className="wrap-anywhere font-medium">{item.title}</span>
+        {item.detail && <span className="wrap-anywhere opacity-80">{item.detail}</span>}
+      </>
+    );
+    const className = `flex min-w-0 flex-col gap-0.5 rounded-lg border px-2.5 py-1.5 text-xs ${SEVERITY_STYLE[item.severity]}`;
+    const slug = item.projectId ? slugById.get(item.projectId) : undefined;
+    return (
+      <li>
+        {slug ? (
+          <Link href={`/projects/${slug}`} className={`${className} hover:opacity-80`}>
+            {body}
+          </Link>
+        ) : (
+          <div className={className}>{body}</div>
+        )}
+      </li>
+    );
+  }
 
   return (
     <div className="flex h-full min-w-0 flex-col gap-2 rounded-xl border border-border bg-surface p-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold">상황 체크</h2>
+        <h2 className="text-sm font-semibold">상황</h2>
         <div className="flex items-center gap-2 text-[11px] text-foreground/40">
           {remote ? (
             <span
@@ -92,7 +126,7 @@ export function StatusPanel({
             type="button"
             onClick={refresh}
             disabled={pending}
-            className="rounded-md p-1 hover:bg-foreground/5"
+            className="flex h-[26px] w-[26px] items-center justify-center rounded-md hover:bg-foreground/5"
             aria-label="새로고침"
           >
             <RefreshCw size={13} className={pending ? 'animate-spin' : ''} />
@@ -100,19 +134,24 @@ export function StatusPanel({
         </div>
       </div>
       <div className="min-h-0 min-w-0 flex-1 overflow-auto">
-        {shown.length === 0 ? (
-          <p className="text-xs text-foreground/40">이상 없음</p>
+        {items.length === 0 ? (
+          <p className="text-xs text-foreground/40">모두 정상이에요 · {remote ? 'PC 기준' : '마지막 확인'} {fmtTime(lastChecked)}</p>
         ) : (
           <ul className="flex min-w-0 flex-col gap-1.5">
             {shown.map((item) => (
-              <li
-                key={item.id}
-                className={`flex min-w-0 flex-col gap-0.5 rounded-lg border px-2.5 py-1.5 text-xs ${SEVERITY_STYLE[item.severity]}`}
-              >
-                <span className="wrap-anywhere font-medium">{item.title}</span>
-                {item.detail && <span className="wrap-anywhere opacity-80">{item.detail}</span>}
-              </li>
+              <ItemRow key={item.id} item={item} />
             ))}
+            {!mobileUrgentOnly && !showCalm && calm.length > 0 && (
+              <li>
+                <button
+                  type="button"
+                  onClick={() => setShowCalm(true)}
+                  className="flex items-center gap-1 px-2.5 py-1 text-xs text-foreground/40 hover:text-foreground/70"
+                >
+                  그 외 {calm.length}개 정상 <ChevronDown size={12} />
+                </button>
+              </li>
+            )}
           </ul>
         )}
       </div>

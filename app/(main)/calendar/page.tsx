@@ -2,7 +2,6 @@ import { getRepo } from '@/lib/repo';
 import { CommandCalendar } from '@/components/command-calendar';
 import { DeadlineList } from '@/components/deadline-list';
 import { upcoming } from '@/lib/logic/upcoming';
-import { DdayChip } from '@/components/dday-chip';
 import { addDaysStr, todayKST } from '@/lib/logic/dates';
 import { CALENDAR_VISIBLE_META_KEY } from '@/lib/logic/calendar';
 
@@ -40,29 +39,12 @@ export default async function CalendarPage() {
           defaultView="month"
         />
         <div className="flex flex-col gap-4">
-          <div className="rounded-xl border border-border bg-surface p-3">
-            <h2 className="mb-2 text-sm font-semibold">다가오는 일정 (30일)</h2>
-            {agenda.length === 0 ? (
-              <p className="text-xs text-foreground/40">일정이 없습니다.</p>
-            ) : (
-              <ul className="flex flex-col gap-2">
-                {agenda.map((item) => (
-                  <li key={item.id} className="flex items-center gap-2 text-sm">
-                    <DdayChip n={item.dday} />
-                    <span className="flex-1 truncate">{item.title}</span>
-                    <span className="text-xs text-foreground/40">{item.dueDate}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
+          <div className="rounded-[var(--r-md)] border border-border bg-surface p-3">
+            <h2 className="mb-2 text-sm font-semibold">다가오는 30일</h2>
+            <DeadlineList items={agenda} />
           </div>
         </div>
       </div>
-
-      <section className="flex flex-col gap-2">
-        <h2 className="text-sm font-medium text-foreground/60">마감 추가/관리</h2>
-        <DeadlineList deadlines={deadlines} />
-      </section>
     </div>
   );
 }

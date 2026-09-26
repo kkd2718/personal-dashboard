@@ -82,6 +82,21 @@ export function parseCapture(text: string, projects: Project[], existingTags: st
 
 export { normalize };
 
+/**
+ * Removes `@project`/`#tag` tokens from rendered note bodies (ux-advice.md §5.2):
+ * they're already parsed into projectId/tags, so a memo card never repeats the
+ * raw `@brainct #연구아이디어` text. The stored body is untouched — this only
+ * affects display.
+ */
+export function stripTokens(text: string): string {
+  return text
+    .replace(TAG_RE, '')
+    .replace(MENTION_RE, '')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/ *\n */g, '\n')
+    .trim();
+}
+
 /** Note-creation input shared by POST /api/capture (iOS Shortcut) and the Telegram
  * webhook (phase 2b) — see lib/create-note.ts. Pure — no repo/network. */
 export function captureNoteInput(

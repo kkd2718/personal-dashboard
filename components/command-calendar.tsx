@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter, usePathname } from 'next/navigation';
-import Link from 'next/link';
 import {
   ChevronLeft,
   ChevronRight,
@@ -13,10 +12,11 @@ import {
   FileText,
   StickyNote,
   CalendarDays,
+  Plus,
 } from 'lucide-react';
 import { calendarEvents, calendarVisibilityOptions, filterVisibleEvents, type CalendarPoint } from '@/lib/logic/calendar';
 import { tagCounts } from '@/lib/logic/notes';
-import { addDaysStr, addMonthsStr, startOfMonthStr, todayKST } from '@/lib/logic/dates';
+import { addDaysStr, addMonthsStr, dday, startOfMonthStr, todayKST, urgency } from '@/lib/logic/dates';
 import { projectColorClasses } from '@/lib/project-colors';
 import { createNoteAction } from '@/app/actions/notes';
 import { createTaskAction } from '@/app/actions/tasks';
@@ -25,6 +25,10 @@ import { setVisibleCalendarsAction } from '@/app/actions/calendar';
 import { NoteItem } from '@/components/note-item';
 import { MentionTextarea } from '@/components/mention-textarea';
 import { parseCapture } from '@/lib/logic/capture';
+import { Button } from '@/components/ui/button';
+import { Chip } from '@/components/ui/chip';
+import { SegmentedControl } from '@/components/ui/segmented-control';
+import { DdayChip } from '@/components/dday-chip';
 import type { CalendarEvent, Deadline, DeadlineKind, Milestone, Note, Project, ReviewJob, Task } from '@/lib/types';
 
 const POINT_ICON: Record<CalendarPoint['kind'], typeof ClipboardCheck> = {
@@ -305,7 +309,7 @@ function DayPopover({
             key={t}
             type="button"
             onClick={() => setTab(t)}
-            className={`flex-1 rounded-md px-2 py-1 ${tab === t ? 'bg-blue-600 text-white' : 'text-foreground/80 hover:bg-foreground/5'}`}
+            className={`flex-1 rounded-md px-2 py-1 ${tab === t ? 'bg-accent text-white' : 'text-foreground/80 hover:bg-foreground/5'}`}
           >
             {t === 'memo' ? '메모' : t === 'task' ? '할 일' : '마감'}
           </button>
@@ -361,7 +365,7 @@ function DayPopover({
               ))}
             </div>
           )}
-          <button type="submit" disabled={!memoBody.trim()} className="rounded-md bg-blue-600 px-2 py-1 text-white disabled:opacity-40">
+          <button type="submit" disabled={!memoBody.trim()} className="rounded-md bg-accent px-2 py-1 text-white disabled:opacity-40">
             메모 추가
           </button>
         </form>
@@ -391,13 +395,13 @@ function DayPopover({
                 key={a}
                 type="button"
                 onClick={() => setTaskAssignee(a)}
-                className={`flex-1 rounded px-1.5 py-1 ${taskAssignee === a ? 'bg-blue-600 text-white' : 'text-foreground/80 hover:bg-foreground/5'}`}
+                className={`flex-1 rounded px-1.5 py-1 ${taskAssignee === a ? 'bg-accent text-white' : 'text-foreground/80 hover:bg-foreground/5'}`}
               >
                 {a === 'me' ? '나' : '에이전트'}
               </button>
             ))}
           </div>
-          <button type="submit" disabled={!taskTitle.trim()} className="rounded-md bg-blue-600 px-2 py-1 text-white disabled:opacity-40">
+          <button type="submit" disabled={!taskTitle.trim()} className="rounded-md bg-accent px-2 py-1 text-white disabled:opacity-40">
             할 일 추가
           </button>
         </form>
@@ -427,7 +431,7 @@ function DayPopover({
             onChange={(e) => setDeadlineTime(e.target.value)}
             className="rounded-md border border-border bg-transparent px-2 py-1"
           />
-          <button type="submit" disabled={!deadlineTitle.trim()} className="rounded-md bg-blue-600 px-2 py-1 text-white disabled:opacity-40">
+          <button type="submit" disabled={!deadlineTitle.trim()} className="rounded-md bg-accent px-2 py-1 text-white disabled:opacity-40">
             마감 추가
           </button>
         </form>
@@ -508,6 +512,10 @@ export function CommandCalendar({
     setTriggerEl(null);
   }
 
+  function openAddToday(e: React.MouseEvent<HTMLButtonElement>) {
+    openDay(today, e);
+  }
+
   const monthStart = startOfMonthStr(cursor);
   const events = useMemo(
     () =>
@@ -536,56 +544,55 @@ export function CommandCalendar({
   }
 
   return (
-    <div className="flex h-full flex-col gap-2 rounded-xl border border-border bg-surface p-3">
-      <div className="flex items-center justify-between">
+    <div className="flex h-full flex-col gap-2 rounded-[var(--r-lg)] border border-border bg-surface p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-1">
-          <button type="button" onClick={() => setCursor((c) => addMonthsStr(c, -1))} aria-label="이전 달">
-            <ChevronLeft size={16} />
-          </button>
-          <span className="min-w-20 text-center text-sm font-medium">
-            {monthStart.slice(0, 4)}년 {Number(monthStart.slice(5, 7))}월
-          </span>
-          <button type="button" onClick={() => setCursor((c) => addMonthsStr(c, 1))} aria-label="다음 달">
-            <ChevronRight size={16} />
-          </button>
           <button
             type="button"
-            onClick={() => setCursor(today)}
-            className="ml-1 rounded-md border border-border px-2 py-0.5 text-xs text-foreground/60 hover:bg-foreground/5"
+            onClick={() => setCursor((c) => addMonthsStr(c, -1))}
+            aria-label="이전 달"
+            className="rounded-md p-1 text-foreground/60 hover:bg-foreground/5"
           >
-            오늘
+            <ChevronLeft size={16} />
           </button>
+          <span className="tnum min-w-20 text-center text-sm font-medium">
+            {monthStart.slice(0, 4)}년 {Number(monthStart.slice(5, 7))}월
+          </span>
+          <button
+            type="button"
+            onClick={() => setCursor((c) => addMonthsStr(c, 1))}
+            aria-label="다음 달"
+            className="rounded-md p-1 text-foreground/60 hover:bg-foreground/5"
+          >
+            <ChevronRight size={16} />
+          </button>
+          <Button size="sm" variant="ghost" onClick={() => setCursor(today)} className="ml-1">
+            오늘
+          </Button>
         </div>
-        <div className="flex gap-1 rounded-lg border border-border p-0.5 text-xs">
-          {(['month', 'week'] as const).map((v) => (
-            <button
-              key={v}
-              type="button"
-              onClick={() => setView(v)}
-              className={`rounded-md px-2 py-1 ${view === v ? 'bg-blue-600 text-white' : 'text-foreground/60'}`}
-            >
-              {v === 'month' ? '월' : '주'}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <SegmentedControl
+            options={[{ value: 'month', label: '월' }, { value: 'week', label: '주' }]}
+            value={view}
+            onChange={setView}
+          />
+          <Button size="sm" variant="secondary" onClick={openAddToday}>
+            <Plus size={14} />
+            추가
+          </Button>
         </div>
       </div>
 
       {calendarOptions.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1">
-          <CalendarDays size={11} className="text-foreground/30" />
+        <div className="flex flex-wrap items-center gap-1.5">
+          <CalendarDays size={12} className="text-foreground/30" />
           {calendarOptions.map((o) => {
             const on = effectiveVisible.includes(o.name);
             return (
-              <button
-                key={o.name}
-                type="button"
-                disabled={calendarPending}
-                onClick={() => toggleCalendar(o.name)}
-                className={`rounded-full border px-2 py-0.5 text-[11px] disabled:opacity-40 ${
-                  on ? 'border-blue-500/40 bg-blue-500/10 text-blue-600' : 'border-border text-foreground/40'
-                }`}
-              >
-                {o.name}
+              <button key={o.name} type="button" disabled={calendarPending} onClick={() => toggleCalendar(o.name)}>
+                <Chip tone={on ? 'accent' : 'neutral'} className="cursor-pointer disabled:opacity-40">
+                  {o.name}
+                </Chip>
               </button>
             );
           })}
@@ -638,21 +645,35 @@ export function CommandCalendar({
                       onClick={(e) => openDay(date, e)}
                       className={`flex min-h-14 min-w-0 flex-col items-start gap-0.5 rounded-md p-1 text-left text-[11px] ${
                         inMonth ? '' : 'text-foreground/25'
-                      } ${isToday ? 'bg-blue-600/10' : 'hover:bg-foreground/5'} ${
-                        selected === date ? 'ring-1 ring-blue-500' : ''
+                      } ${isToday ? 'bg-accent-soft' : 'hover:bg-foreground/5'} ${
+                        selected === date ? 'ring-1 ring-accent' : ''
                       } ${compact ? 'min-h-11' : ''}`}
                     >
-                      <span className={isToday ? 'font-semibold text-blue-600' : isHoliday ? 'font-semibold text-red-500' : ''}>
+                      <span className={isToday ? 'font-semibold text-accent' : isHoliday ? 'font-semibold text-danger' : ''}>
                         {Number(date.slice(8, 10))}
                       </span>
                       {points.slice(0, 3).map((p) => {
                         const Icon = POINT_ICON[p.kind];
                         const isGoogle = p.kind === 'google';
+                        // Deadlines/reviews render as a solid, urgency-tinted D-day chip;
+                        // Google events as an outline "◦ HH:mm 제목" chip (§5.7).
+                        const isDday = p.kind === 'deadline' || p.kind === 'review';
+                        const u = isDday ? urgency(dday(date, today)) : null;
+                        const ddayTone =
+                          u === 'overdue' || u === 'today'
+                            ? 'bg-danger-soft text-danger'
+                            : u === 'soon'
+                              ? 'bg-warn-soft text-warn'
+                              : 'bg-foreground/8 text-foreground/60';
                         return (
                           <span
                             key={p.id}
-                            className={`flex w-full min-w-0 items-center gap-0.5 text-[10px] ${
-                              isGoogle ? 'rounded-full border border-border px-1 text-foreground/50' : 'text-foreground/60'
+                            className={`flex w-full min-w-0 items-center gap-0.5 rounded-full px-1 text-[10px] ${
+                              isGoogle
+                                ? 'border border-border text-foreground/50'
+                                : isDday
+                                  ? ddayTone
+                                  : 'text-foreground/60'
                             }`}
                           >
                             <Icon size={9} className="shrink-0" />
@@ -674,6 +695,46 @@ export function CommandCalendar({
       </div>
       </div>
 
+      {/* Mobile agenda for the visible week (§5.7: mobile defaults to week + agenda,
+          not a month grid). Desktop already reads the grid directly. */}
+      {view === 'week' && weeks[0] && (
+        <ul className="flex flex-col gap-2 md:hidden">
+          {Array.from({ length: 7 }, (_, i) => addDaysStr(weeks[0], i)).map((date) => {
+            const points = events.points[date] ?? [];
+            if (points.length === 0) return null;
+            const isToday = date === today;
+            return (
+              <li key={date} className="flex gap-2">
+                <span
+                  className={`tnum w-12 shrink-0 pt-0.5 text-xs ${isToday ? 'font-semibold text-accent' : 'text-foreground/40'}`}
+                >
+                  {Number(date.slice(5, 7))}/{Number(date.slice(8, 10))}
+                </span>
+                <ul className="flex min-w-0 flex-1 flex-col gap-1">
+                  {points.map((p) => {
+                    const Icon = POINT_ICON[p.kind];
+                    const isDday = p.kind === 'deadline' || p.kind === 'review';
+                    return (
+                      <li key={p.id} className="flex min-w-0 items-center gap-1.5 text-sm">
+                        <Icon size={12} className="shrink-0 text-foreground/40" />
+                        {p.kind === 'google' && p.startTime && (
+                          <span className="tnum shrink-0 text-xs text-foreground/50">{p.startTime}</span>
+                        )}
+                        <span className="min-w-0 truncate">{p.title}</span>
+                        {isDday && <DdayChip n={dday(date, today)} />}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </li>
+            );
+          })}
+          {Array.from({ length: 7 }, (_, i) => addDaysStr(weeks[0], i)).every(
+            (d) => (events.points[d] ?? []).length === 0
+          ) && <p className="text-xs text-foreground/40">이번 주는 비어 있어요.</p>}
+        </ul>
+      )}
+
       {selected && anchorRect && (
         <DayPopoverOverlay anchorRect={anchorRect} triggerEl={triggerEl} onClose={closeDay}>
           <DayPopover
@@ -687,13 +748,6 @@ export function CommandCalendar({
         </DayPopoverOverlay>
       )}
 
-      {!compact && (
-        <p className="text-[11px] text-foreground/30">
-          <Link href="/projects" className="hover:underline">
-            큐/할 일은 프로젝트 상세에서 편집
-          </Link>
-        </p>
-      )}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -72,12 +72,12 @@ export function Sidebar({ authEnabled = false }: { authEnabled?: boolean }) {
       <div className="flex flex-col gap-2 border-t border-border px-3 py-3">
         <button
           type="button"
-          // Placeholder only — the command palette itself lands in slice 4 (§4.1).
-          onClick={() => {}}
+          onClick={() => window.dispatchEvent(new Event('cc:open-palette'))}
           className="flex items-center gap-3 rounded-[var(--r-sm)] px-3 py-2 text-left text-sm text-foreground/50 hover:bg-foreground/5"
         >
           <Command size={16} />
           검색·명령
+          <kbd className="ml-auto rounded border border-border px-1 text-[10px] text-foreground/40">⌘K</kbd>
         </button>
         <div className="flex items-center justify-between px-1">
           <Link
@@ -118,6 +118,15 @@ function CaptureButton({
 }) {
   const [open, setOpen] = useState(false);
   const { show } = useToast();
+
+  // 'c' shortcut (components/shortcuts-provider.tsx) opens this sheet from any page.
+  useEffect(() => {
+    function onFocusCapture() {
+      setOpen(true);
+    }
+    window.addEventListener('cc:focus-capture', onFocusCapture);
+    return () => window.removeEventListener('cc:focus-capture', onFocusCapture);
+  }, []);
 
   return (
     <>

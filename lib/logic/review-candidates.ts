@@ -2,6 +2,7 @@
 // ReviewJob pipeline, or (Addendum A) a revision letter into the Paper pipeline.
 // No repo access — app/actions/reviews.ts calls repo methods based on these decisions.
 import type { Paper, ReviewCandidate, ReviewJob, ReviewStatus, SubmissionDecision } from '@/lib/types';
+import { absoluteDateLabel, dday, ddayLabel } from '@/lib/logic/dates';
 
 export type AcceptDecision =
   | {
@@ -109,4 +110,39 @@ export function decideRevisionAccept(candidate: ReviewCandidate, paper: Paper): 
     decision,
     deadlineTitle: `${paper.shortName} 리비전 제출`,
   };
+}
+
+function ddayText(n: number): string {
+  return n === 0 ? '오늘' : ddayLabel(n);
+}
+
+/** Sentence headline for a candidate card (ux-advice.md §5.6). `matchedPaper` is
+ * only used for `kind === 'revision'` (pass `findMatchingPaper`'s result, or the
+ * user's manual pick). Pure so it's easy to unit test independent of "now". */
+export function candidateHeadline(candidate: ReviewCandidate, matchedPaper: Paper | null, today: string): string {
+  const journal = candidate.journal ?? '(저널 미상)';
+  const dueSuffix = candidate.dueDate
+    ? ` · 마감 ${absoluteDateLabel(candidate.dueDate, today)} (${ddayText(dday(candidate.dueDate, today))})`
+    : '';
+
+  switch (candidate.kind) {
+    case 'invitation':
+      return `${journal}에서 리뷰 초대${dueSuffix}`;
+    case 'reminder':
+      return candidate.dueDate
+        ? `${journal} 리뷰 마감 알림 · ${ddayText(dday(candidate.dueDate, today))}`
+        : `${journal} 리뷰 마감 알림`;
+    case 'confirmation':
+      return `${journal} 리뷰 수락 확인됨`;
+    case 'revision': {
+      const label = candidate.revisionType === 'minor' ? 'Minor revision' : 'Major revision';
+      const name = matchedPaper?.shortName ?? '어느 논문인가요?';
+      const deadline = candidate.dueDate
+        ? ` · 제출 기한 ${absoluteDateLabel(candidate.dueDate, today)} (${ddayText(dday(candidate.dueDate, today))})`
+        : '';
+      return `${name} · ${label} 요청${deadline}`;
+    }
+    default:
+      return '리뷰 관련 메일 · 확인 필요';
+  }
 }

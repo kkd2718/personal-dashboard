@@ -1,4 +1,5 @@
 import type { Note, NoteStatus } from '@/lib/types';
+import { addDaysStr, startOfIsoWeek } from '@/lib/logic/dates';
 
 export interface NoteFilter {
   projectId?: string | null;
@@ -33,4 +34,37 @@ export function tagCounts(notes: Note[]): { tag: string; count: number }[] {
     }
   }
   return [...counts.values()].sort((a, b) => b.count - a.count);
+}
+
+export interface NoteGroup {
+  label: string;
+  notes: Note[];
+}
+
+/**
+ * Groups notes for the /memo page (ux-advice.md §5.2): pinned notes float in a
+ * "고정" group at the top regardless of date, then 오늘/어제/이번 주/이전 by
+ * createdAt (KST calendar day). Empty groups are omitted.
+ */
+export function groupNotesByDate(notes: Note[], today: string): NoteGroup[] {
+  const pinned = notes.filter((n) => n.pinned);
+  const rest = notes.filter((n) => !n.pinned);
+
+  const yesterday = addDaysStr(today, -1);
+  const weekStart = startOfIsoWeek(today);
+  const buckets: Record<string, Note[]> = { 오늘: [], 어제: [], '이번 주': [], 이전: [] };
+  for (const n of rest) {
+    const day = n.createdAt.slice(0, 10);
+    if (day === today) buckets['오늘'].push(n);
+    else if (day === yesterday) buckets['어제'].push(n);
+    else if (day >= weekStart) buckets['이번 주'].push(n);
+    else buckets['이전'].push(n);
+  }
+
+  const groups: NoteGroup[] = [];
+  if (pinned.length > 0) groups.push({ label: '고정', notes: pinned });
+  for (const [label, list] of Object.entries(buckets)) {
+    if (list.length > 0) groups.push({ label, notes: list });
+  }
+  return groups;
 }

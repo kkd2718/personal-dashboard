@@ -84,6 +84,14 @@ export async function dismissReviewCandidateAction(candidateId: string): Promise
   return candidate;
 }
 
+/** Undo for the 무시 toast (ux-advice.md §4.4) — puts a dismissed candidate back to pending. */
+export async function undoDismissReviewCandidateAction(candidateId: string): Promise<ReviewCandidate> {
+  await requireUser();
+  const candidate = await getRepo().updateReviewCandidate(candidateId, { status: 'pending' });
+  revalidateAll();
+  return candidate;
+}
+
 const updateCandidateDueDateSchema = z.object({
   id: z.string().min(1),
   dueDate: dateSchema,

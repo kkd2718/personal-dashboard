@@ -48,13 +48,21 @@ export async function gitStatus(projects: Project[]): Promise<StatusItem[]> {
   const items: StatusItem[] = [];
   const dirtyNames: string[] = [];
   const today = todayKST();
+  // Fetched once so the WSL-only bootstrap branch below can tell whether the phase-2a
+  // PC collector (scripts/collector.mjs, hourly) already owns this project's row —
+  // see the ux-advice.md decision 6 bug: this probe used to overwrite that row with a
+  // bare `{wsl:'1'}` on every page load (far more often than the hourly collector),
+  // wiping out the collector's backlogOpen/backlogDone metrics every time.
+  const existingActivity = new Map((await repo.listProjectActivity()).map((a) => [a.projectId, a]));
 
   await Promise.all(
     projects.map(async (project) => {
       const winPath = project.paths.map(resolveWindowsPath).find((p): p is string => p != null);
       if (!winPath) {
-        if (isWslOnly(project)) {
-          // WSL repos are covered by the phase-2 collector; no status noise until then.
+        if (isWslOnly(project) && !existingActivity.has(project.id)) {
+          // Bootstrap placeholder only, before the collector has ever run for this
+          // project. Once a row exists (collector-written, richer), leave it alone —
+          // this probe has no way to reach a WSL-only path anyway.
           await repo.upsertProjectActivity({
             projectId: project.id,
             branch: null,

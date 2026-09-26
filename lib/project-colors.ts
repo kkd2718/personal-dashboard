@@ -32,6 +32,9 @@ const TABLE: Record<string, ColorClasses> = {
 
 const FALLBACK: ColorClasses = TABLE.slate;
 
+/** All valid `Project.color` keys, in swatch-picker display order (project-edit-form.tsx). */
+export const PROJECT_COLORS = Object.keys(TABLE);
+
 export function projectColorClasses(color: string | null | undefined): ColorClasses {
   return (color && TABLE[color]) || FALLBACK;
 }

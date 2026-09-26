@@ -15,10 +15,13 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Bot, Plus, X } from 'lucide-react';
+import { Bot, MoreHorizontal, Plus, X } from 'lucide-react';
 import { moveTaskAction, createTaskAction, updateTaskAction } from '@/app/actions/tasks';
 import { dday, todayKST } from '@/lib/logic/dates';
 import { DdayChip } from '@/components/dday-chip';
+import { SegmentedControl } from '@/components/ui/segmented-control';
+import { Popover } from '@/components/ui/popover';
+import { EmptyState } from '@/components/ui/empty-state';
 import type { Milestone, Project, Task, TaskStatus } from '@/lib/types';
 
 const COLUMNS: { key: TaskStatus; label: string }[] = [
@@ -177,6 +180,69 @@ function EditPanel({
   );
 }
 
+function MobileRow({
+  task,
+  milestone,
+  onMove,
+  onEdit,
+}: {
+  task: Task;
+  milestone: Milestone | undefined;
+  onMove: (status: TaskStatus) => void;
+  onEdit: () => void;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const today = todayKST();
+  return (
+    <div className="flex min-h-12 items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+      <button type="button" onClick={onEdit} className="flex min-w-0 flex-1 flex-col items-start gap-1 text-left">
+        <span className={task.status === 'done' ? 'text-foreground/50 line-through' : ''}>{task.title}</span>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {milestone && (
+            <span className="rounded-full bg-foreground/5 px-1.5 py-0.5 text-[10px] text-foreground/50">{milestone.title}</span>
+          )}
+          {task.assignee === 'agent' && (
+            <span className="flex items-center gap-0.5 rounded-full bg-foreground/5 px-1.5 py-0.5 text-[10px] text-foreground/50">
+              <Bot size={10} />
+              에이전트
+            </span>
+          )}
+          {task.dueDate && <DdayChip n={dday(task.dueDate, today)} />}
+        </div>
+      </button>
+      <Popover
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        align="end"
+        trigger={
+          <button
+            type="button"
+            onClick={() => setMenuOpen((v) => !v)}
+            aria-label="이동"
+            className="flex h-11 w-11 shrink-0 items-center justify-center text-foreground/50"
+          >
+            <MoreHorizontal size={18} />
+          </button>
+        }
+      >
+        {COLUMNS.filter((c) => c.key !== task.status).map((c) => (
+          <button
+            key={c.key}
+            type="button"
+            onClick={() => {
+              onMove(c.key);
+              setMenuOpen(false);
+            }}
+            className="block w-full rounded-md px-2 py-1.5 text-left hover:bg-foreground/5"
+          >
+            {c.label}로 이동
+          </button>
+        ))}
+      </Popover>
+    </div>
+  );
+}
+
 export function TaskBoard({
   project,
   initialTasks,
@@ -193,6 +259,7 @@ export function TaskBoard({
   const [editing, setEditing] = useState<Task | null>(null);
   const [adding, setAdding] = useState(false);
   const [newTitle, setNewTitle] = useState('');
+  const [mobileStatus, setMobileStatus] = useState<TaskStatus>('todo');
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const milestoneById = useMemo(() => new Map(milestones.map((m) => [m.id, m])), [milestones]);
 
@@ -248,6 +315,13 @@ export function TaskBoard({
 
   const activeTask = activeId ? tasks.find((t) => t.id === activeId) : null;
 
+  function moveMobile(task: Task, toStatus: TaskStatus) {
+    const toIndex = byStatus(tasks)[toStatus].length;
+    moveTaskAction({ id: task.id, toStatus, toIndex })
+      .then((serverTasks) => setTasks(serverTasks.filter((t) => t.projectId === project.id)))
+      .catch(() => router.refresh());
+  }
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-1.5 text-xs">
@@ -292,24 +366,51 @@ export function TaskBoard({
         )}
       </div>
 
-      <DndContext id="task-board"
-        sensors={sensors}
-        collisionDetection={closestCorners}
-        onDragStart={handleDragStart}
-        onDragOver={handleDragOver}
-        onDragEnd={handleDragEnd}
-      >
-        <div className="flex w-full gap-3">
-          {COLUMNS.map(({ key, label }) => (
-            <Column key={key} status={key} label={label} tasks={columns[key]} milestoneById={milestoneById} onEdit={setEditing} />
-          ))}
-        </div>
-        <DragOverlay>
-          {activeTask ? (
-            <Card task={activeTask} milestone={activeTask.milestoneId ? milestoneById.get(activeTask.milestoneId) : undefined} onEdit={() => {}} />
-          ) : null}
-        </DragOverlay>
-      </DndContext>
+      {/* Desktop: three-column drag board. Mobile has no drag (ux-advice.md §7); a
+          segmented list + row ⋯ menu replaces it below. */}
+      <div className="hidden md:block">
+        <DndContext id="task-board"
+          sensors={sensors}
+          collisionDetection={closestCorners}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
+        >
+          <div className="flex w-full gap-3">
+            {COLUMNS.map(({ key, label }) => (
+              <Column key={key} status={key} label={label} tasks={columns[key]} milestoneById={milestoneById} onEdit={setEditing} />
+            ))}
+          </div>
+          <DragOverlay>
+            {activeTask ? (
+              <Card task={activeTask} milestone={activeTask.milestoneId ? milestoneById.get(activeTask.milestoneId) : undefined} onEdit={() => {}} />
+            ) : null}
+          </DragOverlay>
+        </DndContext>
+      </div>
+
+      <div className="flex flex-col gap-2 md:hidden">
+        <SegmentedControl
+          value={mobileStatus}
+          onChange={setMobileStatus}
+          options={COLUMNS.map((c) => ({ value: c.key, label: `${c.label} ${columns[c.key].length}` }))}
+        />
+        {columns[mobileStatus].length === 0 ? (
+          <EmptyState>이 상태의 할 일이 없어요.</EmptyState>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {columns[mobileStatus].map((t) => (
+              <MobileRow
+                key={t.id}
+                task={t}
+                milestone={t.milestoneId ? milestoneById.get(t.milestoneId) : undefined}
+                onMove={(toStatus) => moveMobile(t, toStatus)}
+                onEdit={() => setEditing(t)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
 
       {editing && <EditPanel task={editing} milestones={milestones} onClose={() => setEditing(null)} />}
     </div>

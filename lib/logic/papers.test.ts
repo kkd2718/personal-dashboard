@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { movePaper } from './papers';
-import type { Paper } from '@/lib/types';
+import { movePaper, paperCardLine } from './papers';
+import type { Deadline, Paper } from '@/lib/types';
 
 function paper(overrides: Partial<Paper>): Paper {
   return {
@@ -65,5 +65,70 @@ describe('movePaper', () => {
     const papers = [paper({ id: 'a' })];
     const result = movePaper(papers, 'missing', 'accepted', 0);
     expect(result).toEqual(papers);
+  });
+});
+
+function deadline(overrides: Partial<Deadline>): Deadline {
+  return {
+    id: 'd1',
+    title: 'Revision',
+    kind: 'paper',
+    dueDate: '2026-10-01',
+    dueTime: null,
+    projectId: null,
+    paperId: 'p1',
+    reviewId: null,
+    done: false,
+    remindDays: [7, 3, 1],
+    updatedAt: '2026-09-25',
+    ...overrides,
+  };
+}
+
+describe('paperCardLine', () => {
+  const today = '2026-09-25';
+
+  it('writing: shows the next action', () => {
+    expect(paperCardLine(paper({ stage: 'writing', nextAction: '1차 평가지표 정리' }), [], today)).toBe(
+      '▸ 1차 평가지표 정리'
+    );
+  });
+
+  it('writing: null when there is no next action', () => {
+    expect(paperCardLine(paper({ stage: 'writing', nextAction: null }), [], today)).toBeNull();
+  });
+
+  it('under_review: days since the latest submission', () => {
+    const p = paper({
+      stage: 'under_review',
+      submissions: [{ journal: 'J', submittedAt: '2026-08-15', decision: 'pending', decidedAt: null }],
+    });
+    expect(paperCardLine(p, [], today)).toBe('심사 41일째');
+  });
+
+  it('submitted: falls back to submission count when never submittedAt', () => {
+    const p = paper({
+      stage: 'submitted',
+      submissions: [{ journal: 'J', submittedAt: null, decision: 'pending', decidedAt: null }],
+    });
+    expect(paperCardLine(p, [], today)).toBe('투고 1회');
+  });
+
+  it('revision: D-day from the linked deadline', () => {
+    const p = paper({ id: 'p1', stage: 'revision' });
+    expect(paperCardLine(p, [deadline({ paperId: 'p1', dueDate: '2026-10-07' })], today)).toBe('⚠ 리비전 D-12');
+  });
+
+  it('revision: no linked deadline', () => {
+    expect(paperCardLine(paper({ id: 'p1', stage: 'revision' }), [], today)).toBe('리비전 기한 없음');
+  });
+
+  it('published: journal and decision month', () => {
+    const p = paper({
+      stage: 'published',
+      journal: 'Fictional Journal',
+      submissions: [{ journal: 'Fictional Journal', submittedAt: '2026-01-01', decision: 'accept', decidedAt: '2026-03-15' }],
+    });
+    expect(paperCardLine(p, [], today)).toBe('Fictional Journal · 2026-03');
   });
 });
