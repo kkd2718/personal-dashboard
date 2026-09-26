@@ -15,6 +15,7 @@ function project(overrides: Partial<Project>): Project {
     links: [],
     paths: [],
     aliases: [],
+    backlogGlobs: [],
     pinned: false,
     sort: 0,
     color: 'blue',

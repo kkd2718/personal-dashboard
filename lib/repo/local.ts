@@ -44,9 +44,10 @@ function normalizeDb(raw: Partial<Db>): Db {
     ...p,
     color: p.color ?? PROJECT_COLORS[i % PROJECT_COLORS.length],
     aliases: p.aliases ?? [],
+    backlogGlobs: p.backlogGlobs ?? [],
   }));
   const notes = (raw.notes ?? []).map((n) => ({ ...n, taskId: n.taskId ?? null, date: n.date ?? null }));
-  const tasks = (raw.tasks ?? []).map((t) => ({ ...t, assignee: t.assignee ?? 'me' }));
+  const tasks = (raw.tasks ?? []).map((t) => ({ ...t, assignee: t.assignee ?? 'me', deliveredAt: t.deliveredAt ?? null }));
   return {
     projects,
     projectActivity: raw.projectActivity ?? [],
@@ -389,6 +390,7 @@ export class LocalRepo implements Repo {
         dueDate: input.dueDate ?? null,
         doneAt: status === 'done' ? now : null,
         assignee: input.assignee ?? 'me',
+        deliveredAt: null,
         sort: siblings.length,
         createdAt: now,
         updatedAt: now,
@@ -438,6 +440,7 @@ export class LocalRepo implements Repo {
         dueDate: input.dueDate ?? null,
         doneAt: null,
         assignee: 'me',
+        deliveredAt: null,
         sort: siblings.length,
         createdAt: now,
         updatedAt: now,

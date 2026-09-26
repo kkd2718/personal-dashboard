@@ -12,13 +12,15 @@ const ROOT = path.resolve(import.meta.dirname, '..');
 const PATTERNS = [/기덕/, /skdgh23/, /kkd2718/, /C:\\Users/, /\/home\/kkd2718/];
 
 const EXEMPT_PREFIXES = ['data/', 'docs/'];
+// The gate's own pattern list necessarily contains the strings it searches for.
+const EXEMPT_FILES = ['scripts/check-isolation.mjs'];
 
-/** Returns a list of `{ file, pattern }` violations among git-tracked files. */
+/** Returns `{ file, pattern }` violations among tracked + untracked (non-ignored) files. */
 export function checkIsolation() {
-  const files = execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf-8' })
+  const files = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard'], { cwd: ROOT, encoding: 'utf-8' })
     .split('\n')
     .filter(Boolean)
-    .filter((f) => !EXEMPT_PREFIXES.some((p) => f.startsWith(p)));
+    .filter((f) => !EXEMPT_PREFIXES.some((p) => f.startsWith(p)) && !EXEMPT_FILES.includes(f));
 
   const violations = [];
   for (const file of files) {

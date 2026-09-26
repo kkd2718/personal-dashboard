@@ -23,6 +23,7 @@ export interface Project {
   links: LinkRef[];
   paths: string[]; // Windows or WSL paths, e.g. 'C:\\Users\\...\\trading-system', '/home/.../amgi'
   aliases: string[]; // extra @-mention names (e.g. Korean nicknames), matched like slug/name
+  backlogGlobs: string[]; // relative to paths[0], e.g. ['docs/BACKLOG.md'] (phase 2a collector)
   pinned: boolean;
   sort: number;
   color: string; // tailwind palette key, e.g. 'blue', 'emerald' — accent for calendar/cards
@@ -59,6 +60,7 @@ export interface Task {
   dueDate: string | null; // 'YYYY-MM-DD'
   doneAt: string | null;
   assignee: Assignee; // default 'me'
+  deliveredAt: string | null; // set on first agent-inbox delivery (phase 2a), agent tasks only
   sort: number; // dense per (projectId, status)
   createdAt: string;
   updatedAt: string;

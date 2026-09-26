@@ -84,7 +84,76 @@ npm run db:import         # 실제 이전 (.data/db.json이 있으면 그걸, �
 - **배포하자마자 500 에러("Auth not configured...")**: `APP_PASSWORD`/`SESSION_SECRET`을
   Vercel 환경 변수에 등록하지 않은 상태입니다 (4번 5항 참고).
 - **상태 패널이 비어 있음(클라우드)**: 아직 `/api/ingest`로 아무것도 보낸 적이 없기
-  때문입니다. PC에서 `npm run push-status` (환경변수 `CLOUD_URL`, `INGEST_TOKEN` 필요)를
-  수동으로 실행해 보세요. 스케줄링은 phase 2에서 자동화합니다.
+  때문입니다. PC에서 `npm run collector` (환경변수 `CLOUD_URL`, `INGEST_TOKEN` 필요)를
+  수동으로 실행해 보세요.
 - **백업**: Supabase 무료 플랜은 자동 백업이 없습니다. 로그인 후 `/api/export`에
   접속하면 전체 데이터를 JSON으로 내려받을 수 있습니다 — 가끔 저장해 두세요.
+
+## 7. PC 수집기 스케줄링 (phase 2a)
+
+`scripts/collector.mjs`가 매시간 git/세션/백로그 상태를 모아 `/api/ingest`로 보냅니다.
+`.env.local`에 `CLOUD_URL`, `INGEST_TOKEN` (그리고 필요하면 `TRADING_URL`)이 있어야 합니다.
+
+```powershell
+powershell -File scripts\register-collector-task.ps1
+```
+
+Windows 작업 스케줄러에 `CommandCenterCollector` 작업을 등록합니다 (매 60분 + 로그온 시,
+사용자가 로그인해 있을 때만, 5분 제한시간). 이미 있으면 지우고 다시 등록합니다(멱등).
+수동 1회 실행은 `npm run collector`.
+
+## 8. 에이전트 인박스 SessionStart 훅 (phase 2a)
+
+프로젝트 디렉터리에서 Claude Code 세션을 시작할 때, 그 프로젝트에 배정된 에이전트
+할 일과 "전송됨" 메모를 세션에 자동으로 보여줍니다 (`scripts/cc-inbox.mjs` +
+`GET /api/agent-inbox`). `.env.local`에 `CLOUD_URL`, `AGENT_TOKEN`이 있어야 합니다.
+
+등록은 `~/.claude/settings.json` (Windows용, WSL용 각각 따로 — 홈 디렉터리가 다름)에
+`hooks.SessionStart`를 추가합니다. WSL 쪽은 `node`가 시스템 Node 18이므로
+`scripts/cc-inbox.mjs`가 Node 18에서 그대로 동작하도록 만들어져 있습니다 (plain ESM,
+`--env-file` 미사용).
+
+Windows `~/.claude/settings.json` (경로는 실제 클론 위치로 교체):
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"C:\\Users\\<user>\\Desktop\\Work\\personal-dashboard\\scripts\\cc-inbox.mjs\" hook",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+WSL `~/.claude/settings.json` (같은 파일을 WSL 쪽 경로로):
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node /mnt/c/Users/<user>/Desktop/Work/personal-dashboard/scripts/cc-inbox.mjs hook",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+기존에 다른 `SessionStart` 훅이 있다면 배열에 추가만 하면 됩니다. 훅은 항상 exit 0이고,
+전달할 항목이 없거나 `CLOUD_URL`/`AGENT_TOKEN` 미설정·타임아웃(3초)이면 아무것도 출력하지
+않습니다 — 세션 시작을 막거나 늦추지 않습니다. 완료 처리는 훅이 출력해 준 명령을 그대로
+실행: `node "<스크립트 경로>" done <id>`.

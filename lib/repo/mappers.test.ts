@@ -40,6 +40,7 @@ const project: Project = {
   links: [{ label: 'GitHub', url: 'https://x', kind: 'repo' }],
   paths: ['/a/b'],
   aliases: ['별칭'],
+  backlogGlobs: ['docs/BACKLOG.md'],
   pinned: true,
   sort: 2,
   color: 'blue',
@@ -67,6 +68,7 @@ const task: Task = {
   dueDate: '2026-01-05',
   doneAt: null,
   assignee: 'agent',
+  deliveredAt: null,
   sort: 1,
   createdAt: '2026-01-01T00:00:00Z',
   updatedAt: '2026-01-01T00:00:00Z',
@@ -162,6 +164,7 @@ describe('mappers tolerate missing/null jsonb', () => {
     expect(p.links).toEqual([]);
     expect(p.paths).toEqual([]);
     expect(p.aliases).toEqual([]);
+    expect(p.backlogGlobs).toEqual([]);
     expect(p.summary).toBe('');
     expect(p.color).toBe('blue');
     expect(p.nextAction).toBeNull();

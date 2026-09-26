@@ -55,6 +55,11 @@ export async function assignNoteToProjectAction(id: string, projectId: string): 
   return updateNoteAction({ id, projectId, status: 'filed' });
 }
 
+/** Dispatches a memo into its project's SessionStart inbox (phase 2a): status -> 'sent'. */
+export async function sendNoteToProjectAction(id: string): Promise<Note> {
+  return updateNoteAction({ id, status: 'sent' });
+}
+
 const mergeTagSchema = z.object({ from: z.string().trim().min(1), to: z.string().trim().min(1) });
 
 /** Rename a tag, or merge it into an existing one, across every note. */

@@ -57,6 +57,10 @@ anon/authenticated get nothing) — see `docs/reviews/plan-advice.md` §5 for wh
 ## Machine APIs (bearer tokens, constant-time compare via `lib/auth/bearer.ts`)
 - `POST /api/capture` (`CAPTURE_TOKEN`) — iOS Shortcut / share sheet quick memo.
 - `POST /api/ingest` (`INGEST_TOKEN`) — status collector (phase 2) writes `status_snapshot`/`project_activity`.
+- `GET /api/collector/config` (`INGEST_TOKEN`) — phase 2a: tells `scripts/collector.mjs` which
+  active/paused projects to probe (paths, backlogGlobs).
+- `GET /api/agent-inbox`, `POST /api/agent-inbox/done` (`AGENT_TOKEN`) — phase 2a: SessionStart hook
+  (`scripts/cc-inbox.mjs`) delivers a project's open agent tasks + sent memos into its Claude session.
 - `GET /api/export` (session required) — full JSON dump of every table (Supabase free tier has no
   automated backups).
 - `GET /api/cron/daily` (`CRON_SECRET`, called by Vercel — see `vercel.json`) — daily heartbeat.
@@ -70,7 +74,7 @@ the Supabase project and filling them in. Unset `NEXT_PUBLIC_SUPABASE_URL` → L
 (`SUPABASE_ACCESS_TOKEN` + `SUPABASE_PROJECT_REF`), not a direct `postgres` connection — the
 project's DB password isn't always available/known. Run scripts with
 `node --env-file=.env.local --experimental-strip-types scripts/<name>.mjs` (or the matching
-`npm run db:migrate` / `db:import` / `push-status`).
+`npm run db:migrate` / `db:import` / `collector`).
 
 ## Phase status
 - **1a (done)**: LocalRepo, seed data, all screens (홈/인박스/프로젝트/논문/마감/공유), PWA manifest,
@@ -83,8 +87,11 @@ project's DB password isn't always available/known. Run scripts with
 - **1b (done)**: Supabase migration + SupabaseRepo, email-OTP auth, machine APIs (capture/ingest/
   export/cron), floating calendar popover, `lib/seed.example.ts` isolation. Vercel deploy itself is
   a manual step for the user (see `docs/SETUP.md`) — not run by an agent.
-- **2**: Collector script (git/memory/trading status → `/api/ingest`), note→project inbox dispatch,
-  SessionStart hook delivering `assignee: 'agent'` tasks into each project's Claude session.
+- **2a (done)**: PC collector (`scripts/collector.mjs`, hourly Task Scheduler) posts git/session/
+  backlog status to `/api/ingest`; `Project.backlogGlobs` + a second progress bar for markdown-backlog
+  projects (e.g. Amgi); SessionStart hook (`scripts/cc-inbox.mjs` + `/api/agent-inbox`) delivers a
+  project's open agent tasks and "sent" memos into its Claude session.
+- **2**: Telegram/Gmail/Obsidian dispatch into the inbox is still phase 3 (see below).
 - **3**: Google Calendar, Telegram bot, Gmail review-deadline extraction, Obsidian sync.
 
 ## Conventions

@@ -16,13 +16,22 @@ export function ProjectEditForm({ project }: { project: Project }) {
   const [summary, setSummary] = useState(project.summary);
   const [nextAction, setNextAction] = useState(project.nextAction ?? '');
   const [aliasesText, setAliasesText] = useState(project.aliases.join(', '));
+  const [backlogGlobsText, setBacklogGlobsText] = useState(project.backlogGlobs.join(', '));
   const [pending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
 
   function save() {
     const aliases = aliasesText.split(',').map((a) => a.trim()).filter(Boolean);
+    const backlogGlobs = backlogGlobsText.split(',').map((g) => g.trim()).filter(Boolean);
     startTransition(async () => {
-      await updateProjectAction({ id: project.id, status, summary, nextAction: nextAction || null, aliases });
+      await updateProjectAction({
+        id: project.id,
+        status,
+        summary,
+        nextAction: nextAction || null,
+        aliases,
+        backlogGlobs,
+      });
       setSaved(true);
       setTimeout(() => setSaved(false), 1500);
     });
@@ -67,6 +76,15 @@ export function ProjectEditForm({ project }: { project: Project }) {
           value={aliasesText}
           onChange={(e) => setAliasesText(e.target.value)}
           placeholder="예: 브레인CT, brain ct, 뇌CT"
+          className="rounded-md border border-border bg-transparent px-2 py-1.5"
+        />
+      </label>
+      <label className="flex flex-col gap-1 text-sm">
+        백로그 파일 (쉼표로 구분, 프로젝트 경로 기준 상대경로)
+        <input
+          value={backlogGlobsText}
+          onChange={(e) => setBacklogGlobsText(e.target.value)}
+          placeholder="예: docs/BACKLOG.md"
           className="rounded-md border border-border bg-transparent px-2 py-1.5"
         />
       </label>

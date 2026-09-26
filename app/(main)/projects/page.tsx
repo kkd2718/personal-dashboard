@@ -27,6 +27,7 @@ export default async function ProjectsPage({
   ]);
   const grouped = groupProjects(projects);
   const activityByProject = new Map(activity.map((a) => [a.projectId, a]));
+  const now = new Date().toISOString();
 
   return (
     <div className="flex flex-col gap-5">
@@ -57,6 +58,7 @@ export default async function ProjectsPage({
                 activity={activityByProject.get(p.id)}
                 tasks={tasks}
                 milestones={milestones}
+                now={now}
               />
             ))}
           </div>

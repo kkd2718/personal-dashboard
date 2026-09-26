@@ -1,8 +1,8 @@
 'use client';
 
 import { useMemo, useState, useTransition } from 'react';
-import { Archive, Check, Pencil, Pin, Repeat } from 'lucide-react';
-import { updateNoteAction } from '@/app/actions/notes';
+import { Archive, Bot, Check, Pencil, Pin, Repeat, Send } from 'lucide-react';
+import { sendNoteToProjectAction, updateNoteAction } from '@/app/actions/notes';
 import { convertNoteToTaskAction } from '@/app/actions/tasks';
 import type { Milestone, Note, Project } from '@/lib/types';
 
@@ -136,6 +136,12 @@ export function NoteItem({
     });
   }
 
+  function sendToProject() {
+    startTransition(async () => {
+      await sendNoteToProjectAction(note.id);
+    });
+  }
+
   const project = projects.find((p) => p.id === note.projectId);
 
   return (
@@ -253,6 +259,26 @@ export function NoteItem({
           ))}
         </select>
         {project && <span>→ {project.name}</span>}
+        {project && note.status === 'sent' ? (
+          <span className="flex items-center gap-1 rounded-full bg-foreground/5 px-2 py-0.5 text-[11px] text-foreground/50">
+            <Bot size={11} />
+            에이전트에게 보냄
+            {note.deliveredAt &&
+              ` · 전달됨 ${new Date(note.deliveredAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}`}
+          </span>
+        ) : (
+          project && (
+            <button
+              type="button"
+              onClick={sendToProject}
+              disabled={pending}
+              className="flex items-center gap-1 rounded-md border border-border px-2 py-1 hover:bg-foreground/5"
+            >
+              <Send size={12} />
+              프로젝트로 보내기
+            </button>
+          )
+        )}
         {note.taskId ? (
           <span className="ml-auto text-foreground/40">할 일로 전환됨</span>
         ) : (

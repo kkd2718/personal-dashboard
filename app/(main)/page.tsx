@@ -13,13 +13,14 @@ export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
   const repo = getRepo();
-  const [projects, tasks, milestones, deadlines, reviews, notes] = await Promise.all([
+  const [projects, tasks, milestones, deadlines, reviews, notes, activityList] = await Promise.all([
     repo.listProjects(),
     repo.listTasks(),
     repo.listMilestones(),
     repo.listDeadlines(),
     repo.listReviews(),
     repo.listNotes(),
+    repo.listProjectActivity(),
   ]);
   const status = await getStatusPanelData(repo, projects);
   const activeProjects = projects.filter((p) => p.status === 'active');
@@ -62,7 +63,7 @@ export default async function HomePage() {
         </div>
 
         <div className="order-5 lg:order-none lg:h-[420px]">
-          <ProjectProgressList projects={projects} milestones={milestones} tasks={tasks} />
+          <ProjectProgressList projects={projects} milestones={milestones} tasks={tasks} activityList={activityList} />
         </div>
       </div>
     </div>

@@ -15,7 +15,7 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Plus, X } from 'lucide-react';
+import { Bot, Plus, X } from 'lucide-react';
 import { moveTaskAction, createTaskAction, updateTaskAction } from '@/app/actions/tasks';
 import { dday, todayKST } from '@/lib/logic/dates';
 import { DdayChip } from '@/components/dday-chip';
@@ -60,6 +60,12 @@ function Card({
         {milestone && (
           <span className="rounded-full bg-foreground/5 px-1.5 py-0.5 text-[10px] text-foreground/50">
             {milestone.title}
+          </span>
+        )}
+        {task.assignee === 'agent' && task.deliveredAt && (
+          <span className="flex items-center gap-0.5 rounded-full bg-foreground/5 px-1.5 py-0.5 text-[10px] text-foreground/50">
+            <Bot size={10} />
+            전달됨 {new Date(task.deliveredAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
           </span>
         )}
         {task.dueDate && <DdayChip n={dday(task.dueDate, today)} />}

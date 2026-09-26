@@ -359,6 +359,7 @@ export class SupabaseRepo implements Repo {
       dueDate: input.dueDate ?? null,
       doneAt: status === 'done' ? n : null,
       assignee: input.assignee ?? 'me',
+      deliveredAt: null,
       sort: count ?? 0,
       createdAt: n,
       updatedAt: n,
@@ -412,6 +413,7 @@ export class SupabaseRepo implements Repo {
       dueDate: input.dueDate ?? null,
       doneAt: null,
       assignee: 'me',
+      deliveredAt: null,
       sort: 0, // recomputed inside the RPC
       createdAt: n,
       updatedAt: n,

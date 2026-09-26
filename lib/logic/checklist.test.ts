@@ -15,6 +15,7 @@ function task(overrides: Partial<Task>): Task {
     dueDate: null,
     doneAt: null,
     assignee: 'me',
+    deliveredAt: null,
     sort: 0,
     createdAt: today,
     updatedAt: today,
@@ -100,7 +101,7 @@ describe('checklist', () => {
 
 describe('checklist next bucket', () => {
   it('lists undated todo tasks of active milestones only', () => {
-    const base = { projectId: 'p', description: null, doneAt: null, assignee: 'me' as const, sort: 0, createdAt: '', updatedAt: '' };
+    const base = { projectId: 'p', description: null, doneAt: null, assignee: 'me' as const, deliveredAt: null, sort: 0, createdAt: '', updatedAt: '' };
     const tasks = [
       { ...base, id: 'a', title: 'A', milestoneId: 'm1', status: 'todo' as const, dueDate: null },
       { ...base, id: 'b', title: 'B', milestoneId: 'm2', status: 'todo' as const, dueDate: null },
@@ -111,7 +112,7 @@ describe('checklist next bucket', () => {
   });
   it('counts a task done at 00:30 KST as done today', () => {
     const t = { id: 'd', title: 'D', projectId: 'p', milestoneId: null, description: null, status: 'done' as const,
-      dueDate: null, doneAt: '2026-09-24T15:30:00.000Z', assignee: 'me' as const, sort: 0, createdAt: '', updatedAt: '' };
+      dueDate: null, doneAt: '2026-09-24T15:30:00.000Z', assignee: 'me' as const, deliveredAt: null, sort: 0, createdAt: '', updatedAt: '' };
     expect(checklist([t], [], [], '2026-09-25').me.today.map((i) => i.id)).toEqual(['d']);
   });
 });

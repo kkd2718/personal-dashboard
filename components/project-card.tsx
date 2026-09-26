@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { Folder, GitBranch, Laptop, Link2, Pin, Radio } from 'lucide-react';
 import type { Milestone, Project, ProjectActivity, Task } from '@/lib/types';
 import { dday, todayKST } from '@/lib/logic/dates';
-import { projectProgress } from '@/lib/logic/progress';
+import { backlogProgress, projectProgress, shouldShowBacklogBar } from '@/lib/logic/progress';
 import { staleness } from '@/lib/logic/staleness';
 import { projectColorClasses } from '@/lib/project-colors';
 
@@ -34,16 +34,25 @@ export function ProjectCard({
   activity,
   tasks = [],
   milestones = [],
+  now,
 }: {
   project: Project;
   activity?: ProjectActivity;
   tasks?: Task[];
   milestones?: Milestone[];
+  /** ISO timestamp for "n시간 전" — passed by the (server) caller so this stays a pure render. */
+  now?: string;
 }) {
   const today = todayKST();
   const commitDaysAgo =
     activity?.lastCommitAt != null ? dday(today, activity.lastCommitAt.slice(0, 10)) : null;
+  const sessionHoursAgo =
+    activity?.lastSessionAt != null && now != null
+      ? Math.round((new Date(now).getTime() - new Date(activity.lastSessionAt).getTime()) / 3_600_000)
+      : null;
   const progress = projectProgress(project.id, tasks);
+  const backlog = backlogProgress(activity);
+  const showBacklog = shouldShowBacklogBar(project, tasks, backlog);
   const activeQueue = milestones.find((m) => m.projectId === project.id && m.status === 'active');
   const colors = projectColorClasses(project.color);
   const wsl = activity?.metrics?.wsl === '1';
@@ -83,6 +92,16 @@ export function ProjectCard({
           </span>
         </div>
       )}
+      {showBacklog && backlog && (
+        <div className="flex items-center gap-2">
+          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-foreground/10">
+            <div className="h-full rounded-full bg-foreground/30" style={{ width: `${backlog.pct ?? 0}%` }} />
+          </div>
+          <span className="shrink-0 text-[11px] text-foreground/50">
+            BACKLOG {backlog.done}/{backlog.total} ({backlog.pct}%)
+          </span>
+        </div>
+      )}
       <div className="flex items-center gap-1.5">
         {wsl ? (
           <span className="rounded-full bg-foreground/5 px-2 py-0.5 text-[11px] text-foreground/40">
@@ -97,8 +116,13 @@ export function ProjectCard({
         )}
         {commitDaysAgo !== null && (
           <p className="text-[11px] text-foreground/40">
-            마지막 커밋 {commitDaysAgo <= 0 ? '오늘' : `${commitDaysAgo}일 전`}
+            커밋 {commitDaysAgo <= 0 ? '오늘' : `${commitDaysAgo}일 전`}
             {activity?.dirty ? ' · 미커밋 변경 있음' : ''}
+          </p>
+        )}
+        {sessionHoursAgo !== null && (
+          <p className="text-[11px] text-foreground/40">
+            마지막 세션 {sessionHoursAgo <= 0 ? '방금' : `${sessionHoursAgo}시간 전`}
           </p>
         )}
       </div>
