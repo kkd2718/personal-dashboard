@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dday, ddayLabel, kstDateTime, urgency } from './dates';
+import { dday, ddayLabel, kstDateTime, relTime, urgency } from './dates';
 
 describe('dday', () => {
   it('computes forward, same-day, and backward diffs', () => {
@@ -39,5 +39,39 @@ describe('kstDateTime', () => {
 
   it('handles a same-UTC-day KST instant', () => {
     expect(kstDateTime('2026-06-15T01:00:00.000Z')).toEqual({ date: '2026-06-15', time: '10:00' });
+  });
+});
+
+describe('relTime', () => {
+  const now = '2026-09-26T12:00:00.000Z';
+
+  it('buckets recent past instants', () => {
+    expect(relTime('2026-09-26T11:59:31.000Z', now)).toBe('방금');
+    expect(relTime('2026-09-26T11:45:00.000Z', now)).toBe('15분 전');
+    expect(relTime('2026-09-26T09:00:00.000Z', now)).toBe('3시간 전');
+  });
+
+  it('never shows raw hours beyond a day', () => {
+    // ~27 days ago (644 hours) must read as days/weeks, not "644시간 전".
+    expect(relTime('2026-08-30T12:00:00.000Z', now)).not.toMatch(/시간/);
+  });
+
+  it('shows 어제/내일 for one day away', () => {
+    expect(relTime('2026-09-25T12:00:00.000Z', now)).toBe('어제');
+    expect(relTime('2026-09-27T12:00:00.000Z', now)).toBe('내일');
+  });
+
+  it('buckets days, weeks, and months', () => {
+    expect(relTime('2026-09-20T12:00:00.000Z', now)).toBe('6일 전');
+    expect(relTime('2026-09-01T12:00:00.000Z', now)).toBe('3주 전');
+    expect(relTime('2026-06-26T12:00:00.000Z', now)).toBe('3개월 전');
+  });
+
+  it('falls back to year+month beyond a year', () => {
+    expect(relTime('2025-03-15T00:00:00.000Z', now)).toBe('2025년 3월');
+  });
+
+  it('supports future instants', () => {
+    expect(relTime('2026-09-30T12:00:00.000Z', now)).toBe('4일 후');
   });
 });

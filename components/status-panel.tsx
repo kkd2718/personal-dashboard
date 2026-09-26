@@ -4,11 +4,14 @@ import { useEffect, useState, useTransition } from 'react';
 import { RefreshCw } from 'lucide-react';
 import type { StatusItem } from '@/lib/status/types';
 
+// Light mode: soft filled card. Dark mode never fills a solid color slab
+// (ux-advice.md §3) — a 3px left border + tinted text on the surface color instead.
 const SEVERITY_STYLE: Record<StatusItem['severity'], string> = {
-  critical: 'border-red-300 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300',
-  warn: 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300',
+  critical:
+    'border-red-300 bg-red-50 text-red-700 dark:border-border dark:border-l-[3px] dark:border-l-danger dark:bg-surface dark:text-danger',
+  warn: 'border-amber-300 bg-amber-50 text-amber-700 dark:border-border dark:border-l-[3px] dark:border-l-warn dark:bg-surface dark:text-warn',
   info: 'border-border bg-foreground/[0.03] text-foreground/60',
-  ok: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300',
+  ok: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-border dark:border-l-[3px] dark:border-l-success dark:bg-surface dark:text-success',
 };
 
 function fmtTime(iso: string): string {
@@ -68,7 +71,7 @@ export function StatusPanel({
   const shown = mobileUrgentOnly ? urgentOnly(items) : items;
 
   return (
-    <div className="flex h-full flex-col gap-2 rounded-xl border border-border bg-surface p-3">
+    <div className="flex h-full min-w-0 flex-col gap-2 rounded-xl border border-border bg-surface p-3">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold">상황 체크</h2>
         <div className="flex items-center gap-2 text-[11px] text-foreground/40">
@@ -96,18 +99,18 @@ export function StatusPanel({
           </button>
         </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div className="min-h-0 min-w-0 flex-1 overflow-auto">
         {shown.length === 0 ? (
           <p className="text-xs text-foreground/40">이상 없음</p>
         ) : (
-          <ul className="flex flex-col gap-1.5">
+          <ul className="flex min-w-0 flex-col gap-1.5">
             {shown.map((item) => (
               <li
                 key={item.id}
-                className={`flex flex-col gap-0.5 rounded-lg border px-2.5 py-1.5 text-xs ${SEVERITY_STYLE[item.severity]}`}
+                className={`flex min-w-0 flex-col gap-0.5 rounded-lg border px-2.5 py-1.5 text-xs ${SEVERITY_STYLE[item.severity]}`}
               >
-                <span className="font-medium">{item.title}</span>
-                {item.detail && <span className="opacity-80">{item.detail}</span>}
+                <span className="wrap-anywhere font-medium">{item.title}</span>
+                {item.detail && <span className="wrap-anywhere opacity-80">{item.detail}</span>}
               </li>
             ))}
           </ul>

@@ -70,6 +70,11 @@ export async function POST(request: Request) {
   if (parsed.data.projectActivity) {
     await Promise.all(parsed.data.projectActivity.map((a) => repo.upsertProjectActivity(a)));
   }
+  // Settings §5.8 연동 상태 rows read this back (PLAN_UX.md decision 3).
+  await repo.setMeta('integration:collector', {
+    at: collectedAt,
+    detail: `${parsed.data.projectActivity?.length ?? 0}개 프로젝트`,
+  });
 
   // Immediate alert on newly-critical status only (no hourly repeats) — a Telegram
   // failure here never fails ingest itself.

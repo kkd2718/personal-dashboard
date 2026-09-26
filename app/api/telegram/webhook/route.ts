@@ -41,6 +41,8 @@ export async function POST(request: Request) {
 
   try {
     await handle(update.text);
+    // Settings §5.8 연동 상태 rows read this back (PLAN_UX.md decision 3).
+    await getRepo().setMeta('integration:telegram', { at: new Date().toISOString(), detail: '메시지 수신' });
   } catch {
     await sendMessage('저장 실패: 잠시 후 다시 시도해 주세요');
   }

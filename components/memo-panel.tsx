@@ -2,9 +2,8 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { formatDistanceToNow } from 'date-fns';
-import { ko } from 'date-fns/locale';
 import { filterNotes, tagCounts } from '@/lib/logic/notes';
+import { relTime } from '@/lib/logic/dates';
 import { NoteItem } from '@/components/note-item';
 import { projectColorClasses } from '@/lib/project-colors';
 import type { Milestone, Note, Project } from '@/lib/types';
@@ -102,7 +101,7 @@ export function MemoPanel({
             <div key={note.id} className="flex flex-col gap-1">
               {/* relative time differs between server render and hydration by design */}
               <span className="text-[11px] text-foreground/40" suppressHydrationWarning>
-                {formatDistanceToNow(new Date(note.createdAt), { addSuffix: true, locale: ko })}
+                {relTime(note.createdAt, new Date().toISOString())}
               </span>
               {/* NoteItem renders an <li>; give it a list parent without nesting <li> */}
               <ul>

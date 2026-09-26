@@ -32,6 +32,18 @@ export function backlogProgress(activity: ProjectActivity | undefined): Progress
   return { done: d, total, pct: total === 0 ? null : Math.round((100 * d) / total) };
 }
 
+/** Korean progress copy (ux-advice.md §6): never "0/1 (0%)". Below 3 tasks say the
+ * count only; at 3+ show the completed/total fraction. */
+export function progressLabel(p: Progress): string {
+  if (p.total < 3) return `할 일 ${p.total}개`;
+  return `${p.done}/${p.total} 완료`;
+}
+
+/** Same rule for the markdown-backlog bar, labeled `백로그` instead of `BACKLOG`. */
+export function backlogLabel(p: Progress): string {
+  return `백로그 ${p.done}/${p.total}`;
+}
+
 /** Shown as a second bar under the task-based progress bar (never merged with it):
  * only for projects with no tasks, or app-group projects, and only when non-empty. */
 export function shouldShowBacklogBar(project: Project, tasks: Task[], backlog: Progress | null): boolean {

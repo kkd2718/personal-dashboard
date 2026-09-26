@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState, useTransition } from 'react';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, Send, X } from 'lucide-react';
 import { createNoteAction } from '@/app/actions/notes';
@@ -91,13 +91,24 @@ export function QuickCapture({
   projects = [],
   existingTags = [],
   defaultProjectId = null,
+  autoFocus = false,
+  onSaved,
 }: {
   projects?: Project[];
   existingTags?: { tag: string; count: number }[];
   defaultProjectId?: string | null;
+  /** Focuses the textarea on mount — used by the mobile capture sheet (§4.6). */
+  autoFocus?: boolean;
+  /** Called after a successful save with the resolved project name, if any. */
+  onSaved?: (projectName: string | null) => void;
 }) {
   const router = useRouter();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (autoFocus) textareaRef.current?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- focus once on mount only
+  }, []);
   const [value, setValue] = useState('');
   const [focused, setFocused] = useState(false);
   const [kind, setKind] = useState<NoteKind>('memo');
@@ -167,9 +178,11 @@ export function QuickCapture({
             source: 'web',
           });
         }
+        const projectName = projects.find((p) => p.id === effectiveProjectId)?.name ?? null;
         reset();
         setError(null);
         router.refresh();
+        onSaved?.(projectName);
       } catch {
         setError('저장하지 못했습니다. 다시 시도해 주세요.');
       }
@@ -184,7 +197,7 @@ export function QuickCapture({
   }
 
   return (
-    <div className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-2 shadow-sm">
+    <div className="flex min-w-0 flex-col gap-2 rounded-xl border border-border bg-surface p-2 shadow-sm">
       <div className="flex items-start gap-2">
         <MentionTextarea
           textareaRef={textareaRef}

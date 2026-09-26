@@ -49,7 +49,7 @@ export default async function HomePage() {
   );
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex min-w-0 flex-col gap-4">
       <QuickCapture projects={activeProjects} existingTags={tagCounts(notes)} />
 
       {reviewCandidates.length > 0 && (
@@ -75,17 +75,17 @@ export default async function HomePage() {
       )}
 
       {/* mobile: capture -> status(urgent) -> checklist -> memo panel -> calendar -> progress */}
-      <div className="lg:hidden">
+      <div className="min-w-0 lg:hidden">
         <StatusPanel initialItems={status.items} checkedAt={status.checkedAt} remote={status.remote} mobileUrgentOnly />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid min-w-0 gap-4 lg:grid-cols-3">
         {/* row 1: checklist | calendar | status, equal height, viewport-capped */}
-        <div className="order-1 lg:order-none lg:h-[min(640px,calc(100dvh-200px))]">
+        <div className="order-1 min-w-0 lg:order-none lg:h-[min(640px,calc(100dvh-200px))]">
           <ChecklistPanel initialTasks={tasks} deadlines={deadlines} reviews={reviews} projects={activeProjects} activeMilestoneIds={activeMilestoneIds} />
         </div>
 
-        <div className="order-3 lg:order-none lg:h-[min(640px,calc(100dvh-200px))]">
+        <div className="order-3 min-w-0 lg:order-none lg:h-[min(640px,calc(100dvh-200px))]">
           <CommandCalendar
             milestones={milestones}
             tasks={tasks}
@@ -99,16 +99,16 @@ export default async function HomePage() {
           />
         </div>
 
-        <div className="order-4 hidden lg:order-none lg:block lg:h-[min(640px,calc(100dvh-200px))]">
+        <div className="order-4 hidden min-w-0 lg:order-none lg:block lg:h-[min(640px,calc(100dvh-200px))]">
           <StatusPanel initialItems={status.items} checkedAt={status.checkedAt} remote={status.remote} />
         </div>
 
         {/* row 2: memo (spans 2 cols) | progress, equal height */}
-        <div className="order-2 lg:order-none lg:col-span-2 lg:h-[420px]">
+        <div className="order-2 min-w-0 lg:order-none lg:col-span-2 lg:h-[420px]">
           <MemoPanel notes={notes} projects={projects} milestones={milestones} />
         </div>
 
-        <div className="order-5 lg:order-none lg:h-[420px]">
+        <div className="order-5 min-w-0 lg:order-none lg:h-[420px]">
           <ProjectProgressList projects={projects} milestones={milestones} tasks={tasks} activityList={activityList} />
         </div>
       </div>

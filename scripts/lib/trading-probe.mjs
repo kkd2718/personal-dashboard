@@ -9,6 +9,23 @@ function addDaysToDateStr(dateStr, n) {
   return d.toISOString().slice(0, 10);
 }
 
+/** '2026-07-31' -> '7월 31일' (mirrors lib/status/trading.ts's formatDateKo). */
+function formatDateKo(dateStr) {
+  if (!dateStr) return '알 수 없음';
+  const [, m, d] = dateStr.slice(0, 10).split('-').map(Number);
+  return `${m}월 ${d}일`;
+}
+
+/** How long a daemon has been silent, in Korean weeks/days (never raw hours/dates). */
+function sinceLabel(lastRun, today) {
+  if (!lastRun) return '오랫동안';
+  const days = Math.round(
+    (new Date(`${today}T00:00:00Z`).getTime() - new Date(`${lastRun.slice(0, 10)}T00:00:00Z`).getTime()) / 86_400_000
+  );
+  if (days < 14) return `${Math.max(days, 0)}일째`;
+  return `${Math.floor(days / 7)}주째`;
+}
+
 async function getJson(baseUrl, path) {
   try {
     const res = await fetch(`${baseUrl}${path}`, { signal: AbortSignal.timeout(TIMEOUT_MS) });
@@ -39,7 +56,7 @@ export async function tradingStatus(baseUrl, today) {
           severity: 'info',
           source: 'trading',
           projectId: 'p-trading-system',
-          title: '계좌 대시보드 꺼짐 (PC)',
+          title: '계좌 대시보드가 꺼져 있어요 (PC)',
           detail: null,
           href: null,
         },
@@ -81,8 +98,8 @@ export async function tradingStatus(baseUrl, today) {
           severity: 'warn',
           source: 'trading',
           projectId: 'p-trading-system',
-          title: `${d.label} 데몬 지연`,
-          detail: `last_run=${d.last_run ?? '-'} next_due=${d.next_due ?? '-'}`,
+          title: `${d.label} 데몬이 ${sinceLabel(d.last_run, today)} 안 돌았어요`,
+          detail: `마지막 ${formatDateKo(d.last_run)} · 예정 ${formatDateKo(d.next_due)}`,
           href: baseUrl,
         });
       }

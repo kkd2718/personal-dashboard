@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { backlogProgress, progress, shouldShowBacklogBar } from './progress';
+import { backlogLabel, backlogProgress, progress, progressLabel, shouldShowBacklogBar } from './progress';
 import type { Project, ProjectActivity, Task } from '@/lib/types';
 
 function task(status: Task['status']): Task {
@@ -28,6 +28,23 @@ describe('progress', () => {
   it('rounds pct: 1 of 3 done -> 33', () => {
     const tasks = [task('done'), task('todo'), task('doing')];
     expect(progress(tasks)).toEqual({ done: 1, total: 3, pct: 33 });
+  });
+});
+
+describe('progressLabel', () => {
+  it('never renders "0/1 (0%)": below 3 tasks shows the count only', () => {
+    expect(progressLabel({ done: 0, total: 1, pct: 0 })).toBe('할 일 1개');
+    expect(progressLabel({ done: 1, total: 2, pct: 50 })).toBe('할 일 2개');
+  });
+
+  it('shows done/total 완료 at 3 or more tasks', () => {
+    expect(progressLabel({ done: 2, total: 5, pct: 40 })).toBe('2/5 완료');
+  });
+});
+
+describe('backlogLabel', () => {
+  it('labels the backlog bar 백로그, not BACKLOG', () => {
+    expect(backlogLabel({ done: 12, total: 40, pct: 30 })).toBe('백로그 12/40');
   });
 });
 

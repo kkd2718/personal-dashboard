@@ -98,6 +98,12 @@ export async function POST(request: Request) {
     }
   }
 
+  // Settings §5.8 연동 상태 rows read this back (PLAN_UX.md decision 3).
+  await repo.setMeta(`integration:google:${account}`, {
+    at: now,
+    detail: `캘린더 ${eventCount}개 · 후보 ${totalCandidates}개`,
+  });
+
   return NextResponse.json({
     ok: true,
     events: eventCount,

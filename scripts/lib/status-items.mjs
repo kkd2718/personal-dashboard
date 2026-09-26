@@ -42,13 +42,14 @@ export function buildStatusItems(projects, activities, tradingItems, today) {
     if (a.lastCommitAt == null) continue;
     const name = nameById.get(a.projectId) ?? a.projectId;
     if (staleness(a.lastCommitAt, today) === 'stale') {
+      const daysSince = daysBetween(a.lastCommitAt, today);
       items.push({
         id: `git:stale:${a.projectId}`,
         severity: 'warn',
         source: 'git',
         projectId: a.projectId,
-        title: `${name}: 오래 조용함`,
-        detail: `마지막 커밋 ${a.lastCommitAt.slice(0, 10)}`,
+        title: `${name} · ${daysSince}일째 커밋 없음`,
+        detail: a.dirty ? '미커밋 변경 있음' : null,
         href: null,
       });
     }

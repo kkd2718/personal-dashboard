@@ -8,7 +8,7 @@ import { existsSync } from 'node:fs';
 import { promisify } from 'node:util';
 import type { Project, ProjectActivity } from '@/lib/types';
 import { getRepo } from '@/lib/repo';
-import { todayKST } from '@/lib/logic/dates';
+import { dday, todayKST } from '@/lib/logic/dates';
 import { staleness } from '@/lib/logic/staleness';
 import type { StatusItem } from '@/lib/status/types';
 
@@ -87,13 +87,14 @@ export async function gitStatus(projects: Project[]): Promise<StatusItem[]> {
       await repo.upsertProjectActivity(activity);
 
       if (staleness(commitAt, today) === 'stale') {
+        const daysSince = -dday(commitAt.slice(0, 10), today);
         items.push({
           id: `git:stale:${project.id}`,
           severity: 'warn',
           source: 'git',
           projectId: project.id,
-          title: `${project.name}: 오래 조용함`,
-          detail: `마지막 커밋 ${commitAt.slice(0, 10)}`,
+          title: `${project.name} · ${daysSince}일째 커밋 없음`,
+          detail: dirty ? '미커밋 변경 있음' : null,
           href: null,
         });
       }

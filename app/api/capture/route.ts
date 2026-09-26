@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { checkBearer } from '@/lib/auth/bearer';
 import { createNoteFromText } from '@/lib/create-note';
+import { getRepo } from '@/lib/repo';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,6 +43,11 @@ export async function POST(request: Request) {
     parsed.data.source,
     parsed.data.externalId
   );
+
+  if (parsed.data.source === 'obsidian') {
+    // Settings §5.8 연동 상태 rows read this back (PLAN_UX.md decision 3).
+    await getRepo().setMeta('integration:obsidian', { at: new Date().toISOString(), detail: '1건' });
+  }
 
   return NextResponse.json({ ok: true, id: note.id, projectId: note.projectId, tags: note.tags });
 }

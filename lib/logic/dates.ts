@@ -79,6 +79,36 @@ export function todayKST(): string {
   }).format(new Date());
 }
 
+const MINUTE_MS = 60_000;
+const HOUR_MS = 60 * MINUTE_MS;
+const DAY_MS = 24 * HOUR_MS;
+const WEEK_MS = 7 * DAY_MS;
+
+/**
+ * Humanized Korean relative time (docs/reviews/ux-advice.md §6): `방금` / `n분 전` /
+ * `n시간 전` (< 24h) / `어제` / `n일 전` (< 14d) / `n주 전` (< 8w) / `n개월 전` (< 12m) /
+ * else the absolute year+month. Future instants use the same buckets with `후` instead
+ * of `전` (`내일`, `n일 후`, ...). Never renders raw hours beyond a day ("644시간 전").
+ */
+export function relTime(iso: string, now: string): string {
+  const diffMs = new Date(now).getTime() - new Date(iso).getTime();
+  const future = diffMs < 0;
+  const abs = Math.abs(diffMs);
+  const suffix = future ? '후' : '전';
+
+  if (abs < MINUTE_MS) return '방금';
+  if (abs < HOUR_MS) return `${Math.floor(abs / MINUTE_MS)}분 ${suffix}`;
+  if (abs < DAY_MS) return `${Math.floor(abs / HOUR_MS)}시간 ${suffix}`;
+  if (abs < 2 * DAY_MS) return future ? '내일' : '어제';
+  if (abs < 14 * DAY_MS) return `${Math.floor(abs / DAY_MS)}일 ${suffix}`;
+  if (abs < 8 * WEEK_MS) return `${Math.floor(abs / WEEK_MS)}주 ${suffix}`;
+  const months = Math.floor(abs / (30 * DAY_MS));
+  if (months < 12) return `${months}개월 ${suffix}`;
+
+  const d = new Date(iso);
+  return `${d.getUTCFullYear()}년 ${d.getUTCMonth() + 1}월`;
+}
+
 /** Converts an ISO instant to its Asia/Seoul calendar date ('YYYY-MM-DD') and
  * clock time ('HH:mm'). Used to convert Google Calendar event instants (phase 3). */
 export function kstDateTime(iso: string): { date: string; time: string } {

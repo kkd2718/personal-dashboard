@@ -61,5 +61,7 @@ export async function runDigest(
   if (!result.ok) return 'failed';
 
   await repo.setMeta(META_KEY, today);
+  // Settings §5.8 연동 상태 rows read this back (PLAN_UX.md decision 3).
+  await repo.setMeta('integration:telegram', { at: new Date().toISOString(), detail: '다이제스트 전송' });
   return 'sent';
 }

@@ -31,6 +31,7 @@ const fakeRepo = {
   listDeadlines: vi.fn(async () => []),
   listReviews: vi.fn(async () => []),
   getStatusSnapshot: vi.fn(async () => null),
+  setMeta: vi.fn(async () => {}),
 };
 
 vi.mock('@/lib/repo', () => ({ getRepo: () => fakeRepo }));

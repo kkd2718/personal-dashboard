@@ -1,8 +1,8 @@
 import Link from 'next/link';
 import { Folder, GitBranch, Laptop, Link2, Pin, Radio } from 'lucide-react';
 import type { Milestone, Project, ProjectActivity, Task } from '@/lib/types';
-import { dday, todayKST } from '@/lib/logic/dates';
-import { backlogProgress, projectProgress, shouldShowBacklogBar } from '@/lib/logic/progress';
+import { dday, relTime, todayKST } from '@/lib/logic/dates';
+import { backlogLabel, backlogProgress, progressLabel, projectProgress, shouldShowBacklogBar } from '@/lib/logic/progress';
 import { staleness } from '@/lib/logic/staleness';
 import { projectColorClasses } from '@/lib/project-colors';
 
@@ -13,20 +13,22 @@ const STATUS_LABEL: Record<Project['status'], string> = {
   archived: '보관됨',
 };
 
+// Dark mode never fills a solid color slab (ux-advice.md §3): a 3px left border +
+// tinted text on the surface color instead, light mode keeps the soft filled pill.
 const STATUS_COLOR: Record<Project['status'], string> = {
-  active: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
-  paused: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
-  done: 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300',
-  archived: 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',
+  active: 'bg-emerald-100 text-emerald-700 dark:rounded-md dark:border-l-[3px] dark:border-success dark:bg-success-soft dark:text-success',
+  paused: 'bg-amber-100 text-amber-700 dark:rounded-md dark:border-l-[3px] dark:border-warn dark:bg-warn-soft dark:text-warn',
+  done: 'bg-blue-100 text-blue-700 dark:rounded-md dark:border-l-[3px] dark:border-accent dark:bg-accent-soft dark:text-accent',
+  archived: 'bg-slate-100 text-slate-500 dark:bg-surface-2 dark:text-fg-3',
 };
 
 const LINK_ICON = { public: Link2, repo: GitBranch, local: Laptop, tailscale: Radio, folder: Folder };
 
 const STALENESS_LABEL = { fresh: '최근', quiet: '조용함', stale: '오래 조용함' } as const;
 const STALENESS_COLOR = {
-  fresh: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
-  quiet: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
-  stale: 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',
+  fresh: 'bg-emerald-100 text-emerald-700 dark:rounded-md dark:border-l-[3px] dark:border-success dark:bg-success-soft dark:text-success',
+  quiet: 'bg-amber-100 text-amber-700 dark:rounded-md dark:border-l-[3px] dark:border-warn dark:bg-warn-soft dark:text-warn',
+  stale: 'bg-slate-100 text-slate-500 dark:bg-surface-2 dark:text-fg-3',
 } as const;
 
 export function ProjectCard({
@@ -46,10 +48,8 @@ export function ProjectCard({
   const today = todayKST();
   const commitDaysAgo =
     activity?.lastCommitAt != null ? dday(today, activity.lastCommitAt.slice(0, 10)) : null;
-  const sessionHoursAgo =
-    activity?.lastSessionAt != null && now != null
-      ? Math.round((new Date(now).getTime() - new Date(activity.lastSessionAt).getTime()) / 3_600_000)
-      : null;
+  const sessionRelTime =
+    activity?.lastSessionAt != null && now != null ? relTime(activity.lastSessionAt, now) : null;
   const progress = projectProgress(project.id, tasks);
   const backlog = backlogProgress(activity);
   const showBacklog = shouldShowBacklogBar(project, tasks, backlog);
@@ -60,11 +60,14 @@ export function ProjectCard({
   return (
     <div className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-4">
       <div className="flex items-start justify-between gap-2">
-        <Link href={`/projects/${project.slug}`} className="flex items-center gap-1.5 font-medium hover:underline">
+        <Link
+          href={`/projects/${project.slug}`}
+          className="flex min-w-0 items-center gap-1.5 truncate font-medium hover:underline"
+        >
           <span className={`h-2 w-2 shrink-0 rounded-full ${colors.dot}`} />
-          {project.name}
+          <span className="truncate">{project.name}</span>
         </Link>
-        <div className="flex items-center gap-1.5">
+        <div className="flex shrink-0 items-center gap-1.5">
           {project.pinned && <Pin size={13} className="text-amber-500" />}
           <span className={`rounded-full px-2 py-0.5 text-[11px] ${STATUS_COLOR[project.status]}`}>
             {STATUS_LABEL[project.status]}
@@ -87,9 +90,7 @@ export function ProjectCard({
           <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-foreground/10">
             <div className={`h-full rounded-full ${colors.dot}`} style={{ width: `${progress.pct ?? 0}%` }} />
           </div>
-          <span className="shrink-0 text-[11px] text-foreground/50">
-            {progress.done}/{progress.total} ({progress.pct}%)
-          </span>
+          <span className="tnum shrink-0 text-[11px] text-foreground/50">{progressLabel(progress)}</span>
         </div>
       )}
       {showBacklog && backlog && (
@@ -97,15 +98,13 @@ export function ProjectCard({
           <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-foreground/10">
             <div className="h-full rounded-full bg-foreground/30" style={{ width: `${backlog.pct ?? 0}%` }} />
           </div>
-          <span className="shrink-0 text-[11px] text-foreground/50">
-            BACKLOG {backlog.done}/{backlog.total} ({backlog.pct}%)
-          </span>
+          <span className="tnum shrink-0 text-[11px] text-foreground/50">{backlogLabel(backlog)}</span>
         </div>
       )}
-      <div className="flex items-center gap-1.5">
+      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
         {wsl ? (
           <span className="rounded-full bg-foreground/5 px-2 py-0.5 text-[11px] text-foreground/40">
-            WSL — 수집기 대기
+            WSL · 아직 수집 전
           </span>
         ) : (
           activity?.lastCommitAt != null && (
@@ -115,15 +114,13 @@ export function ProjectCard({
           )
         )}
         {commitDaysAgo !== null && (
-          <p className="text-[11px] text-foreground/40">
-            커밋 {commitDaysAgo <= 0 ? '오늘' : `${commitDaysAgo}일 전`}
+          <p className="tnum text-[11px] text-foreground/40">
+            커밋 {now != null && activity?.lastCommitAt != null ? relTime(activity.lastCommitAt, now) : commitDaysAgo <= 0 ? '오늘' : `${commitDaysAgo}일 전`}
             {activity?.dirty ? ' · 미커밋 변경 있음' : ''}
           </p>
         )}
-        {sessionHoursAgo !== null && (
-          <p className="text-[11px] text-foreground/40">
-            마지막 세션 {sessionHoursAgo <= 0 ? '방금' : `${sessionHoursAgo}시간 전`}
-          </p>
+        {sessionRelTime !== null && (
+          <p className="text-[11px] text-foreground/40">마지막 세션 {sessionRelTime}</p>
         )}
       </div>
       {project.links.length > 0 && (
