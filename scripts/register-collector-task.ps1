@@ -10,16 +10,21 @@ $TaskName = 'CommandCenterCollector'
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $NodePath = (Get-Command node).Source
 $ScriptPath = Join-Path $RepoRoot 'scripts\collector.mjs'
+# SID, not DOMAIN\name: non-ASCII account names can fail to map ("No mapping between account names and security IDs").
+$UserId = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
 
 if (-not (Test-Path $ScriptPath)) {
     throw "collector.mjs not found at $ScriptPath"
 }
 
-$Action = New-ScheduledTaskAction -Execute $NodePath -Argument "`"$ScriptPath`"" -WorkingDirectory $RepoRoot
+# conhost --headless keeps node from flashing a console window every hour.
+$Action = New-ScheduledTaskAction -Execute 'conhost.exe' -Argument "--headless `"$NodePath`" `"$ScriptPath`"" -WorkingDirectory $RepoRoot
 
+# No -RepetitionDuration: omitting it repeats indefinitely ([TimeSpan]::MaxValue is rejected on some builds).
 $Triggers = @(
-    New-ScheduledTaskTrigger -AtLogOn
-    New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 60) -RepetitionDuration ([TimeSpan]::MaxValue)
+    # -User scopes the logon trigger to this account; an all-users logon trigger needs admin.
+    New-ScheduledTaskTrigger -AtLogOn -User $UserId
+    New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 60)
 )
 
 $Settings = New-ScheduledTaskSettingsSet `
@@ -28,7 +33,7 @@ $Settings = New-ScheduledTaskSettingsSet `
     -StartWhenAvailable `
     -MultipleInstances IgnoreNew
 
-$Principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited
+$Principal = New-ScheduledTaskPrincipal -UserId $UserId -LogonType Interactive -RunLevel Limited
 
 if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
     Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
@@ -37,4 +42,4 @@ if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
 
 Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $Triggers -Settings $Settings -Principal $Principal | Out-Null
 Write-Host "Registered '$TaskName': every 60 min + at logon, only when $env:USERNAME is logged on, 5 min time limit."
-Write-Host "Action: `"$NodePath`" `"$ScriptPath`" (cwd: $RepoRoot)"
+Write-Host "Action: conhost --headless `"$NodePath`" `"$ScriptPath`" (cwd: $RepoRoot)"
