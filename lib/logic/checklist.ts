@@ -33,6 +33,11 @@ export interface ChecklistByAssignee {
   agent: Checklist;
 }
 
+/** Total visible item count for one assignee's bucket (home lane tab badge, §Lanes 3). */
+export function checklistItemCount(c: Checklist): number {
+  return c.overdue.length + c.today.length + c.thisWeek.length + c.doing.length + c.next.length;
+}
+
 function byDueThenTitle(a: ChecklistItem, b: ChecklistItem): number {
   const ad = a.dueDate ?? '';
   const bd = b.dueDate ?? '';

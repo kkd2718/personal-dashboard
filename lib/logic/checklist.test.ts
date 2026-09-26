@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checklist } from './checklist';
+import { checklist, checklistItemCount } from './checklist';
 import type { Deadline, ReviewJob, Task } from '@/lib/types';
 
 const today = '2026-09-25'; // Friday; ISO week Mon 09-21..Sun 09-27
@@ -49,6 +49,16 @@ describe('checklist', () => {
   it('buckets a doing task with no due date as doing', () => {
     const c = checklist([task({ status: 'doing', dueDate: null })], [], [], today);
     expect(c.me.doing).toHaveLength(1);
+  });
+
+  it('checklistItemCount sums every bucket (home lane tab badge)', () => {
+    const c = checklist(
+      [task({ dueDate: '2026-09-24' }), task({ status: 'doing', dueDate: null })],
+      [],
+      [],
+      today
+    );
+    expect(checklistItemCount(c.me)).toBe(2);
   });
 
   it('includes an accepted review due in 3 days within the week, excludes it otherwise', () => {

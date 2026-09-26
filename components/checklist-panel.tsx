@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Bot, CalendarDays, Plus } from 'lucide-react';
-import { checklist, type ChecklistItem } from '@/lib/logic/checklist';
+import { checklist, checklistItemCount, type ChecklistItem } from '@/lib/logic/checklist';
 import { dday, todayKST } from '@/lib/logic/dates';
 import { createTaskAction, toggleTaskDoneAction } from '@/app/actions/tasks';
 import { DdayChip } from '@/components/dday-chip';
@@ -173,6 +173,7 @@ export function ChecklistPanel({
   projects,
   activeMilestoneIds,
   todayEvents = [],
+  bare = false,
 }: {
   initialTasks: Task[];
   activeMilestoneIds: string[];
@@ -181,6 +182,9 @@ export function ChecklistPanel({
   projects: Project[];
   /** Today's timed/all-day Google events, rendered as read-only rows inside 오늘 (§5.1). */
   todayEvents?: CalendarEvent[];
+  /** Drops the outer card chrome + "오늘" title when embedded in the home 할 일
+   * lane (PLAN_HOME2.md §Lanes 3) — the lane card supplies its own header. */
+  bare?: boolean;
 }) {
   const router = useRouter();
   const [tasks, setTasks] = useState(initialTasks);
@@ -194,10 +198,6 @@ export function ChecklistPanel({
   const [tab, setTab] = useState<'me' | 'agent'>('me');
   const byAssignee = checklist(tasks, deadlines, reviews, today, new Set(activeMilestoneIds));
   const result = byAssignee[tab];
-
-  function countOf(c: typeof byAssignee.me): number {
-    return c.overdue.length + c.today.length + c.thisWeek.length + c.doing.length + c.next.length;
-  }
 
   function handleToggle(id: string, done: boolean) {
     const now = new Date().toISOString();
@@ -223,23 +223,23 @@ export function ChecklistPanel({
   const isEmpty = visibleSections.length === 0;
 
   return (
-    <div className="flex h-full flex-col gap-3 rounded-xl border border-border bg-surface p-3">
+    <div className={bare ? 'flex h-full min-h-0 flex-col gap-3' : 'flex h-full flex-col gap-3 rounded-xl border border-border bg-surface p-3'}>
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold">오늘</h2>
+        {!bare && <h2 className="text-sm font-semibold">오늘</h2>}
         <div className="flex gap-1 rounded-lg border border-border p-0.5 text-xs">
           <button
             type="button"
             onClick={() => setTab('me')}
             className={`rounded-md px-2 py-1 ${tab === 'me' ? 'bg-blue-600 text-white' : 'text-foreground/60'}`}
           >
-            나 {countOf(byAssignee.me)}
+            나 {checklistItemCount(byAssignee.me)}
           </button>
           <button
             type="button"
             onClick={() => setTab('agent')}
             className={`flex items-center gap-1 rounded-md px-2 py-1 ${tab === 'agent' ? 'bg-blue-600 text-white' : 'text-foreground/60'}`}
           >
-            <Bot size={12} /> 에이전트 {countOf(byAssignee.agent)}
+            <Bot size={12} /> 에이전트 {checklistItemCount(byAssignee.agent)}
           </button>
         </div>
       </div>

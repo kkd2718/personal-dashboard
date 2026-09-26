@@ -11,6 +11,8 @@ const MAX_ROWS = 6;
  * Merged "프로젝트" section (planner decision 1, ux-advice.md §5.1): replaces the
  * old 진행률 panel and the spec's separate "최근 활동" list with one list — each
  * active project as one activity sentence + one progress bar, sorted by recency.
+ * PLAN_HOME2.md §Header: now embedded (no outer card chrome) inside the header's
+ * "⚠ 확인 필요" popover/sheet, below StatusPanel.
  */
 export function ProjectProgressList({
   projects,
@@ -41,7 +43,7 @@ export function ProjectProgressList({
     .slice(0, MAX_ROWS);
 
   return (
-    <div className="flex h-full flex-col gap-2 rounded-xl border border-border bg-surface p-3">
+    <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold">프로젝트</h2>
         <Link href="/projects" className="text-xs text-foreground/50 hover:underline">

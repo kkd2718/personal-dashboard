@@ -1,5 +1,6 @@
-import type { Deadline, Paper, PaperStage, Project, ProjectActivity } from '@/lib/types';
+import type { Deadline, Group, Milestone, Paper, PaperStage, Project, ProjectActivity, Task } from '@/lib/types';
 import { dday, endOfIsoWeek, relTime } from '@/lib/logic/dates';
+import { backlogProgress, milestoneProgress, type Progress } from '@/lib/logic/progress';
 
 export interface DeadlineCounts {
   overdue: number;
@@ -77,6 +78,68 @@ export function paperStageSummary(papers: Paper[]): string {
   return STAGE_GROUP_ORDER.filter((g) => (counts.get(g) ?? 0) > 0)
     .map((g) => `${g} ${counts.get(g)}`)
     .join(' · ');
+}
+
+export type QueueLaneCard =
+  | { kind: 'queue'; project: Project; milestone: Milestone; progress: Progress; nextTaskTitle: string | null; agentOpenCount: number }
+  | { kind: 'backlog'; project: Project; backlog: Progress }
+  | { kind: 'nextAction'; project: Project; nextAction: string };
+
+const GROUP_ORDER: Group[] = ['app', 'research', 'personal'];
+
+/**
+ * Home 개발 큐 lane rows (PLAN_HOME2.md §Lanes 1), active projects only, `app`
+ * group first then research/personal, by `project.sort` within a group. One
+ * `queue` card per active milestone (a project with several active milestones
+ * gets several cards); a project with no active milestone falls back to a
+ * `backlog` card (collector backlog metrics) or, failing that, a `nextAction`
+ * light row — never more than one fallback card per project.
+ */
+export function buildQueueLaneCards(
+  projects: Project[],
+  milestones: Milestone[],
+  tasks: Task[],
+  activityList: ProjectActivity[]
+): QueueLaneCard[] {
+  const activityByProjectId = new Map(activityList.map((a) => [a.projectId, a]));
+  const active = [...projects.filter((p) => p.status === 'active')].sort((a, b) => {
+    const byGroup = GROUP_ORDER.indexOf(a.group) - GROUP_ORDER.indexOf(b.group);
+    return byGroup !== 0 ? byGroup : a.sort - b.sort;
+  });
+
+  const cards: QueueLaneCard[] = [];
+  for (const project of active) {
+    const activeMilestones = milestones
+      .filter((m) => m.projectId === project.id && m.status === 'active')
+      .sort((a, b) => a.sort - b.sort);
+
+    if (activeMilestones.length > 0) {
+      for (const milestone of activeMilestones) {
+        const msTasks = tasks.filter((t) => t.milestoneId === milestone.id);
+        const nextTask = msTasks.filter((t) => t.status !== 'done').sort((a, b) => a.sort - b.sort)[0];
+        cards.push({
+          kind: 'queue',
+          project,
+          milestone,
+          progress: milestoneProgress(milestone, tasks),
+          nextTaskTitle: nextTask?.title ?? null,
+          agentOpenCount: msTasks.filter((t) => t.assignee === 'agent' && t.status !== 'done').length,
+        });
+      }
+      continue;
+    }
+
+    const backlog = backlogProgress(activityByProjectId.get(project.id));
+    if (backlog && backlog.total > 0) {
+      cards.push({ kind: 'backlog', project, backlog });
+      continue;
+    }
+
+    if (project.nextAction) {
+      cards.push({ kind: 'nextAction', project, nextAction: project.nextAction });
+    }
+  }
+  return cards;
 }
 
 export interface RevisionDeadlineChip {

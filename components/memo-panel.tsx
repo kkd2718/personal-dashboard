@@ -21,19 +21,34 @@ function firstLine(body: string): string {
 
 /** Home "메모" strip: compact recent-notes list, click-through to /memo (§5.1). No
  * filters or per-row controls here — those live on the full /memo page. */
-export function MemoPanel({ notes, projects }: { notes: Note[]; projects: Project[] }) {
+export function MemoPanel({
+  notes,
+  projects,
+  limit = RECENT_LIMIT,
+  bare = false,
+}: {
+  notes: Note[];
+  projects: Project[];
+  /** Max rows shown (5 on the old strip, 12 in the home 메모 lane, PLAN_HOME2.md §Lanes 4). */
+  limit?: number;
+  /** Drops the outer card chrome + header when embedded in the home 메모 lane —
+   * the lane card supplies its own title/count/"전체 →". */
+  bare?: boolean;
+}) {
   const open = notes.filter((n) => n.status === 'inbox' || n.status === 'filed');
-  const recent = [...open].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)).slice(0, RECENT_LIMIT);
+  const recent = [...open].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)).slice(0, limit);
   const now = new Date().toISOString();
 
   return (
-    <div className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-3">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold">메모 · 전체 {open.length}</h2>
-        <Link href="/memo" className="text-xs text-foreground/50 hover:underline">
-          전체 보기 →
-        </Link>
-      </div>
+    <div className={bare ? 'flex h-full min-h-0 flex-col gap-2' : 'flex flex-col gap-2 rounded-xl border border-border bg-surface p-3'}>
+      {!bare && (
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold">메모 · 전체 {open.length}</h2>
+          <Link href="/memo" className="text-xs text-foreground/50 hover:underline">
+            전체 보기 →
+          </Link>
+        </div>
+      )}
       {recent.length === 0 ? (
         <EmptyState>아직 메모가 없어요. 떠오른 생각을 적어보세요.</EmptyState>
       ) : (

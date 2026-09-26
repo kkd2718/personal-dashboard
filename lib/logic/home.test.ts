@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildQueueLaneCards,
   deadlineCounts,
   headerCountLabel,
   nextRevisionDeadline,
@@ -7,7 +8,7 @@ import {
   projectActivitySentence,
   sortByRecency,
 } from './home';
-import type { Deadline, Paper, Project, ProjectActivity } from '@/lib/types';
+import type { Deadline, Milestone, Paper, Project, ProjectActivity, Task } from '@/lib/types';
 
 const today = '2026-09-26'; // Saturday; ISO week ends Sunday 2026-09-27
 
@@ -176,5 +177,113 @@ describe('nextRevisionDeadline', () => {
     const deadlines = [deadline({ kind: 'paper', paperId: 'p1', dueDate: '2026-11-30' })];
     expect(nextRevisionDeadline(papers, deadlines, today)).toBeNull();
     expect(nextRevisionDeadline([], [], today)).toBeNull();
+  });
+});
+
+describe('buildQueueLaneCards', () => {
+  function makeProject(overrides: Partial<Project>): Project {
+    return {
+      id: 'p1',
+      slug: 'p1',
+      name: 'p1',
+      group: 'research',
+      subgroup: null,
+      status: 'active',
+      summary: '',
+      nextAction: null,
+      links: [],
+      paths: [],
+      aliases: [],
+      backlogGlobs: [],
+      pinned: false,
+      sort: 0,
+      color: 'blue',
+      updatedAt: '',
+      ...overrides,
+    };
+  }
+
+  function makeMilestone(overrides: Partial<Milestone>): Milestone {
+    return {
+      id: 'm1',
+      projectId: 'p1',
+      title: 'queue',
+      startDate: null,
+      endDate: null,
+      status: 'active',
+      sort: 0,
+      updatedAt: '',
+      ...overrides,
+    };
+  }
+
+  function makeTask(overrides: Partial<Task>): Task {
+    return {
+      id: Math.random().toString(36),
+      projectId: 'p1',
+      milestoneId: null,
+      title: 't',
+      description: null,
+      status: 'todo',
+      dueDate: null,
+      doneAt: null,
+      assignee: 'me',
+      deliveredAt: null,
+      sort: 0,
+      createdAt: '',
+      updatedAt: '',
+      ...overrides,
+    };
+  }
+
+  it('one queue card per active milestone, with progress and the first undone task', () => {
+    const project = makeProject({});
+    const milestone = makeMilestone({});
+    const tasks = [
+      makeTask({ id: 't1', milestoneId: 'm1', status: 'done', sort: 0 }),
+      makeTask({ id: 't2', milestoneId: 'm1', status: 'todo', sort: 1 }),
+    ];
+    const cards = buildQueueLaneCards([project], [milestone], tasks, []);
+    expect(cards).toEqual([
+      {
+        kind: 'queue',
+        project,
+        milestone,
+        progress: { done: 1, total: 2, pct: 50 },
+        nextTaskTitle: 't',
+        agentOpenCount: 0,
+      },
+    ]);
+  });
+
+  it('falls back to a backlog card when there is no active milestone', () => {
+    const project = makeProject({ id: 'p2' });
+    const activity: ProjectActivity = {
+      projectId: 'p2',
+      branch: null,
+      lastCommitAt: null,
+      lastCommitMsg: null,
+      dirty: null,
+      lastSessionAt: null,
+      memoryDigest: null,
+      metrics: { backlogOpen: 3, backlogDone: 1 },
+      collectedAt: '',
+    };
+    const cards = buildQueueLaneCards([project], [], [], [activity]);
+    expect(cards).toEqual([{ kind: 'backlog', project, backlog: { done: 1, total: 4, pct: 25 } }]);
+  });
+
+  it('falls back to a nextAction row when there is no queue or backlog', () => {
+    const project = makeProject({ id: 'p3', nextAction: '로컬 UI 검토' });
+    const cards = buildQueueLaneCards([project], [], [], []);
+    expect(cards).toEqual([{ kind: 'nextAction', project, nextAction: '로컬 UI 검토' }]);
+  });
+
+  it('excludes non-active projects and orders app before research/personal', () => {
+    const app = makeProject({ id: 'a', group: 'app', sort: 1, nextAction: 'x' });
+    const research = makeProject({ id: 'r', group: 'research', sort: 0, nextAction: 'y' });
+    const paused = makeProject({ id: 'z', status: 'paused', nextAction: 'z' });
+    const cards = buildQueueLaneCards([research, app, paused], [], [], []);
+    expect(cards.map((c) => c.project.id)).toEqual(['a', 'r']);
   });
 });

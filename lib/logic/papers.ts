@@ -40,6 +40,44 @@ export function movePaper(
   });
 }
 
+/** Pipeline stage order + Korean labels shared by the papers kanban and the home
+ * 논문 lane (PLAN_HOME2.md §Lanes 2). */
+export const PAPER_STAGE_ORDER: PaperStage[] = [
+  'idea',
+  'writing',
+  'submitted',
+  'under_review',
+  'revision',
+  'accepted',
+  'published',
+];
+
+export const PAPER_STAGE_LABEL: Record<PaperStage, string> = {
+  idea: '아이디어',
+  writing: '작성중',
+  submitted: '투고',
+  under_review: '심사중',
+  revision: '수정',
+  accepted: '게재확정',
+  published: '출판',
+};
+
+export interface PaperLaneGroup {
+  stage: PaperStage;
+  label: string;
+  papers: Paper[];
+}
+
+/** Home 논문 lane rows (PLAN_HOME2.md §Lanes 2): papers grouped by stage in
+ * pipeline order, empty stages omitted, each group's papers sorted by `sort`. */
+export function paperLaneGroups(papers: Paper[]): PaperLaneGroup[] {
+  return PAPER_STAGE_ORDER.map((stage) => ({
+    stage,
+    label: PAPER_STAGE_LABEL[stage],
+    papers: papers.filter((p) => p.stage === stage).sort((a, b) => a.sort - b.sort),
+  })).filter((g) => g.papers.length > 0);
+}
+
 /** Stage-specific third line for a paper card (ux-advice.md §5.5). Pure, so the
  * board component just renders whatever this returns. */
 export function paperCardLine(paper: Paper, deadlines: Deadline[], today: string): string | null {

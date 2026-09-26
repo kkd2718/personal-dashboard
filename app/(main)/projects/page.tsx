@@ -35,7 +35,10 @@ export default async function ProjectsPage({
 
   return (
     <div className="flex flex-col gap-5">
-      <h1 className="text-lg font-semibold">프로젝트</h1>
+      <div>
+        <h1 className="text-lg font-semibold">프로젝트</h1>
+        <p className="text-xs text-foreground/40">개발 · 연구 · 개인</p>
+      </div>
 
       {/* 논문/리뷰 are reached from here on mobile — they aren't a bottom-nav tab (ux-advice.md §2). */}
       <div className="flex gap-1 rounded-[var(--r-sm)] border border-border p-0.5 text-sm md:hidden">

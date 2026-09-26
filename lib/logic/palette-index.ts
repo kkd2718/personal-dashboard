@@ -9,6 +9,11 @@ const PAGE_ENTRIES: PaletteEntry[] = [
   { id: 'page:review', label: '리뷰', kind: 'page', href: '/papers?tab=review' },
   { id: 'page:calendar', label: '캘린더', kind: 'page', href: '/calendar' },
   { id: 'page:settings', label: '설정', kind: 'page', href: '/settings' },
+  // Home v2 lane tabs (PLAN_HOME2.md §Also): open home already scrolled to that lane.
+  { id: 'page:home-tab-queue', label: '이동: 개발 큐', kind: 'page', href: '/?tab=queue' },
+  { id: 'page:home-tab-papers', label: '이동: 논문', kind: 'page', href: '/?tab=papers' },
+  { id: 'page:home-tab-todo', label: '이동: 할 일', kind: 'page', href: '/?tab=todo' },
+  { id: 'page:home-tab-memo', label: '이동: 메모', kind: 'page', href: '/?tab=memo' },
 ];
 
 /** Builds the ⌘K static index (§4.1 "이동" scope): pages + every project/paper/open

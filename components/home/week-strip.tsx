@@ -33,6 +33,7 @@ export function WeekStrip({
   googleEvents,
   projects,
   headerAction,
+  compact = false,
 }: {
   initialWeekStart: string;
   milestones: Milestone[];
@@ -42,6 +43,9 @@ export function WeekStrip({
   googleEvents: CalendarEvent[];
   projects: Project[];
   headerAction?: React.ReactNode;
+  /** Slim single-row header strip (PLAN_HOME2.md §Header): day numbers + up to 2
+   * queue range labels, no agenda, no week nav — "캘린더 →" only. */
+  compact?: boolean;
 }) {
   const [weekStart, setWeekStart] = useState(initialWeekStart);
   const today = todayKST();
@@ -67,6 +71,38 @@ export function WeekStrip({
   const agenda = days
     .flatMap((date) => (points[date] ?? []).filter((p) => p.kind !== 'task').map((p) => ({ date, point: p })))
     .slice(0, MAX_AGENDA_LINES);
+
+  if (compact) {
+    return (
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-xs">
+        <span className="shrink-0 font-medium text-foreground/70">이번 주</span>
+        <div className="flex shrink-0 gap-0.5">
+          {days.map((date, i) => (
+            <Link
+              key={date}
+              href="/calendar"
+              className={`tnum rounded px-1 py-0.5 ${date === today ? 'bg-accent-soft font-medium text-accent' : 'text-foreground/50 hover:bg-foreground/5'}`}
+            >
+              {DAY_LABELS[i]}
+              {Number(date.slice(8, 10))}
+            </Link>
+          ))}
+        </div>
+        {weekRanges.map((seg) => {
+          const milestone = milestoneById.get(seg.milestoneId);
+          if (!milestone) return null;
+          return (
+            <span key={`${seg.milestoneId}-${seg.weekIndex}`} className="min-w-0 truncate text-foreground/40">
+              · {milestone.title}
+            </span>
+          );
+        })}
+        <Link href="/calendar" className="ml-auto hidden shrink-0 text-foreground/40 hover:underline sm:inline">
+          캘린더 →
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-3">

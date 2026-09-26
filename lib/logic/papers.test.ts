@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { movePaper, paperCardLine } from './papers';
+import { movePaper, paperCardLine, paperLaneGroups } from './papers';
 import type { Deadline, Paper } from '@/lib/types';
 
 function paper(overrides: Partial<Paper>): Paper {
@@ -130,5 +130,23 @@ describe('paperCardLine', () => {
       submissions: [{ journal: 'Fictional Journal', submittedAt: '2026-01-01', decision: 'accept', decidedAt: '2026-03-15' }],
     });
     expect(paperCardLine(p, [], today)).toBe('Fictional Journal · 2026-03');
+  });
+});
+
+describe('paperLaneGroups', () => {
+  it('groups by stage in pipeline order, omitting empty stages', () => {
+    const papers = [
+      paper({ id: 'a', stage: 'revision', sort: 0 }),
+      paper({ id: 'b', stage: 'writing', sort: 1 }),
+      paper({ id: 'c', stage: 'writing', sort: 0 }),
+    ];
+    const groups = paperLaneGroups(papers);
+    expect(groups.map((g) => g.stage)).toEqual(['writing', 'revision']);
+    expect(groups[0].label).toBe('작성중');
+    expect(groups[0].papers.map((p) => p.id)).toEqual(['c', 'b']); // sorted by `sort` within the stage
+  });
+
+  it('returns an empty list for no papers', () => {
+    expect(paperLaneGroups([])).toEqual([]);
   });
 });
