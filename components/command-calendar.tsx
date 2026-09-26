@@ -146,16 +146,14 @@ function DayPopover({
     <div
       ref={ref}
       tabIndex={-1}
-      className="rounded-lg border border-border bg-surface p-2 text-xs outline-none"
+      className="rounded-lg border border-border bg-surface-raised p-3 text-sm text-foreground shadow-lg ring-1 ring-black/5 outline-none dark:ring-white/10"
     >
-      <p className="mb-1.5 font-medium">{date}</p>
+      <p className="mb-2 font-semibold">{date}</p>
 
       {(memoNotes.length > 0 || otherPoints.length > 0) && (
         <ul className="mb-2 flex flex-col gap-2">
           {memoNotes.map((n) => (
-            <li key={n.id}>
-              <NoteItem note={n} projects={projects} milestones={milestones} />
-            </li>
+            <NoteItem key={n.id} note={n} projects={projects} milestones={milestones} />
           ))}
           {otherPoints.map((p) => (
             <li key={p.id} className="flex items-center gap-1.5">
@@ -172,7 +170,7 @@ function DayPopover({
             key={t}
             type="button"
             onClick={() => setTab(t)}
-            className={`flex-1 rounded-md px-2 py-1 ${tab === t ? 'bg-blue-600 text-white' : 'text-foreground/60'}`}
+            className={`flex-1 rounded-md px-2 py-1 ${tab === t ? 'bg-blue-600 text-white' : 'text-foreground/80 hover:bg-foreground/5'}`}
           >
             {t === 'memo' ? '메모' : t === 'task' ? '할 일' : '마감'}
           </button>
@@ -222,7 +220,7 @@ function DayPopover({
           {effectiveMemoTags.length > 0 && (
             <div className="flex flex-wrap gap-1">
               {effectiveMemoTags.map((t) => (
-                <span key={t} className="rounded-full bg-foreground/5 px-1.5 py-0.5 text-foreground/60">
+                <span key={t} className="rounded-full bg-foreground/10 px-1.5 py-0.5 text-foreground/85">
                   #{t}
                 </span>
               ))}
@@ -258,7 +256,7 @@ function DayPopover({
                 key={a}
                 type="button"
                 onClick={() => setTaskAssignee(a)}
-                className={`flex-1 rounded px-1.5 py-1 ${taskAssignee === a ? 'bg-blue-600 text-white' : 'text-foreground/60'}`}
+                className={`flex-1 rounded px-1.5 py-1 ${taskAssignee === a ? 'bg-blue-600 text-white' : 'text-foreground/80 hover:bg-foreground/5'}`}
               >
                 {a === 'me' ? '나' : '에이전트'}
               </button>

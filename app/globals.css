@@ -8,6 +8,8 @@
   --foreground: #0f172a;
   --surface: #ffffff;
   --border: #e2e8f0;
+  --surface-raised: #ffffff;
+  color-scheme: light;
 }
 
 .dark {
@@ -15,6 +17,9 @@
   --foreground: #e2e8f0;
   --surface: #131c2e;
   --border: #263041;
+  --surface-raised: #1b2740;
+  /* native controls (select options, date pickers, datalist) render dark too */
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -22,6 +27,7 @@
   --color-foreground: var(--foreground);
   --color-surface: var(--surface);
   --color-border: var(--border);
+  --color-surface-raised: var(--surface-raised);
 }
 
 body {
@@ -37,4 +43,15 @@ body {
 ::-webkit-scrollbar-thumb {
   background: var(--border);
   border-radius: 9999px;
+}
+
+/* Native <option>/<optgroup> don't inherit well on Windows; pin readable colors. */
+option,
+optgroup {
+  background-color: var(--surface);
+  color: var(--foreground);
+}
+
+::placeholder {
+  color: color-mix(in srgb, var(--foreground) 45%, transparent);
 }

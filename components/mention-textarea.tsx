@@ -172,7 +172,7 @@ export function MentionTextarea({
       {token && suggestions.length > 0 && (
         <ul
           role="listbox"
-          className="absolute left-0 top-full z-20 mt-1 max-h-48 w-56 overflow-y-auto rounded-md border border-border bg-surface p-1 text-xs shadow-lg"
+          className="absolute left-0 top-full z-20 mt-1 max-h-48 w-56 overflow-y-auto rounded-md border border-border bg-surface-raised p-1 text-sm text-foreground shadow-xl ring-1 ring-black/5 dark:ring-white/10"
         >
           {suggestions.map((s, i) => {
             const key = s.kind === 'project' ? s.project.id : `${s.tag}-${i}`;
