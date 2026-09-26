@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type {
+  Assignee,
   Db,
   Deadline,
   Milestone,
@@ -41,8 +42,10 @@ function normalizeDb(raw: Partial<Db>): Db {
   const projects = (raw.projects ?? []).map((p, i) => ({
     ...p,
     color: p.color ?? PROJECT_COLORS[i % PROJECT_COLORS.length],
+    aliases: p.aliases ?? [],
   }));
-  const notes = (raw.notes ?? []).map((n) => ({ ...n, taskId: n.taskId ?? null }));
+  const notes = (raw.notes ?? []).map((n) => ({ ...n, taskId: n.taskId ?? null, date: n.date ?? null }));
+  const tasks = (raw.tasks ?? []).map((t) => ({ ...t, assignee: t.assignee ?? 'me' }));
   return {
     projects,
     projectActivity: raw.projectActivity ?? [],
@@ -51,7 +54,7 @@ function normalizeDb(raw: Partial<Db>): Db {
     deadlines: raw.deadlines ?? [],
     notes,
     milestones: raw.milestones ?? [],
-    tasks: raw.tasks ?? [],
+    tasks,
   };
 }
 
@@ -111,6 +114,7 @@ export class LocalRepo implements Repo {
     kind: Note['kind'];
     projectId?: string | null;
     tags?: string[];
+    date?: string | null;
     source: Note['source'];
   }): Promise<Note> {
     return this.withLock((db) => {
@@ -122,6 +126,7 @@ export class LocalRepo implements Repo {
         status: 'inbox',
         projectId: input.projectId ?? null,
         tags: input.tags ?? [],
+        date: input.date ?? null,
         pinned: false,
         source: input.source,
         deliveredAt: null,
@@ -140,6 +145,31 @@ export class LocalRepo implements Repo {
       if (!note) notFound('Note', id);
       Object.assign(note, patch, { updatedAt: new Date().toISOString() });
       return note;
+    });
+  }
+
+  /** Renames tag `from` to `to` (or merges into it if `to` already exists) across every note, in one write. */
+  mergeTag(from: string, to: string): Promise<number> {
+    return this.withLock((db) => {
+      const fromLower = from.toLowerCase();
+      const now = new Date().toISOString();
+      let count = 0;
+      for (const note of db.notes) {
+        if (!note.tags.some((t) => t.toLowerCase() === fromLower)) continue;
+        const seen = new Set<string>();
+        const tags: string[] = [];
+        for (const t of note.tags.map((t) => (t.toLowerCase() === fromLower ? to : t))) {
+          const key = t.toLowerCase();
+          if (!seen.has(key)) {
+            seen.add(key);
+            tags.push(t);
+          }
+        }
+        note.tags = tags;
+        note.updatedAt = now;
+        count += 1;
+      }
+      return count;
     });
   }
 
@@ -339,6 +369,7 @@ export class LocalRepo implements Repo {
     description?: string | null;
     dueDate?: string | null;
     status?: TaskStatus;
+    assignee?: Assignee;
   }): Promise<Task> {
     return this.withLock((db) => {
       const now = new Date().toISOString();
@@ -354,6 +385,7 @@ export class LocalRepo implements Repo {
         status,
         dueDate: input.dueDate ?? null,
         doneAt: status === 'done' ? now : null,
+        assignee: input.assignee ?? 'me',
         sort: siblings.length,
         createdAt: now,
         updatedAt: now,
@@ -402,6 +434,7 @@ export class LocalRepo implements Repo {
         status: 'todo',
         dueDate: input.dueDate ?? null,
         doneAt: null,
+        assignee: 'me',
         sort: siblings.length,
         createdAt: now,
         updatedAt: now,

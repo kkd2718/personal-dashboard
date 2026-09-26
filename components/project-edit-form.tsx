@@ -15,12 +15,14 @@ export function ProjectEditForm({ project }: { project: Project }) {
   const [status, setStatus] = useState(project.status);
   const [summary, setSummary] = useState(project.summary);
   const [nextAction, setNextAction] = useState(project.nextAction ?? '');
+  const [aliasesText, setAliasesText] = useState(project.aliases.join(', '));
   const [pending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
 
   function save() {
+    const aliases = aliasesText.split(',').map((a) => a.trim()).filter(Boolean);
     startTransition(async () => {
-      await updateProjectAction({ id: project.id, status, summary, nextAction: nextAction || null });
+      await updateProjectAction({ id: project.id, status, summary, nextAction: nextAction || null, aliases });
       setSaved(true);
       setTimeout(() => setSaved(false), 1500);
     });
@@ -56,6 +58,15 @@ export function ProjectEditForm({ project }: { project: Project }) {
         <input
           value={nextAction}
           onChange={(e) => setNextAction(e.target.value)}
+          className="rounded-md border border-border bg-transparent px-2 py-1.5"
+        />
+      </label>
+      <label className="flex flex-col gap-1 text-sm">
+        별칭 (쉼표로 구분, @멘션에 사용)
+        <input
+          value={aliasesText}
+          onChange={(e) => setAliasesText(e.target.value)}
+          placeholder="예: 브레인CT, brain ct, 뇌CT"
           className="rounded-md border border-border bg-transparent px-2 py-1.5"
         />
       </label>

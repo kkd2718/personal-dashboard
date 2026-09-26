@@ -5,10 +5,18 @@ import { getRepo } from '@/lib/repo';
 import type { Note } from '@/lib/types';
 import { revalidateAll } from '@/app/actions/revalidate';
 
+const dateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .nullable()
+  .optional();
+
 const createSchema = z.object({
   body: z.string().trim().min(1),
   kind: z.enum(['idea', 'memo', 'todo', 'link']).default('memo'),
   projectId: z.string().min(1).nullable().optional(),
+  tags: z.array(z.string()).optional(),
+  date: dateSchema,
   source: z
     .enum(['web', 'share', 'telegram', 'obsidian', 'gmail', 'collector'])
     .default('web'),
@@ -28,6 +36,7 @@ const updateSchema = z.object({
   status: z.enum(['inbox', 'filed', 'sent', 'done', 'archived']).optional(),
   projectId: z.string().min(1).nullable().optional(),
   tags: z.array(z.string()).optional(),
+  date: dateSchema,
   pinned: z.boolean().optional(),
 });
 
@@ -41,4 +50,14 @@ export async function updateNoteAction(input: unknown): Promise<Note> {
 /** Assign a note to a project; moves it out of the raw inbox. */
 export async function assignNoteToProjectAction(id: string, projectId: string): Promise<Note> {
   return updateNoteAction({ id, projectId, status: 'filed' });
+}
+
+const mergeTagSchema = z.object({ from: z.string().trim().min(1), to: z.string().trim().min(1) });
+
+/** Rename a tag, or merge it into an existing one, across every note. */
+export async function mergeTagAction(input: unknown): Promise<number> {
+  const { from, to } = mergeTagSchema.parse(input);
+  const count = await getRepo().mergeTag(from, to);
+  revalidateAll();
+  return count;
 }

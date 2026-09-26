@@ -1,12 +1,14 @@
 import { notFound } from 'next/navigation';
 import { getRepo } from '@/lib/repo';
 import { ProjectEditForm } from '@/components/project-edit-form';
+import { QuickCapture } from '@/components/quick-capture';
 import { NoteItem } from '@/components/note-item';
 import { DdayChip } from '@/components/dday-chip';
 import { PaperSubmissions } from '@/components/paper-submissions';
 import { QueueStrip } from '@/components/queue-strip';
 import { TaskBoard } from '@/components/task-board';
 import { dday, todayKST } from '@/lib/logic/dates';
+import { tagCounts } from '@/lib/logic/notes';
 
 // D-day depends on "today" in KST; never cache this page.
 export const dynamic = 'force-dynamic';
@@ -33,7 +35,9 @@ export default async function ProjectDetailPage({
   const activity = activityList.find((a) => a.projectId === project.id);
 
   const today = todayKST();
-  const linkedNotes = notes.filter((n) => n.projectId === project.id);
+  const linkedNotes = notes
+    .filter((n) => n.projectId === project.id)
+    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
   const linkedDeadlines = deadlines.filter((d) => d.projectId === project.id);
   const linkedPapers = papers.filter((p) => p.projectId === project.id);
   const linkedMilestones = milestones.filter((m) => m.projectId === project.id);
@@ -101,7 +105,12 @@ export default async function ProjectDetailPage({
       </section>
 
       <section className="flex flex-col gap-2">
-        <h2 className="text-sm font-medium text-foreground/60">연결된 메모</h2>
+        <h2 className="text-sm font-medium text-foreground/60">메모 · 아이디어</h2>
+        <QuickCapture
+          projects={projects.filter((p) => p.status === 'active')}
+          existingTags={tagCounts(notes)}
+          defaultProjectId={project.id}
+        />
         {linkedNotes.length === 0 ? (
           <p className="text-sm text-foreground/50">연결된 메모가 없습니다.</p>
         ) : (

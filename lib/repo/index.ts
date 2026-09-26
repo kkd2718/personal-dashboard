@@ -1,4 +1,5 @@
 import type {
+  Assignee,
   Deadline,
   Milestone,
   MilestoneStatus,
@@ -21,9 +22,12 @@ export interface Repo {
     kind: Note['kind'];
     projectId?: string | null;
     tags?: string[];
+    date?: string | null;
     source: Note['source'];
   }): Promise<Note>;
   updateNote(id: string, patch: Partial<Omit<Note, 'id' | 'createdAt'>>): Promise<Note>;
+  /** Renames/merges a tag across every note in one write. Returns the number of notes touched. */
+  mergeTag(from: string, to: string): Promise<number>;
 
   listProjects(): Promise<Project[]>;
   getProjectBySlug(slug: string): Promise<Project | null>;
@@ -78,6 +82,7 @@ export interface Repo {
     description?: string | null;
     dueDate?: string | null;
     status?: TaskStatus;
+    assignee?: Assignee;
   }): Promise<Task>;
   updateTask(id: string, patch: Partial<Omit<Task, 'id' | 'createdAt'>>): Promise<Task>;
   moveTask(id: string, toStatus: TaskStatus, toIndex: number): Promise<Task[]>;

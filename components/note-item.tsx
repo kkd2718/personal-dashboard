@@ -126,6 +126,8 @@ export function NoteItem({
   const [editing, setEditing] = useState(false);
   const [converting, setConverting] = useState(false);
   const [body, setBody] = useState(note.body);
+  const [tagsText, setTagsText] = useState(note.tags.join(', '));
+  const [date, setDate] = useState(note.date ?? '');
   const [pending, startTransition] = useTransition();
 
   function run(patch: Parameters<typeof updateNoteAction>[0]) {
@@ -183,26 +185,57 @@ export function NoteItem({
       </div>
 
       {editing ? (
-        <div className="flex gap-2">
-          <textarea
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            rows={2}
-            className="flex-1 rounded-lg border border-border bg-transparent p-2 text-sm outline-none"
-          />
-          <button
-            type="button"
-            onClick={() => {
-              run({ id: note.id, body });
-              setEditing(false);
-            }}
-            className="rounded-lg bg-blue-600 px-3 text-sm text-white"
-          >
-            저장
-          </button>
+        <div className="flex flex-col gap-2">
+          <div className="flex gap-2">
+            <textarea
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              rows={2}
+              className="flex-1 rounded-lg border border-border bg-transparent p-2 text-sm outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                const tags = tagsText
+                  .split(',')
+                  .map((t) => t.trim())
+                  .filter(Boolean);
+                run({ id: note.id, body, tags, date: date || null });
+                setEditing(false);
+              }}
+              className="rounded-lg bg-blue-600 px-3 text-sm text-white"
+            >
+              저장
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2 text-xs">
+            <input
+              value={tagsText}
+              onChange={(e) => setTagsText(e.target.value)}
+              placeholder="태그 (쉼표로 구분)"
+              className="min-w-0 flex-1 rounded-md border border-border bg-transparent px-2 py-1"
+            />
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="rounded-md border border-border bg-transparent px-2 py-1"
+            />
+          </div>
         </div>
       ) : (
         <p className="whitespace-pre-wrap text-sm">{note.body}</p>
+      )}
+
+      {(note.tags.length > 0 || note.date) && (
+        <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-foreground/50">
+          {note.tags.map((t) => (
+            <span key={t} className="rounded-full bg-foreground/5 px-2 py-0.5">
+              #{t}
+            </span>
+          ))}
+          {note.date && <span className="rounded-full bg-foreground/5 px-2 py-0.5">{note.date}</span>}
+        </div>
       )}
 
       <div className="flex flex-wrap items-center gap-2 text-xs text-foreground/60">

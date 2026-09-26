@@ -20,7 +20,7 @@ export function ProjectProgressList({
 
   if (rows.length === 0) {
     return (
-      <div className="rounded-xl border border-border bg-surface p-3">
+      <div className="flex h-full flex-col rounded-xl border border-border bg-surface p-3">
         <h2 className="mb-1 text-sm font-semibold">진행률</h2>
         <p className="text-xs text-foreground/40">할 일이 있는 진행중 프로젝트가 없습니다.</p>
       </div>
@@ -28,9 +28,9 @@ export function ProjectProgressList({
   }
 
   return (
-    <div className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-3">
+    <div className="flex h-full flex-col gap-2 rounded-xl border border-border bg-surface p-3">
       <h2 className="text-sm font-semibold">진행률</h2>
-      <ul className="flex flex-col gap-2.5">
+      <ul className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-auto">
         {rows.map(({ project, progress }) => {
           const activeQueue = milestones.find((m) => m.projectId === project.id && m.status === 'active');
           const colors = projectColorClasses(project.color);

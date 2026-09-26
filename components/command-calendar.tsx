@@ -1,25 +1,314 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronLeft, ChevronRight, Link2, CalendarClock, ClipboardCheck, FileText } from 'lucide-react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  Link2,
+  CalendarClock,
+  ClipboardCheck,
+  FileText,
+  StickyNote,
+} from 'lucide-react';
 import { calendarEvents, type CalendarPoint } from '@/lib/logic/calendar';
+import { tagCounts } from '@/lib/logic/notes';
 import { addDaysStr, addMonthsStr, startOfMonthStr, todayKST } from '@/lib/logic/dates';
 import { projectColorClasses } from '@/lib/project-colors';
-import type { Deadline, Milestone, Project, ReviewJob, Task } from '@/lib/types';
+import { createNoteAction } from '@/app/actions/notes';
+import { createTaskAction } from '@/app/actions/tasks';
+import { createDeadlineAction } from '@/app/actions/deadlines';
+import { NoteItem } from '@/components/note-item';
+import { MentionTextarea } from '@/components/mention-textarea';
+import { parseCapture } from '@/lib/logic/capture';
+import type { Deadline, DeadlineKind, Milestone, Note, Project, ReviewJob, Task } from '@/lib/types';
 
 const POINT_ICON: Record<CalendarPoint['kind'], typeof ClipboardCheck> = {
   task: ClipboardCheck,
   deadline: CalendarClock,
   review: FileText,
   milestone: Link2,
+  memo: StickyNote,
 };
+
+const DEADLINE_KIND_OPTIONS: DeadlineKind[] = [
+  'paper', 'review', 'grant', 'thesis', 'interview', 'date', 'personal', 'other',
+];
+
+type PopoverTab = 'memo' | 'task' | 'deadline';
+
+/** Day-cell popover: add a memo/task/deadline, or edit an existing memo point. */
+function DayPopover({
+  date,
+  points,
+  notes,
+  projects,
+  milestones,
+  onClose,
+}: {
+  date: string;
+  points: CalendarPoint[];
+  notes: Note[];
+  projects: Project[];
+  milestones: Milestone[];
+  onClose: () => void;
+}) {
+  const router = useRouter();
+  const ref = useRef<HTMLDivElement>(null);
+  const [tab, setTab] = useState<PopoverTab>('memo');
+  const [memoBody, setMemoBody] = useState('');
+  const [memoProjectId, setMemoProjectId] = useState('');
+  const [memoProjectTouched, setMemoProjectTouched] = useState(false);
+  const [memoTags, setMemoTags] = useState('');
+  const [taskTitle, setTaskTitle] = useState('');
+  const [taskProjectId, setTaskProjectId] = useState(projects[0]?.id ?? '');
+  const [taskAssignee, setTaskAssignee] = useState<'me' | 'agent'>('me');
+  const [deadlineTitle, setDeadlineTitle] = useState('');
+  const [deadlineKind, setDeadlineKind] = useState<DeadlineKind>('other');
+  const [deadlineTime, setDeadlineTime] = useState('');
+
+  useEffect(() => {
+    ref.current?.focus();
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const tags = useMemo(() => tagCounts(notes), [notes]);
+  const existingTagNames = useMemo(() => tags.map((t) => t.tag), [tags]);
+  const memoParsed = useMemo(
+    () => parseCapture(memoBody, projects, existingTagNames),
+    [memoBody, projects, existingTagNames]
+  );
+  const effectiveMemoProjectId = memoProjectTouched ? memoProjectId : (memoParsed.projectId ?? memoProjectId);
+  const effectiveMemoTags = useMemo(() => {
+    const manual = memoTags.split(',').map((t) => t.trim()).filter(Boolean);
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const t of [...manual, ...memoParsed.tags]) {
+      const k = t.toLowerCase();
+      if (!seen.has(k)) {
+        seen.add(k);
+        out.push(t);
+      }
+    }
+    return out;
+  }, [memoTags, memoParsed.tags]);
+
+  async function submitMemo(e: React.FormEvent) {
+    e.preventDefault();
+    if (!memoBody.trim()) return;
+    await createNoteAction({
+      body: memoBody.trim(),
+      kind: 'memo',
+      projectId: effectiveMemoProjectId || null,
+      tags: effectiveMemoTags,
+      date,
+      source: 'web',
+    });
+    router.refresh();
+    onClose();
+  }
+
+  async function submitTask(e: React.FormEvent) {
+    e.preventDefault();
+    if (!taskTitle.trim()) return;
+    await createTaskAction({
+      title: taskTitle.trim(),
+      projectId: taskProjectId || null,
+      dueDate: date,
+      assignee: taskAssignee,
+    });
+    router.refresh();
+    onClose();
+  }
+
+  async function submitDeadline(e: React.FormEvent) {
+    e.preventDefault();
+    if (!deadlineTitle.trim()) return;
+    await createDeadlineAction({
+      title: deadlineTitle.trim(),
+      kind: deadlineKind,
+      dueDate: date,
+      dueTime: deadlineTime || null,
+    });
+    router.refresh();
+    onClose();
+  }
+
+  const memoNotes = points.filter((p) => p.kind === 'memo').map((p) => notes.find((n) => n.id === p.id)).filter((n): n is Note => !!n);
+  const otherPoints = points.filter((p) => p.kind !== 'memo');
+
+  return (
+    <div
+      ref={ref}
+      tabIndex={-1}
+      className="rounded-lg border border-border bg-surface p-2 text-xs outline-none"
+    >
+      <p className="mb-1.5 font-medium">{date}</p>
+
+      {(memoNotes.length > 0 || otherPoints.length > 0) && (
+        <ul className="mb-2 flex flex-col gap-2">
+          {memoNotes.map((n) => (
+            <li key={n.id}>
+              <NoteItem note={n} projects={projects} milestones={milestones} />
+            </li>
+          ))}
+          {otherPoints.map((p) => (
+            <li key={p.id} className="flex items-center gap-1.5">
+              <span className="rounded-full bg-foreground/10 px-1.5 py-0.5">{p.kind}</span>
+              {p.title}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="mb-2 flex gap-1 rounded-lg border border-border p-0.5">
+        {(['memo', 'task', 'deadline'] as PopoverTab[]).map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => setTab(t)}
+            className={`flex-1 rounded-md px-2 py-1 ${tab === t ? 'bg-blue-600 text-white' : 'text-foreground/60'}`}
+          >
+            {t === 'memo' ? '메모' : t === 'task' ? '할 일' : '마감'}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'memo' && (
+        <form onSubmit={submitMemo} className="flex flex-col gap-1.5">
+          <MentionTextarea
+            value={memoBody}
+            onChange={setMemoBody}
+            onAcceptProject={(p) => {
+              setMemoProjectId(p.id);
+              setMemoProjectTouched(true);
+            }}
+            projects={projects}
+            existingTags={tags}
+            placeholder="메모 내용 (@프로젝트 #태그)"
+            rows={2}
+            className="w-full rounded-md border border-border bg-transparent p-1.5"
+          />
+          <select
+            value={effectiveMemoProjectId}
+            onChange={(e) => {
+              setMemoProjectId(e.target.value);
+              setMemoProjectTouched(true);
+            }}
+            className="rounded-md border border-border bg-transparent px-2 py-1"
+          >
+            <option value="">프로젝트 없음</option>
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+          <input
+            value={memoTags}
+            onChange={(e) => setMemoTags(e.target.value)}
+            placeholder="추가 태그 (쉼표로 구분)"
+            list="calendar-memo-tags"
+            className="rounded-md border border-border bg-transparent px-2 py-1"
+          />
+          <datalist id="calendar-memo-tags">
+            {tags.map(({ tag: t }) => (
+              <option key={t} value={t} />
+            ))}
+          </datalist>
+          {effectiveMemoTags.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {effectiveMemoTags.map((t) => (
+                <span key={t} className="rounded-full bg-foreground/5 px-1.5 py-0.5 text-foreground/60">
+                  #{t}
+                </span>
+              ))}
+            </div>
+          )}
+          <button type="submit" disabled={!memoBody.trim()} className="rounded-md bg-blue-600 px-2 py-1 text-white disabled:opacity-40">
+            메모 추가
+          </button>
+        </form>
+      )}
+
+      {tab === 'task' && (
+        <form onSubmit={submitTask} className="flex flex-col gap-1.5">
+          <input
+            autoFocus
+            value={taskTitle}
+            onChange={(e) => setTaskTitle(e.target.value)}
+            placeholder="할 일 제목"
+            className="rounded-md border border-border bg-transparent px-2 py-1"
+          />
+          <select
+            value={taskProjectId}
+            onChange={(e) => setTaskProjectId(e.target.value)}
+            className="rounded-md border border-border bg-transparent px-2 py-1"
+          >
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+          <div className="flex gap-1 rounded-md border border-border p-0.5">
+            {(['me', 'agent'] as const).map((a) => (
+              <button
+                key={a}
+                type="button"
+                onClick={() => setTaskAssignee(a)}
+                className={`flex-1 rounded px-1.5 py-1 ${taskAssignee === a ? 'bg-blue-600 text-white' : 'text-foreground/60'}`}
+              >
+                {a === 'me' ? '나' : '에이전트'}
+              </button>
+            ))}
+          </div>
+          <button type="submit" disabled={!taskTitle.trim()} className="rounded-md bg-blue-600 px-2 py-1 text-white disabled:opacity-40">
+            할 일 추가
+          </button>
+        </form>
+      )}
+
+      {tab === 'deadline' && (
+        <form onSubmit={submitDeadline} className="flex flex-col gap-1.5">
+          <input
+            autoFocus
+            value={deadlineTitle}
+            onChange={(e) => setDeadlineTitle(e.target.value)}
+            placeholder="마감 제목"
+            className="rounded-md border border-border bg-transparent px-2 py-1"
+          />
+          <select
+            value={deadlineKind}
+            onChange={(e) => setDeadlineKind(e.target.value as DeadlineKind)}
+            className="rounded-md border border-border bg-transparent px-2 py-1"
+          >
+            {DEADLINE_KIND_OPTIONS.map((k) => (
+              <option key={k} value={k}>{k}</option>
+            ))}
+          </select>
+          <input
+            type="time"
+            value={deadlineTime}
+            onChange={(e) => setDeadlineTime(e.target.value)}
+            className="rounded-md border border-border bg-transparent px-2 py-1"
+          />
+          <button type="submit" disabled={!deadlineTitle.trim()} className="rounded-md bg-blue-600 px-2 py-1 text-white disabled:opacity-40">
+            마감 추가
+          </button>
+        </form>
+      )}
+    </div>
+  );
+}
 
 interface Props {
   milestones: Milestone[];
   tasks: Task[];
   deadlines: Deadline[];
   reviews: ReviewJob[];
+  notes?: Note[];
   projects: Project[];
   defaultView?: 'month' | 'week';
   compact?: boolean;
@@ -30,6 +319,7 @@ export function CommandCalendar({
   tasks,
   deadlines,
   reviews,
+  notes = [],
   projects,
   defaultView = 'month',
   compact = false,
@@ -47,8 +337,8 @@ export function CommandCalendar({
 
   const monthStart = startOfMonthStr(cursor);
   const events = useMemo(
-    () => calendarEvents(monthStart, { milestones, tasks, deadlines, reviews }),
-    [monthStart, milestones, tasks, deadlines, reviews]
+    () => calendarEvents(monthStart, { milestones, tasks, deadlines, reviews, notes }),
+    [monthStart, milestones, tasks, deadlines, reviews, notes]
   );
 
   const weeks =
@@ -65,7 +355,7 @@ export function CommandCalendar({
   }
 
   return (
-    <div className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-3">
+    <div className="flex h-full flex-col gap-2 rounded-xl border border-border bg-surface p-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1">
           <button type="button" onClick={() => setCursor((c) => addMonthsStr(c, -1))} aria-label="이전 달">
@@ -99,6 +389,7 @@ export function CommandCalendar({
         </div>
       </div>
 
+      <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-auto">
       <div className="grid grid-cols-7 text-center text-[11px] text-foreground/40">
         {['월', '화', '수', '목', '금', '토', '일'].map((w) => (
           <div key={w}>{w}</div>
@@ -168,23 +459,17 @@ export function CommandCalendar({
           );
         })}
       </div>
+      </div>
 
       {selected && (
-        <div className="rounded-lg border border-border bg-foreground/[0.03] p-2 text-xs">
-          <p className="mb-1 font-medium">{selected}</p>
-          {(events.points[selected] ?? []).length === 0 ? (
-            <p className="text-foreground/40">일정 없음</p>
-          ) : (
-            <ul className="flex flex-col gap-1">
-              {(events.points[selected] ?? []).map((p) => (
-                <li key={p.id} className="flex items-center gap-1.5">
-                  <span className="rounded-full bg-foreground/10 px-1.5 py-0.5">{p.kind}</span>
-                  {p.title}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        <DayPopover
+          date={selected}
+          points={events.points[selected] ?? []}
+          notes={notes}
+          projects={projects}
+          milestones={milestones}
+          onClose={() => setSelected(null)}
+        />
       )}
 
       {!compact && (

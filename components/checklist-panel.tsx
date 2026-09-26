@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus } from 'lucide-react';
+import { Bot, Plus } from 'lucide-react';
 import { checklist, type ChecklistItem } from '@/lib/logic/checklist';
 import { dday, todayKST } from '@/lib/logic/dates';
 import { createTaskAction, toggleTaskDoneAction } from '@/app/actions/tasks';
@@ -26,11 +26,13 @@ function Row({
   projects,
   today,
   onToggle,
+  isAgent = false,
 }: {
   item: ChecklistItem;
   projects: Project[];
   today: string;
   onToggle: (id: string, done: boolean) => void;
+  isAgent?: boolean;
 }) {
   const project = projects.find((p) => p.id === item.projectId);
   const colors = projectColorClasses(project?.color);
@@ -53,6 +55,7 @@ function Row({
         />
       )}
       {project && <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${colors.dot}`} />}
+      {isAgent && <Bot size={12} className="shrink-0 text-foreground/40" />}
       <span className={`min-w-0 flex-1 truncate ${item.done ? 'text-foreground/40 line-through' : ''}`}>
         {item.title}
       </span>
@@ -71,6 +74,7 @@ function AddTaskForm({ projects, onAdded }: { projects: Project[]; onAdded: () =
   const [title, setTitle] = useState('');
   const [projectId, setProjectId] = useState(projects[0]?.id ?? '');
   const [dueDate, setDueDate] = useState('');
+  const [assignee, setAssignee] = useState<'me' | 'agent'>('me');
   const [pending, startTransition] = useTransition();
 
   if (!open) {
@@ -93,9 +97,11 @@ function AddTaskForm({ projects, onAdded }: { projects: Project[]; onAdded: () =
         title: title.trim(),
         projectId: projectId || null,
         dueDate: dueDate || null,
+        assignee,
       });
       setTitle('');
       setDueDate('');
+      setAssignee('me');
       setOpen(false);
       onAdded();
     });
@@ -127,6 +133,18 @@ function AddTaskForm({ projects, onAdded }: { projects: Project[]; onAdded: () =
         onChange={(e) => setDueDate(e.target.value)}
         className="rounded-md border border-border bg-transparent px-2 py-1"
       />
+      <div className="flex gap-1 rounded-md border border-border p-0.5">
+        {(['me', 'agent'] as const).map((a) => (
+          <button
+            key={a}
+            type="button"
+            onClick={() => setAssignee(a)}
+            className={`rounded px-1.5 py-0.5 ${assignee === a ? 'bg-blue-600 text-white' : 'text-foreground/60'}`}
+          >
+            {a === 'me' ? '나' : '에이전트'}
+          </button>
+        ))}
+      </div>
       <button type="submit" disabled={pending || !title.trim()} className="rounded-md bg-blue-600 px-2 py-1 text-white disabled:opacity-40">
         추가
       </button>
@@ -156,7 +174,13 @@ export function ChecklistPanel({
     setTasks(initialTasks);
   }
   const today = todayKST();
-  const result = checklist(tasks, deadlines, reviews, today, new Set(activeMilestoneIds));
+  const [tab, setTab] = useState<'me' | 'agent'>('me');
+  const byAssignee = checklist(tasks, deadlines, reviews, today, new Set(activeMilestoneIds));
+  const result = byAssignee[tab];
+
+  function countOf(c: typeof byAssignee.me): number {
+    return c.overdue.length + c.today.length + c.thisWeek.length + c.doing.length + c.next.length;
+  }
 
   function handleToggle(id: string, done: boolean) {
     const now = new Date().toISOString();
@@ -175,24 +199,51 @@ export function ChecklistPanel({
   ];
 
   return (
-    <div className="flex flex-col gap-4 rounded-xl border border-border bg-surface p-3">
-      <h2 className="text-sm font-semibold">체크리스트</h2>
-      {sections.map(({ key, label }) => (
-        <section key={key} className="flex flex-col gap-1.5">
-          <h3 className="text-xs font-medium text-foreground/50">
-            {label} ({result[key].length})
-          </h3>
-          {result[key].length === 0 ? (
-            <p className="text-xs text-foreground/30">없음</p>
-          ) : (
-            <ul className="flex flex-col gap-1">
-              {result[key].map((item) => (
-                <Row key={item.id} item={item} projects={projects} today={today} onToggle={handleToggle} />
-              ))}
-            </ul>
-          )}
-        </section>
-      ))}
+    <div className="flex h-full flex-col gap-3 rounded-xl border border-border bg-surface p-3">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold">체크리스트</h2>
+        <div className="flex gap-1 rounded-lg border border-border p-0.5 text-xs">
+          <button
+            type="button"
+            onClick={() => setTab('me')}
+            className={`rounded-md px-2 py-1 ${tab === 'me' ? 'bg-blue-600 text-white' : 'text-foreground/60'}`}
+          >
+            나 {countOf(byAssignee.me)}
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab('agent')}
+            className={`flex items-center gap-1 rounded-md px-2 py-1 ${tab === 'agent' ? 'bg-blue-600 text-white' : 'text-foreground/60'}`}
+          >
+            <Bot size={12} /> 에이전트 {countOf(byAssignee.agent)}
+          </button>
+        </div>
+      </div>
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto">
+        {sections.map(({ key, label }) => (
+          <section key={key} className="flex flex-col gap-1.5">
+            <h3 className="text-xs font-medium text-foreground/50">
+              {label} ({result[key].length})
+            </h3>
+            {result[key].length === 0 ? (
+              <p className="text-xs text-foreground/30">없음</p>
+            ) : (
+              <ul className="flex flex-col gap-1">
+                {result[key].map((item) => (
+                  <Row
+                    key={item.id}
+                    item={item}
+                    projects={projects}
+                    today={today}
+                    onToggle={handleToggle}
+                    isAgent={tab === 'agent'}
+                  />
+                ))}
+              </ul>
+            )}
+          </section>
+        ))}
+      </div>
       <AddTaskForm projects={projects} onAdded={() => router.refresh()} />
     </div>
   );

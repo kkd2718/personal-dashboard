@@ -50,7 +50,7 @@ export function StatusPanel({
   const shown = mobileUrgentOnly ? urgentOnly(items) : items;
 
   return (
-    <div className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-3">
+    <div className="flex h-full flex-col gap-2 rounded-xl border border-border bg-surface p-3">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold">상황 체크</h2>
         <div className="flex items-center gap-2 text-[11px] text-foreground/40">
@@ -66,21 +66,23 @@ export function StatusPanel({
           </button>
         </div>
       </div>
-      {shown.length === 0 ? (
-        <p className="text-xs text-foreground/40">이상 없음</p>
-      ) : (
-        <ul className="flex flex-col gap-1.5">
-          {shown.map((item) => (
-            <li
-              key={item.id}
-              className={`flex flex-col gap-0.5 rounded-lg border px-2.5 py-1.5 text-xs ${SEVERITY_STYLE[item.severity]}`}
-            >
-              <span className="font-medium">{item.title}</span>
-              {item.detail && <span className="opacity-80">{item.detail}</span>}
-            </li>
-          ))}
-        </ul>
-      )}
+      <div className="min-h-0 flex-1 overflow-auto">
+        {shown.length === 0 ? (
+          <p className="text-xs text-foreground/40">이상 없음</p>
+        ) : (
+          <ul className="flex flex-col gap-1.5">
+            {shown.map((item) => (
+              <li
+                key={item.id}
+                className={`flex flex-col gap-0.5 rounded-lg border px-2.5 py-1.5 text-xs ${SEVERITY_STYLE[item.severity]}`}
+              >
+                <span className="font-medium">{item.title}</span>
+                {item.detail && <span className="opacity-80">{item.detail}</span>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }

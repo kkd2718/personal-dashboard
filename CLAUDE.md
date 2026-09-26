@@ -29,8 +29,14 @@ implementation. Never import `lib/repo/local.ts` or `node:fs` directly from a cl
 ## Phase status
 - **1a (done)**: LocalRepo, seed data, all screens (홈/인박스/프로젝트/논문/마감/공유), PWA manifest,
   logic + tests, dark mode, mobile bottom nav + desktop sidebar.
+- **1c (done)**: command-center restructure, queues (큐)/tasks, status probes, calendar.
+- **1d (done)**: memos everywhere (quick capture with `@project #tag`, home memo panel, calendar
+  day-add popover), `Task.assignee: 'me' | 'agent'` checklist split. **Agent tasks are what
+  phase 2's SessionStart hook will deliver into that project's Claude session** — in 1d the user
+  still ticks them manually from the checklist's 에이전트 tab.
 - **1b (next)**: Supabase migration + SupabaseRepo, magic-link auth, Vercel deploy, cron heartbeat.
-- **2**: Collector script (git/memory/trading status → `/api/ingest`), note→project inbox dispatch.
+- **2**: Collector script (git/memory/trading status → `/api/ingest`), note→project inbox dispatch,
+  SessionStart hook delivering `assignee: 'agent'` tasks into each project's Claude session.
 - **3**: Google Calendar, Telegram bot, Gmail review-deadline extraction, Obsidian sync.
 
 ## Conventions

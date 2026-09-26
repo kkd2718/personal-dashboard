@@ -1,4 +1,4 @@
-import type { Deadline, Milestone, ReviewJob, Task } from '@/lib/types';
+import type { Deadline, Milestone, Note, ReviewJob, Task } from '@/lib/types';
 import { addDaysStr, endOfIsoWeek, startOfIsoWeek } from '@/lib/logic/dates';
 
 export interface RangeSeg {
@@ -14,7 +14,7 @@ export interface RangeSeg {
 export interface CalendarPoint {
   id: string;
   title: string;
-  kind: 'task' | 'deadline' | 'review' | 'milestone';
+  kind: 'task' | 'deadline' | 'review' | 'milestone' | 'memo';
   projectId: string | null;
 }
 
@@ -56,7 +56,7 @@ function assignLanes(milestones: Milestone[]): Map<string, number> {
  */
 export function calendarEvents(
   monthStart: string,
-  data: { milestones: Milestone[]; tasks: Task[]; deadlines: Deadline[]; reviews: ReviewJob[] }
+  data: { milestones: Milestone[]; tasks: Task[]; deadlines: Deadline[]; reviews: ReviewJob[]; notes?: Note[] }
 ): CalendarEvents {
   const gridStart = startOfIsoWeek(monthStart);
   const gridEnd = endOfIsoWeek(monthLastDay(monthStart));
@@ -117,6 +117,10 @@ export function calendarEvents(
       kind: 'review',
       projectId: null,
     });
+  }
+  for (const n of data.notes ?? []) {
+    if (!n.date || n.status === 'archived' || n.status === 'done') continue;
+    addPoint(n.date, { id: n.id, title: n.body, kind: 'memo', projectId: n.projectId });
   }
 
   return { weeks, ranges, points };

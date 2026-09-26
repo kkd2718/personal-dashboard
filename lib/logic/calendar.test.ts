@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { calendarEvents } from './calendar';
-import type { Milestone } from '@/lib/types';
+import type { Milestone, Note } from '@/lib/types';
 
 function milestone(overrides: Partial<Milestone>): Milestone {
   return {
@@ -69,5 +69,31 @@ describe('calendarEvents', () => {
     expect(result.points['2026-09-10']).toContainEqual(
       expect.objectContaining({ id: 'm2', kind: 'milestone' })
     );
+  });
+
+  it('includes a dated note as a memo point', () => {
+    const note: Note = {
+      id: 'n1',
+      body: '메모',
+      kind: 'memo',
+      status: 'inbox',
+      projectId: null,
+      tags: [],
+      date: '2026-09-15',
+      pinned: false,
+      source: 'web',
+      deliveredAt: null,
+      taskId: null,
+      createdAt: '2026-09-25',
+      updatedAt: '2026-09-25',
+    };
+    const result = calendarEvents('2026-09-01', {
+      milestones: [],
+      tasks: [],
+      deadlines: [],
+      reviews: [],
+      notes: [note],
+    });
+    expect(result.points['2026-09-15']).toContainEqual(expect.objectContaining({ id: 'n1', kind: 'memo' }));
   });
 });

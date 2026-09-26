@@ -17,6 +17,7 @@ const updateSchema = z.object({
   summary: z.string().optional(),
   nextAction: z.string().nullable().optional(),
   links: z.array(linkSchema).optional(),
+  aliases: z.array(z.string()).optional(),
   pinned: z.boolean().optional(),
 });
 

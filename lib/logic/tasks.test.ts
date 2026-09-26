@@ -12,6 +12,7 @@ function task(id: string, status: Task['status'], sort: number): Task {
     status,
     dueDate: null,
     doneAt: null,
+    assignee: 'me',
     sort,
     createdAt: '2026-09-25T00:00:00Z',
     updatedAt: '2026-09-25T00:00:00Z',

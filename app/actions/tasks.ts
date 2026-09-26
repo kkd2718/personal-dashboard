@@ -6,6 +6,7 @@ import type { Task } from '@/lib/types';
 import { revalidateAll } from '@/app/actions/revalidate';
 
 const statusSchema = z.enum(['todo', 'doing', 'done']);
+const assigneeSchema = z.enum(['me', 'agent']);
 const dateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -19,6 +20,7 @@ const createSchema = z.object({
   description: z.string().nullable().optional(),
   dueDate: dateSchema,
   status: statusSchema.optional(),
+  assignee: assigneeSchema.optional(),
 });
 
 export async function createTaskAction(input: unknown): Promise<Task> {
@@ -36,6 +38,7 @@ const updateSchema = z.object({
   description: z.string().nullable().optional(),
   status: statusSchema.optional(),
   dueDate: dateSchema,
+  assignee: assigneeSchema.optional(),
   sort: z.number().int().min(0).optional(),
 });
 

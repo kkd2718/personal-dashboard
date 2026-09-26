@@ -20,6 +20,7 @@ export interface Project {
   nextAction: string | null;
   links: LinkRef[];
   paths: string[]; // Windows or WSL paths, e.g. 'C:\\Users\\...\\trading-system', '/home/.../amgi'
+  aliases: string[]; // extra @-mention names (e.g. Korean nicknames), matched like slug/name
   pinned: boolean;
   sort: number;
   color: string; // tailwind palette key, e.g. 'blue', 'emerald' — accent for calendar/cards
@@ -42,6 +43,10 @@ export interface Milestone {
 
 export type TaskStatus = 'todo' | 'doing' | 'done';
 
+/** Who is responsible: the user, or a Claude agent session (phase 2 delivers these via a
+ * SessionStart hook into that project's session; in 1d the user still ticks them manually). */
+export type Assignee = 'me' | 'agent';
+
 export interface Task {
   id: string;
   projectId: string | null;
@@ -51,6 +56,7 @@ export interface Task {
   status: TaskStatus;
   dueDate: string | null; // 'YYYY-MM-DD'
   doneAt: string | null;
+  assignee: Assignee; // default 'me'
   sort: number; // dense per (projectId, status)
   createdAt: string;
   updatedAt: string;
@@ -162,7 +168,8 @@ export interface Note {
   kind: NoteKind;
   status: NoteStatus;
   projectId: string | null;
-  tags: string[];
+  tags: string[]; // stored as entered; compare case-insensitively
+  date: string | null; // 'YYYY-MM-DD': memo pinned to a calendar day
   pinned: boolean;
   source: 'web' | 'share' | 'telegram' | 'obsidian' | 'gmail' | 'collector';
   deliveredAt: string | null; // set when dispatched to a project's .claude/inbox.md (phase 2)

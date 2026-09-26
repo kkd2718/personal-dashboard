@@ -27,6 +27,12 @@ export interface Checklist {
   next: ChecklistItem[]; // undated todo tasks in active queues (capped)
 }
 
+/** Checklist split by who's responsible. Deadlines/reviews only ever show up in `me`. */
+export interface ChecklistByAssignee {
+  me: Checklist;
+  agent: Checklist;
+}
+
 function byDueThenTitle(a: ChecklistItem, b: ChecklistItem): number {
   const ad = a.dueDate ?? '';
   const bd = b.dueDate ?? '';
@@ -35,11 +41,8 @@ function byDueThenTitle(a: ChecklistItem, b: ChecklistItem): number {
 }
 
 /**
- * Buckets tasks/deadlines/reviews for the home checklist.
- * thisWeek = due in (today, endOfIsoWeek(today)] (Monday-start ISO week, Sunday end), KST.
- * doing = status 'doing' with no due date. Done tasks are excluded except ones
- * completed today, which are appended (struck-through) at the bottom of `today`.
- * next = undated todo tasks whose milestone is in activeMilestoneIds (task order kept).
+ * Buckets tasks/deadlines/reviews for the home checklist, split by assignee (나/에이전트).
+ * Deadlines and reviews are always attributed to `me`.
  */
 export function checklist(
   tasks: Task[],
@@ -47,6 +50,27 @@ export function checklist(
   reviews: ReviewJob[],
   today: string,
   activeMilestoneIds: ReadonlySet<string> = new Set()
+): ChecklistByAssignee {
+  const meTasks = tasks.filter((t) => t.assignee !== 'agent');
+  const agentTasks = tasks.filter((t) => t.assignee === 'agent');
+  return {
+    me: bucketTasks(meTasks, deadlines, reviews, today, activeMilestoneIds),
+    agent: bucketTasks(agentTasks, [], [], today, activeMilestoneIds),
+  };
+}
+
+/**
+ * thisWeek = due in (today, endOfIsoWeek(today)] (Monday-start ISO week, Sunday end), KST.
+ * doing = status 'doing' with no due date. Done tasks are excluded except ones
+ * completed today, which are appended (struck-through) at the bottom of `today`.
+ * next = undated todo tasks whose milestone is in activeMilestoneIds (task order kept).
+ */
+function bucketTasks(
+  tasks: Task[],
+  deadlines: Deadline[],
+  reviews: ReviewJob[],
+  today: string,
+  activeMilestoneIds: ReadonlySet<string>
 ): Checklist {
   const weekEnd = endOfIsoWeek(today);
   const overdue: ChecklistItem[] = [];

@@ -10,12 +10,13 @@ export const dynamic = 'force-dynamic';
 
 export default async function CalendarPage() {
   const repo = getRepo();
-  const [projects, tasks, milestones, deadlines, reviews] = await Promise.all([
+  const [projects, tasks, milestones, deadlines, reviews, notes] = await Promise.all([
     repo.listProjects(),
     repo.listTasks(),
     repo.listMilestones(),
     repo.listDeadlines(),
     repo.listReviews(),
+    repo.listNotes(),
   ]);
   const today = todayKST();
   const agenda = upcoming(deadlines, reviews, today, 30);
@@ -29,6 +30,7 @@ export default async function CalendarPage() {
           tasks={tasks}
           deadlines={deadlines}
           reviews={reviews}
+          notes={notes}
           projects={projects}
           defaultView="month"
         />

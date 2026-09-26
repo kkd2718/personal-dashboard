@@ -167,7 +167,7 @@ export function PaperBoard({ initialPapers }: { initialPapers: Paper[] }) {
   const activePaper = activeId ? papers.find((p) => p.id === activeId) : null;
 
   return (
-    <DndContext
+    <DndContext id="paper-board"
       sensors={sensors}
       collisionDetection={closestCorners}
       onDragStart={handleDragStart}
