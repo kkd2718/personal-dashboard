@@ -91,8 +91,12 @@ project's DB password isn't always available/known. Run scripts with
   backlog status to `/api/ingest`; `Project.backlogGlobs` + a second progress bar for markdown-backlog
   projects (e.g. Amgi); SessionStart hook (`scripts/cc-inbox.mjs` + `/api/agent-inbox`) delivers a
   project's open agent tasks and "sent" memos into its Claude session.
-- **2**: Telegram/Gmail/Obsidian dispatch into the inbox is still phase 3 (see below).
-- **3**: Google Calendar, Telegram bot, Gmail review-deadline extraction, Obsidian sync.
+- **2b (done)**: Telegram bot — memo capture (`@프로젝트 #태그`) shared with `/api/capture`,
+  `/today` + `/deadlines`, daily 09:00 digest (`app_meta` table for once-per-day idempotency),
+  immediate alerts on newly-critical status (`lib/logic/status-diff.ts`). `scripts/telegram-setup.mjs`
+  discovers the chat id, generates the webhook secret, registers the webhook + commands.
+- **2**: Gmail/Obsidian dispatch into the inbox is still phase 3 (see below).
+- **3**: Google Calendar, Gmail review-deadline extraction, Obsidian sync.
 
 ## Conventions
 - Opus plans (`docs/PLAN.md`), Sonnet implements. Don't redesign a plan's data model/signatures

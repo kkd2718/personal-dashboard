@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { checkBearer } from '@/lib/auth/bearer';
-import { getRepo } from '@/lib/repo';
-import { captureNoteInput } from '@/lib/logic/capture';
-import { tagCounts } from '@/lib/logic/notes';
+import { createNoteFromText } from '@/lib/create-note';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,10 +34,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: parsed.error.message }, { status: 400 });
   }
 
-  const repo = getRepo();
-  const [projects, notes] = await Promise.all([repo.listProjects(), repo.listNotes()]);
-  const input = captureNoteInput(parsed.data.text, parsed.data.date, projects, tagCounts(notes).map((t) => t.tag));
-  const note = await repo.createNote(input);
+  const note = await createNoteFromText(parsed.data.text, parsed.data.date, 'shortcut');
 
   return NextResponse.json({ ok: true, id: note.id, projectId: note.projectId, tags: note.tags });
 }

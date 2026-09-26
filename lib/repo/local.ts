@@ -59,6 +59,7 @@ function normalizeDb(raw: Partial<Db>): Db {
     tasks,
     statusSnapshot: raw.statusSnapshot ?? null,
     heartbeatAt: raw.heartbeatAt ?? null,
+    meta: raw.meta ?? {},
   };
 }
 
@@ -470,6 +471,18 @@ export class LocalRepo implements Repo {
   setHeartbeat(at: string): Promise<void> {
     return this.withLock((db) => {
       db.heartbeatAt = at;
+    });
+  }
+
+  // --- generic key/value metadata ---
+
+  getMeta<T>(key: string): Promise<T | null> {
+    return this.withLock((db) => (key in db.meta ? (db.meta[key] as T) : null));
+  }
+
+  setMeta(key: string, value: unknown): Promise<void> {
+    return this.withLock((db) => {
+      db.meta[key] = value;
     });
   }
 }

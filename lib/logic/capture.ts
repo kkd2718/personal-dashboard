@@ -1,4 +1,4 @@
-import type { NoteKind, Project } from '@/lib/types';
+import type { Note, NoteKind, Project } from '@/lib/types';
 
 export interface ParsedCapture {
   body: string; // unchanged from input — never lose what the user typed
@@ -82,13 +82,15 @@ export function parseCapture(text: string, projects: Project[], existingTags: st
 
 export { normalize };
 
-/** Note-creation input for POST /api/capture (iOS Shortcut). Pure — no repo/network. */
+/** Note-creation input shared by POST /api/capture (iOS Shortcut) and the Telegram
+ * webhook (phase 2b) — see lib/create-note.ts. Pure — no repo/network. */
 export function captureNoteInput(
   text: string,
   date: string | null | undefined,
   projects: Project[],
-  existingTags: string[] = []
-): { body: string; kind: NoteKind; projectId: string | null; tags: string[]; date: string | null; source: 'shortcut' } {
+  existingTags: string[] = [],
+  source: Note['source'] = 'shortcut'
+): { body: string; kind: NoteKind; projectId: string | null; tags: string[]; date: string | null; source: Note['source'] } {
   const parsed = parseCapture(text, projects, existingTags);
   return {
     body: parsed.body,
@@ -96,6 +98,6 @@ export function captureNoteInput(
     projectId: parsed.projectId,
     tags: parsed.tags,
     date: date ?? null,
-    source: 'shortcut',
+    source,
   };
 }

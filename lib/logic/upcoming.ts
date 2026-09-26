@@ -65,6 +65,29 @@ export function upcoming(
   return items.sort(sortByDue);
 }
 
+/** Pending reviews (invited/accepted, dueDate set) overdue, due today, or hitting one of `days`. */
+export function reviewReminders(reviews: ReviewJob[], today: string, days: number[] = [7, 3, 1]): UpcomingItem[] {
+  const items: UpcomingItem[] = [];
+  for (const r of reviews) {
+    if (r.status !== 'invited' && r.status !== 'accepted') continue;
+    if (!r.dueDate) continue;
+    const n = dday(r.dueDate, today);
+    if (n < 0 || n === 0 || days.includes(n)) {
+      items.push({
+        id: `review:${r.id}`,
+        title: r.title ?? `${r.journal} 리뷰`,
+        dueDate: r.dueDate,
+        dueTime: null,
+        kind: 'review',
+        dday: n,
+        origin: 'review',
+        originId: r.id,
+      });
+    }
+  }
+  return items.sort(sortByDue);
+}
+
 /** Deadlines whose D-day is overdue, today, or hits one of the deadline's remindDays. */
 export function dueReminders(deadlines: Deadline[], today: string): UpcomingItem[] {
   const items: UpcomingItem[] = [];

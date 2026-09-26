@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dueReminders, upcoming } from './upcoming';
+import { dueReminders, reviewReminders, upcoming } from './upcoming';
 import type { Deadline, ReviewJob } from '@/lib/types';
 
 const TODAY = '2026-09-25';
@@ -75,5 +75,23 @@ describe('dueReminders', () => {
     const ids = result.map((i) => i.originId).sort();
 
     expect(ids).toEqual(['d-1', 'd0', 'd1', 'd3', 'd7']);
+  });
+});
+
+describe('reviewReminders', () => {
+  it('includes overdue/today/remindDays pending reviews; excludes others', () => {
+    const reviews: ReviewJob[] = [
+      review({ id: 'r7', status: 'invited', dueDate: '2026-10-02' }), // dday 7
+      review({ id: 'r2', status: 'invited', dueDate: '2026-09-27' }), // dday 2, not in days
+      review({ id: 'r0', status: 'accepted', dueDate: TODAY }), // dday 0
+      review({ id: 'overdue', status: 'invited', dueDate: '2026-09-24' }), // dday -1
+      review({ id: 'declined', status: 'declined', dueDate: '2026-10-02' }),
+      review({ id: 'no-date', status: 'invited', dueDate: null }),
+    ];
+
+    const result = reviewReminders(reviews, TODAY);
+    const ids = result.map((i) => i.originId).sort();
+
+    expect(ids).toEqual(['overdue', 'r0', 'r7']);
   });
 });

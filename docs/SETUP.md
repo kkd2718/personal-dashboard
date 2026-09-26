@@ -102,7 +102,26 @@ Windows 작업 스케줄러에 `CommandCenterCollector` 작업을 등록합니�
 사용자가 로그인해 있을 때만, 5분 제한시간). 이미 있으면 지우고 다시 등록합니다(멱등).
 수동 1회 실행은 `npm run collector`.
 
-## 8. 에이전트 인박스 SessionStart 훅 (phase 2a)
+## 8. 텔레그램 봇 (phase 2b)
+
+메모 캡처(`@프로젝트 #태그` 지원), `/today`, `/deadlines`, 매일 09:00 브리핑, 긴급
+상태 즉시 알림을 제공하는 개인용 비공개 봇입니다.
+
+1. BotFather에서 봇을 만들고 토큰을 `.env.local`의 `TELEGRAM_BOT_TOKEN`에 넣습니다.
+2. 봇에게 아무 메시지나 한 번 보냅니다 (채팅 id를 찾기 위함).
+3. `npm run telegram:setup` 실행 — `TELEGRAM_CHAT_ID`/`TELEGRAM_WEBHOOK_SECRET`을
+   자동으로 채우고, 웹훅과 명령어 목록을 등록합니다.
+4. Vercel 환경 변수까지 같이 등록하려면: `npm run telegram:setup -- --vercel`
+   (`.env.local`의 `VERCEL_TOKEN` 필요). 연결 테스트 메시지까지 보내려면
+   `--send-test`를 추가하고, 반영을 위해 재배포합니다.
+5. 봇 토큰이 잘못됐다면 "토큰이 올바르지 않습니다" 메시지와 함께 종료됩니다 —
+   BotFather에서 다시 확인 후 재실행하세요.
+
+`TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID`/`TELEGRAM_WEBHOOK_SECRET` 중 하나라도
+없으면 봇 관련 기능은 전부 조용히 꺼집니다 (캡처/조회/크론/알림 모두 정상 동작,
+텔레그램으로 보내는 부분만 생략).
+
+## 9. 에이전트 인박스 SessionStart 훅 (phase 2a)
 
 프로젝트 디렉터리에서 Claude Code 세션을 시작할 때, 그 프로젝트에 배정된 에이전트
 할 일과 "전송됨" 메모를 세션에 자동으로 보여줍니다 (`scripts/cc-inbox.mjs` +

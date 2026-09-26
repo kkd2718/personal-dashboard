@@ -12,7 +12,8 @@
     "db:migrate": "node --env-file=.env.local --experimental-strip-types scripts/migrate.mjs",
     "db:import": "node --env-file=.env.local --experimental-strip-types scripts/import-to-supabase.mjs",
     "export-seed": "node --experimental-strip-types scripts/export-seed.mjs",
-    "collector": "node scripts/collector.mjs"
+    "collector": "node scripts/collector.mjs",
+    "telegram:setup": "node --env-file=.env.local --experimental-strip-types scripts/telegram-setup.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

@@ -458,4 +458,17 @@ export class SupabaseRepo implements Repo {
     const { error } = await this.sb.from('heartbeat').upsert({ id: 1, at }, { onConflict: 'id' });
     if (error) throw new Error(`setHeartbeat: ${error.message}`);
   }
+
+  // --- generic key/value metadata ---
+
+  async getMeta<T>(key: string): Promise<T | null> {
+    const { data, error } = await this.sb.from('app_meta').select('value').eq('key', key).maybeSingle();
+    if (error) throw new Error(`getMeta: ${error.message}`);
+    return (data?.value as T | undefined) ?? null;
+  }
+
+  async setMeta(key: string, value: unknown): Promise<void> {
+    const { error } = await this.sb.from('app_meta').upsert({ key, value, updated_at: now() }, { onConflict: 'key' });
+    if (error) throw new Error(`setMeta: ${error.message}`);
+  }
 }

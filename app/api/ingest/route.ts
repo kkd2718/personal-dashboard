@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { checkBearer } from '@/lib/auth/bearer';
 import { getRepo } from '@/lib/repo';
+import { newCriticalItems } from '@/lib/logic/status-diff';
+import { telegramConfig, sendMessage } from '@/lib/telegram/client';
+import { formatCriticalAlert } from '@/lib/telegram/format';
 
 export const dynamic = 'force-dynamic';
 
@@ -62,10 +65,22 @@ export async function POST(request: Request) {
 
   const repo = getRepo();
   const collectedAt = new Date().toISOString();
+  const prev = await repo.getStatusSnapshot();
   await repo.setStatusSnapshot({ items: parsed.data.statusItems, collectedAt });
   if (parsed.data.projectActivity) {
     await Promise.all(parsed.data.projectActivity.map((a) => repo.upsertProjectActivity(a)));
   }
 
-  return NextResponse.json({ ok: true, collectedAt });
+  // Immediate alert on newly-critical status only (no hourly repeats) — a Telegram
+  // failure here never fails ingest itself.
+  let alerted = 0;
+  if (telegramConfig()) {
+    const newCritical = newCriticalItems(prev?.items ?? [], parsed.data.statusItems);
+    if (newCritical.length > 0) {
+      const result = await sendMessage(formatCriticalAlert(newCritical));
+      if (result.ok) alerted = newCritical.length;
+    }
+  }
+
+  return NextResponse.json({ ok: true, collectedAt, alerted });
 }

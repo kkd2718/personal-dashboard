@@ -100,6 +100,10 @@ export interface Repo {
   setStatusSnapshot(snapshot: StatusSnapshot): Promise<void>;
   getHeartbeat(): Promise<string | null>;
   setHeartbeat(at: string): Promise<void>;
+
+  // --- generic key/value metadata (phase 2b: telegram digest idempotency) ---
+  getMeta<T>(key: string): Promise<T | null>;
+  setMeta(key: string, value: unknown): Promise<void>;
 }
 
 /**

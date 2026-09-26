@@ -199,4 +199,5 @@ export interface Db {
   tasks: Task[];
   statusSnapshot: StatusSnapshot | null;
   heartbeatAt: string | null;
+  meta: Record<string, unknown>; // generic key/value store (phase 2b: telegram digest idempotency)
 }
