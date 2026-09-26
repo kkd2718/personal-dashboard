@@ -1,5 +1,6 @@
 import type {
   Assignee,
+  CalendarEvent,
   Deadline,
   Milestone,
   MilestoneStatus,
@@ -8,6 +9,7 @@ import type {
   PaperStage,
   Project,
   ProjectActivity,
+  ReviewCandidate,
   ReviewJob,
   StatusSnapshot,
   Task,
@@ -26,6 +28,7 @@ export interface Repo {
     tags?: string[];
     date?: string | null;
     source: Note['source'];
+    externalId?: string | null;
   }): Promise<Note>;
   updateNote(id: string, patch: Partial<Omit<Note, 'id' | 'createdAt'>>): Promise<Note>;
   /** Renames/merges a tag across every note in one write. Returns the number of notes touched. */
@@ -104,6 +107,20 @@ export interface Repo {
   // --- generic key/value metadata (phase 2b: telegram digest idempotency) ---
   getMeta<T>(key: string): Promise<T | null>;
   setMeta(key: string, value: unknown): Promise<void>;
+
+  // --- calendar events (phase 3: one-way Google Calendar mirror) ---
+  listCalendarEvents(from: string, to: string): Promise<CalendarEvent[]>;
+  /** Deletes `account`'s events overlapping [from, to] and inserts `events` — atomic. */
+  replaceCalendarEvents(account: string, from: string, to: string, events: CalendarEvent[]): Promise<void>;
+
+  // --- review candidates (phase 3: Gmail reviewer-mail detection) ---
+  listReviewCandidates(status?: ReviewCandidate['status']): Promise<ReviewCandidate[]>;
+  /** Inserts only candidates whose messageId isn't already known; returns those newly inserted
+   * (existing rows, including dismissed ones, are never touched — they must never reappear). */
+  upsertReviewCandidates(
+    list: Array<Omit<ReviewCandidate, 'id' | 'status' | 'reviewId' | 'createdAt' | 'updatedAt'>>
+  ): Promise<ReviewCandidate[]>;
+  updateReviewCandidate(id: string, patch: Partial<Omit<ReviewCandidate, 'id'>>): Promise<ReviewCandidate>;
 }
 
 /**

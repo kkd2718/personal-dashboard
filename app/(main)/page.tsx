@@ -1,3 +1,5 @@
+import Link from 'next/link';
+import { Mail } from 'lucide-react';
 import { getRepo } from '@/lib/repo';
 import { getStatusPanelData } from '@/lib/status';
 import { QuickCapture } from '@/components/quick-capture';
@@ -7,13 +9,26 @@ import { MemoPanel } from '@/components/memo-panel';
 import { StatusPanel } from '@/components/status-panel';
 import { ProjectProgressList } from '@/components/project-progress-list';
 import { tagCounts } from '@/lib/logic/notes';
+import { addDaysStr, todayKST } from '@/lib/logic/dates';
+import { CALENDAR_VISIBLE_META_KEY, filterVisibleEvents, todayCalendarEvents } from '@/lib/logic/calendar';
 
 // D-day / status probes depend on "now"; never cache this page.
 export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
   const repo = getRepo();
-  const [projects, tasks, milestones, deadlines, reviews, notes, activityList] = await Promise.all([
+  const [
+    projects,
+    tasks,
+    milestones,
+    deadlines,
+    reviews,
+    notes,
+    activityList,
+    reviewCandidates,
+    calendarEvents,
+    visibleCalendars,
+  ] = await Promise.all([
     repo.listProjects(),
     repo.listTasks(),
     repo.listMilestones(),
@@ -21,14 +36,43 @@ export default async function HomePage() {
     repo.listReviews(),
     repo.listNotes(),
     repo.listProjectActivity(),
+    repo.listReviewCandidates('pending'),
+    repo.listCalendarEvents(addDaysStr(todayKST(), -60), addDaysStr(todayKST(), 180)),
+    repo.getMeta<string[]>(CALENDAR_VISIBLE_META_KEY),
   ]);
   const status = await getStatusPanelData(repo, projects);
   const activeProjects = projects.filter((p) => p.status === 'active');
   const activeMilestoneIds = milestones.filter((m) => m.status === 'active').map((m) => m.id);
+  const today = todayKST();
+  const todayEvents = todayCalendarEvents(
+    filterVisibleEvents(calendarEvents, visibleCalendars).filter((e) => e.startDate <= today && e.endDate >= today)
+  );
 
   return (
     <div className="flex flex-col gap-4">
       <QuickCapture projects={activeProjects} existingTags={tagCounts(notes)} />
+
+      {reviewCandidates.length > 0 && (
+        <Link
+          href="/papers?tab=review"
+          className="flex w-fit items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-xs text-amber-700 hover:bg-amber-500/20 dark:text-amber-300"
+        >
+          <Mail size={12} />
+          메일 확인 {reviewCandidates.length}
+        </Link>
+      )}
+
+      {todayEvents.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 text-xs text-foreground/70">
+          <span className="text-foreground/40">오늘 일정</span>
+          {todayEvents.slice(0, 5).map((e) => (
+            <span key={e.id} className="rounded-full border border-border px-2 py-0.5">
+              {e.startTime ? `${e.startTime} ` : ''}
+              {e.title}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* mobile: capture -> status(urgent) -> checklist -> memo panel -> calendar -> progress */}
       <div className="lg:hidden">
@@ -48,6 +92,8 @@ export default async function HomePage() {
             deadlines={deadlines}
             reviews={reviews}
             notes={notes}
+            googleEvents={calendarEvents}
+            visibleCalendars={visibleCalendars}
             projects={projects}
             defaultView="month"
           />

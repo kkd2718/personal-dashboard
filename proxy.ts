@@ -1,6 +1,6 @@
 // Next 16 proxy (renamed from middleware, see node_modules/next/dist/docs/.../proxy.md).
 // Gates every route except the public/bearer-token ones (capture, ingest, cron,
-// collector/config, agent-inbox, telegram webhook) behind a signed session
+// collector/config, agent-inbox, telegram webhook, google sync) behind a signed session
 // cookie (single-user app password — see lib/auth/{session,password}.ts). In
 // local mode (no APP_PASSWORD/SESSION_SECRET) this is a no-op — auth is skipped
 // entirely and LocalRepo behaves exactly as in phase 1a/1c/1d. A production
@@ -19,6 +19,7 @@ function isPublicPath(pathname: string): boolean {
     pathname.startsWith('/api/collector/') ||
     pathname.startsWith('/api/agent-inbox') ||
     pathname.startsWith('/api/telegram/webhook') ||
+    pathname.startsWith('/api/google/sync') ||
     pathname === '/manifest.webmanifest' ||
     pathname === '/favicon.ico' ||
     pathname === '/apple-icon' ||

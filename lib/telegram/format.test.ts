@@ -12,7 +12,7 @@ import {
 import type { Checklist, ChecklistItem } from '@/lib/logic/checklist';
 import type { UpcomingItem } from '@/lib/logic/upcoming';
 import type { StatusItem } from '@/lib/status/types';
-import type { Deadline, Note, ReviewJob } from '@/lib/types';
+import type { CalendarEvent, Deadline, Note, ReviewJob } from '@/lib/types';
 
 const TODAY = '2026-09-26'; // Saturday
 
@@ -61,6 +61,7 @@ function note(overrides: Partial<Note>): Note {
     source: 'telegram',
     deliveredAt: null,
     taskId: null,
+    externalId: null,
     createdAt: TODAY,
     updatedAt: TODAY,
     ...overrides,
@@ -108,6 +109,22 @@ function review(overrides: Partial<ReviewJob>): ReviewJob {
     dueDate: '2026-09-27',
     link: null,
     note: null,
+    updatedAt: TODAY,
+    ...overrides,
+  };
+}
+
+function calendarEvent(overrides: Partial<CalendarEvent>): CalendarEvent {
+  return {
+    id: 'main:primary:g1',
+    account: 'main',
+    calendarName: 'Personal',
+    title: 'Event',
+    startDate: TODAY,
+    endDate: TODAY,
+    startTime: null,
+    endTime: null,
+    location: null,
     updatedAt: TODAY,
     ...overrides,
   };
@@ -170,6 +187,27 @@ describe('formatToday', () => {
     expect(lines[lines.length - 1]).toMatch(/^…외 \d+건$/);
   });
 
+  it('renders today\'s timed events before all-day, excludes holidays', () => {
+    const checklist = { ...emptyChecklist(), today: [checklistItem({ title: 'x' })] };
+    const timed = calendarEvent({ id: 'g1', title: 'Fictional Meeting', startTime: '14:00' });
+    const allDay = calendarEvent({ id: 'g2', title: 'Fictional All-Day' });
+    const holiday = calendarEvent({ id: 'g3', title: 'Fictional Holiday', calendarName: '공휴일' });
+    const result = formatToday({
+      today: TODAY,
+      checklist,
+      upcoming: [],
+      dayMemos: [],
+      todayEvents: [allDay, timed, holiday],
+      statusItems: [],
+    });
+    expect(result).toContain('🗓 오늘 일정');
+    expect(result).toContain('- 14:00 Fictional Meeting');
+    expect(result).toContain('- Fictional All-Day');
+    expect(result).not.toContain('Fictional Holiday');
+    // timed before all-day
+    expect(result.indexOf('Fictional Meeting')).toBeLessThan(result.indexOf('Fictional All-Day'));
+  });
+
   it('ends with a dashboard link line when cloudUrl is given', () => {
     const checklist = { ...emptyChecklist(), today: [checklistItem({ title: 'x' })] };
     const result = formatToday({
@@ -204,6 +242,19 @@ describe('formatDigest', () => {
       statusItems: [],
     });
     expect(result).toBeNull();
+  });
+
+  it('is sent (not null) when there is nothing but a today event', () => {
+    const result = formatDigest({
+      today: TODAY,
+      deadlines: [],
+      reviews: [],
+      checklist: emptyChecklist(),
+      todayEvents: [calendarEvent({ title: 'Fictional Standup', startTime: '09:00' })],
+      statusItems: [],
+    });
+    expect(result).toContain('🗓 오늘 일정');
+    expect(result).toContain('- 09:00 Fictional Standup');
   });
 
   it('includes a Korean weekday header and due reminders', () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dday, ddayLabel, urgency } from './dates';
+import { dday, ddayLabel, kstDateTime, urgency } from './dates';
 
 describe('dday', () => {
   it('computes forward, same-day, and backward diffs', () => {
@@ -28,5 +28,16 @@ describe('urgency', () => {
     expect(urgency(1)).toBe('soon');
     expect(urgency(7)).toBe('soon');
     expect(urgency(8)).toBe('later');
+  });
+});
+
+describe('kstDateTime', () => {
+  it('converts a UTC instant to its KST date/time', () => {
+    // 2026-01-01T15:30:00Z is 2026-01-02 00:30 in Asia/Seoul (UTC+9).
+    expect(kstDateTime('2026-01-01T15:30:00.000Z')).toEqual({ date: '2026-01-02', time: '00:30' });
+  });
+
+  it('handles a same-UTC-day KST instant', () => {
+    expect(kstDateTime('2026-06-15T01:00:00.000Z')).toEqual({ date: '2026-06-15', time: '10:00' });
   });
 });

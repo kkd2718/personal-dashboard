@@ -11,6 +11,8 @@ const bodySchema = z.object({
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional(),
+  externalId: z.string().trim().min(1).max(200).optional(),
+  source: z.enum(['shortcut', 'obsidian']).default('shortcut'),
 });
 
 /** For the iOS Shortcut / share sheet. Bearer-token auth (CAPTURE_TOKEN), not a user session. */
@@ -34,7 +36,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: parsed.error.message }, { status: 400 });
   }
 
-  const note = await createNoteFromText(parsed.data.text, parsed.data.date, 'shortcut');
+  const note = await createNoteFromText(
+    parsed.data.text,
+    parsed.data.date,
+    parsed.data.source,
+    parsed.data.externalId
+  );
 
   return NextResponse.json({ ok: true, id: note.id, projectId: note.projectId, tags: note.tags });
 }

@@ -7,6 +7,7 @@ import { getRepo } from '@/lib/repo';
 import { checklist } from '@/lib/logic/checklist';
 import { upcoming } from '@/lib/logic/upcoming';
 import { todayKST } from '@/lib/logic/dates';
+import { CALENDAR_VISIBLE_META_KEY, filterVisibleEvents } from '@/lib/logic/calendar';
 
 export const dynamic = 'force-dynamic';
 
@@ -73,14 +74,16 @@ async function handle(text: string): Promise<void> {
 
 async function buildToday(): Promise<string> {
   const repo = getRepo();
-  const [tasks, deadlines, reviews, notes, snapshot] = await Promise.all([
+  const today = todayKST();
+  const [tasks, deadlines, reviews, notes, snapshot, rawTodayEvents, visibleCalendars] = await Promise.all([
     repo.listTasks(),
     repo.listDeadlines(),
     repo.listReviews(),
     repo.listNotes(),
     repo.getStatusSnapshot(),
+    repo.listCalendarEvents(today, today),
+    repo.getMeta<string[]>(CALENDAR_VISIBLE_META_KEY),
   ]);
-  const today = todayKST();
   const me = checklist(tasks, deadlines, reviews, today).me;
   const dayMemos = notes.filter((n) => n.date === today && n.status !== 'archived');
   return formatToday({
@@ -88,6 +91,7 @@ async function buildToday(): Promise<string> {
     checklist: me,
     upcoming: upcoming(deadlines, reviews, today, 7),
     dayMemos,
+    todayEvents: filterVisibleEvents(rawTodayEvents, visibleCalendars),
     statusItems: snapshot?.items ?? [],
     cloudUrl: process.env.CLOUD_URL ?? null,
   });

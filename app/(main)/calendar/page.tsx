@@ -3,22 +3,25 @@ import { CommandCalendar } from '@/components/command-calendar';
 import { DeadlineList } from '@/components/deadline-list';
 import { upcoming } from '@/lib/logic/upcoming';
 import { DdayChip } from '@/components/dday-chip';
-import { todayKST } from '@/lib/logic/dates';
+import { addDaysStr, todayKST } from '@/lib/logic/dates';
+import { CALENDAR_VISIBLE_META_KEY } from '@/lib/logic/calendar';
 
 // D-day depends on "today" in KST; never cache this page.
 export const dynamic = 'force-dynamic';
 
 export default async function CalendarPage() {
   const repo = getRepo();
-  const [projects, tasks, milestones, deadlines, reviews, notes] = await Promise.all([
+  const today = todayKST();
+  const [projects, tasks, milestones, deadlines, reviews, notes, calendarEvents, visibleCalendars] = await Promise.all([
     repo.listProjects(),
     repo.listTasks(),
     repo.listMilestones(),
     repo.listDeadlines(),
     repo.listReviews(),
     repo.listNotes(),
+    repo.listCalendarEvents(addDaysStr(today, -60), addDaysStr(today, 180)),
+    repo.getMeta<string[]>(CALENDAR_VISIBLE_META_KEY),
   ]);
-  const today = todayKST();
   const agenda = upcoming(deadlines, reviews, today, 30);
 
   return (
@@ -31,6 +34,8 @@ export default async function CalendarPage() {
           deadlines={deadlines}
           reviews={reviews}
           notes={notes}
+          googleEvents={calendarEvents}
+          visibleCalendars={visibleCalendars}
           projects={projects}
           defaultView="month"
         />

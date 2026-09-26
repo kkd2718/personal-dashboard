@@ -8,7 +8,7 @@
 // Requires CLOUD_URL and INGEST_TOKEN in .env.local (next to this repo). Optional TRADING_URL.
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { readdir, readFile, stat, writeFile, mkdir } from 'node:fs/promises';
+import { readdir, readFile, stat, writeFile, mkdir, rename } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { promisify } from 'node:util';
@@ -18,6 +18,7 @@ import { encodeProjectDir, isWslPath, toWslPath } from './lib/project-dir.mjs';
 import { countBacklog, extractSection, parseBacklogEntry } from './lib/backlog.mjs';
 import { tradingStatus } from './lib/trading-probe.mjs';
 import { buildStatusItems } from './lib/status-items.mjs';
+import { applyImports, defaultInboxContent, externalIdFor, parseNewMemos } from './lib/obsidian-inbox.mjs';
 
 const execFileAsync = promisify(execFile);
 // import.meta.dirname needs Node >=20.11 — avoid it here too, in case this ever
@@ -29,11 +30,18 @@ const WSL_TIMEOUT_MS = 8000;
 const env = { ...loadEnvFile(path.join(ROOT, '.env.local')), ...process.env };
 const CLOUD_URL = env.CLOUD_URL;
 const INGEST_TOKEN = env.INGEST_TOKEN;
+const CAPTURE_TOKEN = env.CAPTURE_TOKEN;
 const TRADING_URL = env.TRADING_URL ?? 'http://127.0.0.1:8899';
+const OBSIDIAN_VAULT = env.OBSIDIAN_VAULT;
+const OBSIDIAN_INBOX = env.OBSIDIAN_INBOX || '00_memo/📥 CC Inbox.md';
 
 if (!CLOUD_URL || !INGEST_TOKEN) {
   console.error('CLOUD_URL / INGEST_TOKEN not set in .env.local. See .env.example.');
   process.exit(1);
+}
+
+function isEnoent(err) {
+  return Boolean(err && typeof err === 'object' && err.code === 'ENOENT');
 }
 
 function todayKST() {
@@ -226,6 +234,64 @@ async function collectProjectActivity(project) {
   };
 }
 
+/** Imports new memo bullets from the Obsidian inbox note into /api/capture, then
+ * rewrites the file (removed from '새 메모', archived under '가져옴'). One-way
+ * (vault -> notes); never touches any other file. Unset OBSIDIAN_VAULT -> silent no-op. */
+async function syncObsidianInbox() {
+  if (!OBSIDIAN_VAULT) return { imported: 0 };
+  if (!CAPTURE_TOKEN) {
+    console.error('Obsidian: OBSIDIAN_VAULT is set but CAPTURE_TOKEN is missing — skipping.');
+    return { imported: 0 };
+  }
+
+  const inboxPath = path.join(OBSIDIAN_VAULT, OBSIDIAN_INBOX);
+  let originalText;
+  try {
+    originalText = await readFile(inboxPath, 'utf-8');
+  } catch (e) {
+    if (!isEnoent(e)) {
+      console.error(`Obsidian: failed to read inbox (${e.message}).`);
+      return { imported: 0 };
+    }
+    await mkdir(path.dirname(inboxPath), { recursive: true });
+    originalText = defaultInboxContent();
+    await writeFile(inboxPath, originalText, 'utf-8');
+  }
+  const statBefore = await stat(inboxPath);
+
+  const memos = parseNewMemos(originalText);
+  if (memos.length === 0) return { imported: 0 };
+
+  const imported = [];
+  for (const memo of memos) {
+    try {
+      const res = await fetch(`${CLOUD_URL.replace(/\/$/, '')}/api/capture`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${CAPTURE_TOKEN}` },
+        body: JSON.stringify({ text: memo.text, externalId: externalIdFor(memo.text), source: 'obsidian' }),
+      });
+      if (!res.ok) throw new Error(`http ${res.status}`);
+      const json = await res.json();
+      imported.push({ raw: memo.raw, text: memo.text, noteId: json.id, date: todayKST() });
+    } catch (e) {
+      console.error(`Obsidian: capture failed for one memo (${e instanceof Error ? e.message : e}); left in place.`);
+    }
+  }
+  if (imported.length === 0) return { imported: 0 };
+
+  const statNow = await stat(inboxPath);
+  if (statNow.mtimeMs !== statBefore.mtimeMs) {
+    console.error('Obsidian: inbox file changed on disk during import — skipping rewrite this run.');
+    return { imported: imported.length };
+  }
+
+  const updated = applyImports(originalText, imported);
+  const tmp = `${inboxPath}.${process.pid}.tmp`;
+  await writeFile(tmp, updated, 'utf-8');
+  await rename(tmp, inboxPath);
+  return { imported: imported.length };
+}
+
 async function main() {
   let projects;
   try {
@@ -262,6 +328,12 @@ async function main() {
     console.error(`Ingest failed: ${e instanceof Error ? e.message : e}`);
     process.exit(1);
   }
+
+  const obsidian = await syncObsidianInbox().catch((e) => {
+    console.error(`Obsidian sync failed: ${e instanceof Error ? e.message : e}`);
+    return { imported: 0 };
+  });
+  console.log(`Obsidian: ${obsidian.imported} imported`);
 }
 
 await main();

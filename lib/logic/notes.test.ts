@@ -15,6 +15,7 @@ function note(overrides: Partial<Note>): Note {
     source: 'web',
     deliveredAt: null,
     taskId: null,
+    externalId: null,
     createdAt: '2026-09-25',
     updatedAt: '2026-09-25',
     ...overrides,

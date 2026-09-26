@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { runDigest, type DigestRepo } from './digest';
-import type { Deadline, ReviewJob, Task } from '@/lib/types';
+import type { CalendarEvent, Deadline, ReviewJob, Task } from '@/lib/types';
 
 const TODAY = '2026-09-26';
 
@@ -11,6 +11,7 @@ function fakeRepo(overrides: Partial<DigestRepo> = {}): DigestRepo {
     listDeadlines: async () => [] as Deadline[],
     listReviews: async () => [] as ReviewJob[],
     getStatusSnapshot: async () => null,
+    listCalendarEvents: async () => [] as CalendarEvent[],
     getMeta: async <T>(key: string) => (meta.has(key) ? (meta.get(key) as T) : null),
     setMeta: async (key: string, value: unknown) => {
       meta.set(key, value);

@@ -78,3 +78,22 @@ export function todayKST(): string {
     day: '2-digit',
   }).format(new Date());
 }
+
+/** Converts an ISO instant to its Asia/Seoul calendar date ('YYYY-MM-DD') and
+ * clock time ('HH:mm'). Used to convert Google Calendar event instants (phase 3). */
+export function kstDateTime(iso: string): { date: string; time: string } {
+  const d = new Date(iso);
+  const date = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(d);
+  const time = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Seoul',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).format(d);
+  return { date, time };
+}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
@@ -12,18 +12,20 @@ import {
   ClipboardCheck,
   FileText,
   StickyNote,
+  CalendarDays,
 } from 'lucide-react';
-import { calendarEvents, type CalendarPoint } from '@/lib/logic/calendar';
+import { calendarEvents, calendarVisibilityOptions, filterVisibleEvents, type CalendarPoint } from '@/lib/logic/calendar';
 import { tagCounts } from '@/lib/logic/notes';
 import { addDaysStr, addMonthsStr, startOfMonthStr, todayKST } from '@/lib/logic/dates';
 import { projectColorClasses } from '@/lib/project-colors';
 import { createNoteAction } from '@/app/actions/notes';
 import { createTaskAction } from '@/app/actions/tasks';
 import { createDeadlineAction } from '@/app/actions/deadlines';
+import { setVisibleCalendarsAction } from '@/app/actions/calendar';
 import { NoteItem } from '@/components/note-item';
 import { MentionTextarea } from '@/components/mention-textarea';
 import { parseCapture } from '@/lib/logic/capture';
-import type { Deadline, DeadlineKind, Milestone, Note, Project, ReviewJob, Task } from '@/lib/types';
+import type { CalendarEvent, Deadline, DeadlineKind, Milestone, Note, Project, ReviewJob, Task } from '@/lib/types';
 
 const POINT_ICON: Record<CalendarPoint['kind'], typeof ClipboardCheck> = {
   task: ClipboardCheck,
@@ -31,6 +33,7 @@ const POINT_ICON: Record<CalendarPoint['kind'], typeof ClipboardCheck> = {
   review: FileText,
   milestone: Link2,
   memo: StickyNote,
+  google: CalendarDays,
 };
 
 const DEADLINE_KIND_OPTIONS: DeadlineKind[] = [
@@ -260,11 +263,27 @@ function DayPopover({
   }
 
   const memoNotes = points.filter((p) => p.kind === 'memo').map((p) => notes.find((n) => n.id === p.id)).filter((n): n is Note => !!n);
-  const otherPoints = points.filter((p) => p.kind !== 'memo');
+  const googlePoints = points.filter((p) => p.kind === 'google');
+  const otherPoints = points.filter((p) => p.kind !== 'memo' && p.kind !== 'google');
 
   return (
     <>
       <p className="mb-2 font-semibold">{date}</p>
+
+      {googlePoints.length > 0 && (
+        <div className="mb-2">
+          <p className="mb-1 text-[11px] font-medium text-foreground/50">일정</p>
+          <ul className="flex flex-col gap-1">
+            {googlePoints.map((p) => (
+              <li key={p.id} className="flex items-center gap-1.5 text-foreground/70">
+                <CalendarDays size={12} className="shrink-0" />
+                {p.startTime && <span className="text-foreground/50">{p.startTime}</span>}
+                {p.title}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {(memoNotes.length > 0 || otherPoints.length > 0) && (
         <ul className="mb-2 flex flex-col gap-2">
@@ -423,6 +442,10 @@ interface Props {
   deadlines: Deadline[];
   reviews: ReviewJob[];
   notes?: Note[];
+  googleEvents?: CalendarEvent[];
+  /** app_meta 'calendar:visible' — null means "use the primary-calendar default"
+   * (see lib/logic/calendar.ts filterVisibleEvents/calendarVisibilityOptions). */
+  visibleCalendars?: string[] | null;
   projects: Project[];
   defaultView?: 'month' | 'week';
   compact?: boolean;
@@ -434,11 +457,33 @@ export function CommandCalendar({
   deadlines,
   reviews,
   notes = [],
+  googleEvents = [],
+  visibleCalendars = null,
   projects,
   defaultView = 'month',
   compact = false,
 }: Props) {
   const today = todayKST();
+  const router = useRouter();
+  const [calendarPending, startCalendarTransition] = useTransition();
+  const calendarOptions = useMemo(() => calendarVisibilityOptions(googleEvents), [googleEvents]);
+  const effectiveVisible = useMemo(
+    () => visibleCalendars ?? calendarOptions.filter((o) => o.defaultVisible).map((o) => o.name),
+    [visibleCalendars, calendarOptions]
+  );
+  const visibleGoogleEvents = useMemo(
+    () => filterVisibleEvents(googleEvents, visibleCalendars),
+    [googleEvents, visibleCalendars]
+  );
+  function toggleCalendar(name: string) {
+    const next = effectiveVisible.includes(name)
+      ? effectiveVisible.filter((n) => n !== name)
+      : [...effectiveVisible, name];
+    startCalendarTransition(async () => {
+      await setVisibleCalendarsAction(next);
+      router.refresh();
+    });
+  }
   const [cursor, setCursor] = useState(today);
   const [view, setView] = useState<'month' | 'week'>(defaultView);
   // Defaults to week view on mobile widths. Read once after mount (window is unavailable
@@ -465,8 +510,16 @@ export function CommandCalendar({
 
   const monthStart = startOfMonthStr(cursor);
   const events = useMemo(
-    () => calendarEvents(monthStart, { milestones, tasks, deadlines, reviews, notes }),
-    [monthStart, milestones, tasks, deadlines, reviews, notes]
+    () =>
+      calendarEvents(monthStart, {
+        milestones,
+        tasks,
+        deadlines,
+        reviews,
+        notes,
+        googleEvents: visibleGoogleEvents,
+      }),
+    [monthStart, milestones, tasks, deadlines, reviews, notes, visibleGoogleEvents]
   );
 
   const weeks =
@@ -517,6 +570,28 @@ export function CommandCalendar({
         </div>
       </div>
 
+      {calendarOptions.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1">
+          <CalendarDays size={11} className="text-foreground/30" />
+          {calendarOptions.map((o) => {
+            const on = effectiveVisible.includes(o.name);
+            return (
+              <button
+                key={o.name}
+                type="button"
+                disabled={calendarPending}
+                onClick={() => toggleCalendar(o.name)}
+                className={`rounded-full border px-2 py-0.5 text-[11px] disabled:opacity-40 ${
+                  on ? 'border-blue-500/40 bg-blue-500/10 text-blue-600' : 'border-border text-foreground/40'
+                }`}
+              >
+                {o.name}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-auto">
       <div className="grid grid-cols-7 text-center text-[11px] text-foreground/40">
         {['월', '화', '수', '목', '금', '토', '일'].map((w) => (
@@ -554,6 +629,7 @@ export function CommandCalendar({
                 {Array.from({ length: 7 }, (_, i) => addDaysStr(weekMon, i)).map((date) => {
                   const inMonth = date.slice(0, 7) === monthStart.slice(0, 7);
                   const isToday = date === today;
+                  const isHoliday = events.holidays.has(date);
                   const points = events.points[date] ?? [];
                   return (
                     <button
@@ -566,12 +642,21 @@ export function CommandCalendar({
                         selected === date ? 'ring-1 ring-blue-500' : ''
                       } ${compact ? 'min-h-11' : ''}`}
                     >
-                      <span className={isToday ? 'font-semibold text-blue-600' : ''}>{Number(date.slice(8, 10))}</span>
+                      <span className={isToday ? 'font-semibold text-blue-600' : isHoliday ? 'font-semibold text-red-500' : ''}>
+                        {Number(date.slice(8, 10))}
+                      </span>
                       {points.slice(0, 3).map((p) => {
                         const Icon = POINT_ICON[p.kind];
+                        const isGoogle = p.kind === 'google';
                         return (
-                          <span key={p.id} className="flex w-full min-w-0 items-center gap-0.5 text-[10px] text-foreground/60">
+                          <span
+                            key={p.id}
+                            className={`flex w-full min-w-0 items-center gap-0.5 text-[10px] ${
+                              isGoogle ? 'rounded-full border border-border px-1 text-foreground/50' : 'text-foreground/60'
+                            }`}
+                          >
                             <Icon size={9} className="shrink-0" />
+                            {isGoogle && p.startTime && <span>{p.startTime}</span>}
                             <span className="min-w-0 truncate">{p.title}</span>
                           </span>
                         );

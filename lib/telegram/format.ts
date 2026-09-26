@@ -1,11 +1,12 @@
 // Pure formatting/parsing for the Telegram bot (phase 2b). Framework-free — no
 // repo/network access — so these stay easy to unit test.
-import type { Deadline, Note, ReviewJob } from '@/lib/types';
+import type { CalendarEvent, Deadline, Note, ReviewJob } from '@/lib/types';
 import type { StatusItem } from '@/lib/status/types';
 import type { Checklist, ChecklistItem } from '@/lib/logic/checklist';
 import type { UpcomingItem } from '@/lib/logic/upcoming';
 import { dueReminders, reviewReminders } from '@/lib/logic/upcoming';
 import { ddayLabel } from '@/lib/logic/dates';
+import { todayCalendarEvents } from '@/lib/logic/calendar';
 
 const WEEKDAY_KO = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -35,6 +36,12 @@ function memoLine(note: Note): string {
   return `- ${escapeHtml(firstLine)}`;
 }
 
+/** Timed events first, then all-day, holidays excluded (see lib/logic/calendar.ts). */
+function eventLine(e: CalendarEvent): string {
+  const time = e.startTime ? `${e.startTime} ` : '';
+  return `- ${time}${escapeHtml(e.title)}`;
+}
+
 function statusLine(item: StatusItem): string {
   const detail = item.detail ? ` — ${escapeHtml(item.detail)}` : '';
   return `- ${escapeHtml(item.title)}${detail}`;
@@ -58,11 +65,12 @@ export interface TodayInput {
   checklist: Checklist; // the `me` bucket from lib/logic/checklist
   upcoming: UpcomingItem[]; // horizon 7 days
   dayMemos: Note[]; // notes with date === today, not archived
+  todayEvents?: CalendarEvent[]; // events overlapping today (holidays filtered out here)
   statusItems: StatusItem[];
   cloudUrl?: string | null;
 }
 
-/** `/today` message: 지연/오늘/7일 내 마감/오늘 메모/상태, each section omitted when empty. */
+/** `/today` message: 지연/오늘/7일 내 마감/오늘 일정/오늘 메모/상태, each section omitted when empty. */
 export function formatToday(input: TodayInput): string {
   const sections: string[][] = [];
 
@@ -74,6 +82,10 @@ export function formatToday(input: TodayInput): string {
   }
   if (input.upcoming.length > 0) {
     sections.push(['⏳ 7일 내 마감', ...input.upcoming.map(upcomingLine)]);
+  }
+  const todayEvents = todayCalendarEvents(input.todayEvents ?? []);
+  if (todayEvents.length > 0) {
+    sections.push(['🗓 오늘 일정', ...todayEvents.map(eventLine)]);
   }
   if (input.dayMemos.length > 0) {
     sections.push(['📝 오늘 메모', ...input.dayMemos.map(memoLine)]);
@@ -101,6 +113,7 @@ export interface DigestInput {
   deadlines: Deadline[];
   reviews: ReviewJob[];
   checklist: Checklist; // the `me` bucket
+  todayEvents?: CalendarEvent[];
   statusItems: StatusItem[];
   cloudUrl?: string | null;
 }
@@ -120,13 +133,17 @@ export function formatDigest(input: DigestInput): string | null {
   const statusItems = input.statusItems.filter(isAlertable);
   const hasOverdue = input.checklist.overdue.length > 0;
   const hasToday = input.checklist.today.length > 0;
+  const todayEvents = todayCalendarEvents(input.todayEvents ?? []);
 
-  if (reminders.length === 0 && !hasOverdue && !hasToday && statusItems.length === 0) return null;
+  if (reminders.length === 0 && !hasOverdue && !hasToday && statusItems.length === 0 && todayEvents.length === 0) {
+    return null;
+  }
 
   const sections: string[][] = [[`☀️ ${headerDate(input.today)} 브리핑`]];
   if (reminders.length > 0) sections.push(['📅 마감 리마인더', ...reminders.map(upcomingLine)]);
   if (hasOverdue) sections.push(['🔴 지연', ...input.checklist.overdue.map(taskLine)]);
   if (hasToday) sections.push(['📌 오늘', ...input.checklist.today.map(taskLine)]);
+  if (todayEvents.length > 0) sections.push(['🗓 오늘 일정', ...todayEvents.map(eventLine)]);
   if (statusItems.length > 0) sections.push(['⚠️ 상태', ...statusItems.map(statusLine)]);
 
   const lines = capLines(sections.flat());

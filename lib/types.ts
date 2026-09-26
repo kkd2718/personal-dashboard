@@ -178,6 +178,52 @@ export interface Note {
   source: 'web' | 'share' | 'shortcut' | 'telegram' | 'obsidian' | 'gmail' | 'collector';
   deliveredAt: string | null; // set when dispatched to a project's .claude/inbox.md (phase 2)
   taskId: string | null; // set when converted to a Task via convertNoteToTask
+  externalId: string | null; // idempotency key for machine imports (e.g. 'obsidian:<sha1>')
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Google Calendar event mirror (phase 3, one-way sync via Apps Script -> /api/google/sync).
+ * Dates/times are already converted to Asia/Seoul on the server before storage. */
+export interface CalendarEvent {
+  id: string; // '<account>:<calendarId>:<eventId>'
+  account: string;
+  calendarName: string;
+  title: string;
+  startDate: string; // 'YYYY-MM-DD' KST
+  endDate: string; // 'YYYY-MM-DD' KST, inclusive
+  startTime: string | null; // 'HH:mm' KST; null = all-day
+  endTime: string | null;
+  location: string | null;
+  updatedAt: string;
+}
+
+// 'revision' (Addendum A): an editorial decision letter on the user's own paper
+// asking for major/minor revision — forwarded from the amc account, wanted (unlike
+// plain accept/reject/received notices, which stay null in the parser).
+export type ReviewCandidateKind = 'invitation' | 'reminder' | 'confirmation' | 'revision' | 'other';
+export type ReviewCandidateStatus = 'pending' | 'accepted' | 'dismissed';
+
+/** A Gmail message that looks like a reviewer assignment (phase 3, detected by
+ * lib/logic/review-mail.ts, never stores the mail body — only parsed fields + a
+ * short snippet). */
+export interface ReviewCandidate {
+  id: string; // 'rc-<gmail messageId>'
+  account: string;
+  messageId: string;
+  receivedAt: string;
+  fromAddr: string;
+  subject: string;
+  snippet: string; // <=300 chars
+  kind: ReviewCandidateKind;
+  journal: string | null;
+  manuscriptId: string | null;
+  title: string | null;
+  dueDate: string | null; // 'YYYY-MM-DD'
+  link: string | null;
+  status: ReviewCandidateStatus;
+  reviewId: string | null; // set on accept (kind !== 'revision')
+  revisionType: 'major' | 'minor' | null; // kind === 'revision' only (Addendum A)
   createdAt: string;
   updatedAt: string;
 }
@@ -197,6 +243,8 @@ export interface Db {
   notes: Note[];
   milestones: Milestone[];
   tasks: Task[];
+  calendarEvents: CalendarEvent[];
+  reviewCandidates: ReviewCandidate[];
   statusSnapshot: StatusSnapshot | null;
   heartbeatAt: string | null;
   meta: Record<string, unknown>; // generic key/value store (phase 2b: telegram digest idempotency)

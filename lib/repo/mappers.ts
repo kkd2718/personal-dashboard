@@ -4,6 +4,7 @@
 // written by an older migration never crashes the app.
 import type {
   Assignee,
+  CalendarEvent,
   Deadline,
   DeadlineKind,
   LinkRef,
@@ -18,6 +19,9 @@ import type {
   Project,
   ProjectActivity,
   ProjectStatus,
+  ReviewCandidate,
+  ReviewCandidateKind,
+  ReviewCandidateStatus,
   ReviewJob,
   ReviewStatus,
   Task,
@@ -147,6 +151,7 @@ export function noteToRow(n: Note): Row {
     source: n.source,
     delivered_at: n.deliveredAt,
     task_id: n.taskId,
+    external_id: n.externalId,
     created_at: n.createdAt,
     updated_at: n.updatedAt,
   };
@@ -165,6 +170,7 @@ export function noteFromRow(r: Row): Note {
     source: r.source as Note['source'],
     deliveredAt: (r.delivered_at as string | null) ?? null,
     taskId: (r.task_id as string | null) ?? null,
+    externalId: (r.external_id as string | null) ?? null,
     createdAt: r.created_at as string,
     updatedAt: r.updated_at as string,
   };
@@ -295,5 +301,81 @@ export function projectActivityFromRow(r: Row): ProjectActivity {
     memoryDigest: (r.memory_digest as string | null) ?? null,
     metrics: (r.metrics as Record<string, number | string>) ?? {},
     collectedAt: r.collected_at as string,
+  };
+}
+
+export function calendarEventToRow(e: CalendarEvent): Row {
+  return {
+    id: e.id,
+    account: e.account,
+    calendar_name: e.calendarName,
+    title: e.title,
+    start_date: e.startDate,
+    end_date: e.endDate,
+    start_time: e.startTime,
+    end_time: e.endTime,
+    location: e.location,
+    updated_at: e.updatedAt,
+  };
+}
+
+export function calendarEventFromRow(r: Row): CalendarEvent {
+  return {
+    id: r.id as string,
+    account: r.account as string,
+    calendarName: r.calendar_name as string,
+    title: r.title as string,
+    startDate: r.start_date as string,
+    endDate: r.end_date as string,
+    startTime: (r.start_time as string | null) ?? null,
+    endTime: (r.end_time as string | null) ?? null,
+    location: (r.location as string | null) ?? null,
+    updatedAt: r.updated_at as string,
+  };
+}
+
+export function reviewCandidateToRow(c: ReviewCandidate): Row {
+  return {
+    id: c.id,
+    account: c.account,
+    message_id: c.messageId,
+    received_at: c.receivedAt,
+    from_addr: c.fromAddr,
+    subject: c.subject,
+    snippet: c.snippet,
+    kind: c.kind,
+    journal: c.journal,
+    manuscript_id: c.manuscriptId,
+    title: c.title,
+    due_date: c.dueDate,
+    link: c.link,
+    status: c.status,
+    review_id: c.reviewId,
+    revision_type: c.revisionType,
+    created_at: c.createdAt,
+    updated_at: c.updatedAt,
+  };
+}
+
+export function reviewCandidateFromRow(r: Row): ReviewCandidate {
+  return {
+    id: r.id as string,
+    account: r.account as string,
+    messageId: r.message_id as string,
+    receivedAt: r.received_at as string,
+    fromAddr: r.from_addr as string,
+    subject: r.subject as string,
+    snippet: r.snippet as string,
+    kind: r.kind as ReviewCandidateKind,
+    journal: (r.journal as string | null) ?? null,
+    manuscriptId: (r.manuscript_id as string | null) ?? null,
+    title: (r.title as string | null) ?? null,
+    dueDate: (r.due_date as string | null) ?? null,
+    link: (r.link as string | null) ?? null,
+    status: r.status as ReviewCandidateStatus,
+    reviewId: (r.review_id as string | null) ?? null,
+    revisionType: (r.revision_type as 'major' | 'minor' | null) ?? null,
+    createdAt: r.created_at as string,
+    updatedAt: r.updated_at as string,
   };
 }

@@ -1,0 +1,106 @@
+// Pure payload -> domain-object transform for POST /api/google/sync (phase 3).
+// No repo/network access — the route calls repo.replaceCalendarEvents /
+// repo.upsertReviewCandidates with the results of these functions.
+import { addDaysStr, kstDateTime } from '@/lib/logic/dates';
+import { parseReviewMail } from '@/lib/logic/review-mail';
+import type { CalendarEvent, ReviewCandidate } from '@/lib/types';
+
+export interface SyncCalendarEventInput {
+  calendarId: string;
+  calendarName: string;
+  eventId: string;
+  title: string;
+  start: string; // ISO instant
+  end: string; // ISO instant (Google's all-day end is exclusive)
+  allDay: boolean;
+  location?: string | null;
+}
+
+export interface SyncMailInput {
+  messageId: string;
+  threadId: string;
+  receivedAt: string; // ISO instant
+  from: string;
+  subject: string;
+  body: string; // never persisted — only parsed fields + a snippet survive
+}
+
+/** Converts one Google Calendar event to KST domain fields. All-day events'
+ * exclusive end (Google convention) becomes an inclusive end_date one day earlier. */
+export function buildCalendarEvent(account: string, now: string, e: SyncCalendarEventInput): CalendarEvent {
+  const id = `${account}:${e.calendarId}:${e.eventId}`;
+  if (e.allDay) {
+    const startDate = kstDateTime(e.start).date;
+    const endExclusive = kstDateTime(e.end).date;
+    const endDate = endExclusive > startDate ? addDaysStr(endExclusive, -1) : startDate;
+    return {
+      id,
+      account,
+      calendarName: e.calendarName,
+      title: e.title,
+      startDate,
+      endDate,
+      startTime: null,
+      endTime: null,
+      location: e.location ?? null,
+      updatedAt: now,
+    };
+  }
+  const start = kstDateTime(e.start);
+  const end = kstDateTime(e.end);
+  return {
+    id,
+    account,
+    calendarName: e.calendarName,
+    title: e.title,
+    startDate: start.date,
+    endDate: end.date,
+    startTime: start.time,
+    endTime: end.time,
+    location: e.location ?? null,
+    updatedAt: now,
+  };
+}
+
+export function buildCalendarEvents(account: string, now: string, events: SyncCalendarEventInput[]): CalendarEvent[] {
+  return events.map((e) => buildCalendarEvent(account, now, e));
+}
+
+/** First 300 chars of `text`, whitespace-collapsed — the only trace of the mail
+ * body ever stored (the body itself is discarded after parsing). */
+export function makeSnippet(text: string): string {
+  return text.replace(/\s+/g, ' ').trim().slice(0, 300);
+}
+
+export type ReviewCandidateInput = Omit<ReviewCandidate, 'id' | 'status' | 'reviewId' | 'createdAt' | 'updatedAt'>;
+
+/** Parses each mail with lib/logic/review-mail; non-assignments (parseReviewMail
+ * -> null) are dropped entirely, never reaching storage. */
+export function buildReviewCandidateInputs(account: string, mails: SyncMailInput[]): ReviewCandidateInput[] {
+  const out: ReviewCandidateInput[] = [];
+  for (const mail of mails) {
+    const parsed = parseReviewMail({
+      from: mail.from,
+      subject: mail.subject,
+      body: mail.body,
+      receivedAt: mail.receivedAt,
+    });
+    if (!parsed) continue;
+    out.push({
+      account,
+      messageId: mail.messageId,
+      receivedAt: mail.receivedAt,
+      fromAddr: mail.from,
+      subject: mail.subject,
+      snippet: makeSnippet(mail.body),
+      kind: parsed.kind,
+      journal: parsed.journal,
+      manuscriptId: parsed.manuscriptId,
+      title: parsed.title,
+      dueDate: parsed.dueDate,
+      link: parsed.link,
+      revisionType: parsed.revisionType,
+    });
+  }
+  return out;
+}

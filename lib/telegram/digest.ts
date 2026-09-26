@@ -1,8 +1,9 @@
 // Daily digest orchestration (phase 2b), extracted from app/api/cron/daily so it
 // can be unit-tested with a fake repo + fake sender (no Next.js route needed).
-import type { Deadline, ReviewJob, Task } from '@/lib/types';
+import type { CalendarEvent, Deadline, ReviewJob, Task } from '@/lib/types';
 import type { StatusItem } from '@/lib/status/types';
 import { checklist } from '@/lib/logic/checklist';
+import { CALENDAR_VISIBLE_META_KEY, filterVisibleEvents } from '@/lib/logic/calendar';
 import { formatDigest } from '@/lib/telegram/format';
 import type { SendResult } from '@/lib/telegram/client';
 
@@ -15,6 +16,7 @@ export interface DigestRepo {
   listDeadlines(): Promise<Deadline[]>;
   listReviews(): Promise<ReviewJob[]>;
   getStatusSnapshot(): Promise<{ items: StatusItem[] } | null>;
+  listCalendarEvents(from: string, to: string): Promise<CalendarEvent[]>;
   getMeta<T>(key: string): Promise<T | null>;
   setMeta(key: string, value: unknown): Promise<void>;
 }
@@ -35,11 +37,13 @@ export async function runDigest(
     if (lastSent === today) return 'skipped-already';
   }
 
-  const [tasks, deadlines, reviews, snapshot] = await Promise.all([
+  const [tasks, deadlines, reviews, snapshot, rawTodayEvents, visibleCalendars] = await Promise.all([
     repo.listTasks(),
     repo.listDeadlines(),
     repo.listReviews(),
     repo.getStatusSnapshot(),
+    repo.listCalendarEvents(today, today),
+    repo.getMeta<string[]>(CALENDAR_VISIBLE_META_KEY),
   ]);
   const me = checklist(tasks, deadlines, reviews, today).me;
   const message = formatDigest({
@@ -47,6 +51,7 @@ export async function runDigest(
     deadlines,
     reviews,
     checklist: me,
+    todayEvents: filterVisibleEvents(rawTodayEvents, visibleCalendars),
     statusItems: snapshot?.items ?? [],
     cloudUrl,
   });

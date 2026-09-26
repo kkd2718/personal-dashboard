@@ -17,7 +17,11 @@ export default async function PapersPage({
   const { tab } = await searchParams;
   const active = tab === 'review' ? 'review' : 'papers';
   const repo = getRepo();
-  const [papers, reviews] = await Promise.all([repo.listPapers(), repo.listReviews()]);
+  const [papers, reviews, candidates] = await Promise.all([
+    repo.listPapers(),
+    repo.listReviews(),
+    repo.listReviewCandidates('pending'),
+  ]);
 
   return (
     <div className="flex flex-col gap-5">
@@ -42,7 +46,11 @@ export default async function PapersPage({
         </a>
       </div>
 
-      {active === 'papers' ? <PaperBoard initialPapers={papers} /> : <ReviewList reviews={reviews} />}
+      {active === 'papers' ? (
+        <PaperBoard initialPapers={papers} />
+      ) : (
+        <ReviewList reviews={reviews} candidates={candidates} papers={papers} />
+      )}
     </div>
   );
 }

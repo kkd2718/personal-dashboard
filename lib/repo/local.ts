@@ -3,6 +3,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type {
   Assignee,
+  CalendarEvent,
   Db,
   Deadline,
   Milestone,
@@ -12,6 +13,7 @@ import type {
   PaperStage,
   Project,
   ProjectActivity,
+  ReviewCandidate,
   ReviewJob,
   StatusSnapshot,
   Task,
@@ -46,8 +48,14 @@ function normalizeDb(raw: Partial<Db>): Db {
     aliases: p.aliases ?? [],
     backlogGlobs: p.backlogGlobs ?? [],
   }));
-  const notes = (raw.notes ?? []).map((n) => ({ ...n, taskId: n.taskId ?? null, date: n.date ?? null }));
+  const notes = (raw.notes ?? []).map((n) => ({
+    ...n,
+    taskId: n.taskId ?? null,
+    date: n.date ?? null,
+    externalId: n.externalId ?? null,
+  }));
   const tasks = (raw.tasks ?? []).map((t) => ({ ...t, assignee: t.assignee ?? 'me', deliveredAt: t.deliveredAt ?? null }));
+  const reviewCandidates = (raw.reviewCandidates ?? []).map((c) => ({ ...c, revisionType: c.revisionType ?? null }));
   return {
     projects,
     projectActivity: raw.projectActivity ?? [],
@@ -57,6 +65,8 @@ function normalizeDb(raw: Partial<Db>): Db {
     notes,
     milestones: raw.milestones ?? [],
     tasks,
+    calendarEvents: raw.calendarEvents ?? [],
+    reviewCandidates,
     statusSnapshot: raw.statusSnapshot ?? null,
     heartbeatAt: raw.heartbeatAt ?? null,
     meta: raw.meta ?? {},
@@ -93,7 +103,7 @@ export class LocalRepo implements Repo {
       return normalizeDb(JSON.parse(raw) as Partial<Db>);
     } catch (err) {
       if (isEnoent(err)) {
-        const fresh = seedDb();
+        const fresh = normalizeDb(seedDb());
         await this.writeDb(fresh);
         return fresh;
       }
@@ -121,8 +131,13 @@ export class LocalRepo implements Repo {
     tags?: string[];
     date?: string | null;
     source: Note['source'];
+    externalId?: string | null;
   }): Promise<Note> {
     return this.withLock((db) => {
+      if (input.externalId) {
+        const existing = db.notes.find((n) => n.externalId === input.externalId);
+        if (existing) return existing;
+      }
       const now = new Date().toISOString();
       const note: Note = {
         id: randomUUID(),
@@ -136,6 +151,7 @@ export class LocalRepo implements Repo {
         source: input.source,
         deliveredAt: null,
         taskId: null,
+        externalId: input.externalId ?? null,
         createdAt: now,
         updatedAt: now,
       };
@@ -483,6 +499,61 @@ export class LocalRepo implements Repo {
   setMeta(key: string, value: unknown): Promise<void> {
     return this.withLock((db) => {
       db.meta[key] = value;
+    });
+  }
+
+  // --- calendar events (phase 3) ---
+
+  listCalendarEvents(from: string, to: string): Promise<CalendarEvent[]> {
+    return this.withLock((db) => db.calendarEvents.filter((e) => e.startDate <= to && e.endDate >= from));
+  }
+
+  replaceCalendarEvents(account: string, from: string, to: string, events: CalendarEvent[]): Promise<void> {
+    return this.withLock((db) => {
+      db.calendarEvents = db.calendarEvents.filter(
+        (e) => !(e.account === account && e.startDate <= to && e.endDate >= from)
+      );
+      db.calendarEvents.push(...events);
+    });
+  }
+
+  // --- review candidates (phase 3) ---
+
+  listReviewCandidates(status?: ReviewCandidate['status']): Promise<ReviewCandidate[]> {
+    return this.withLock((db) => db.reviewCandidates.filter((c) => !status || c.status === status));
+  }
+
+  upsertReviewCandidates(
+    list: Array<Omit<ReviewCandidate, 'id' | 'status' | 'reviewId' | 'createdAt' | 'updatedAt'>>
+  ): Promise<ReviewCandidate[]> {
+    return this.withLock((db) => {
+      const now = new Date().toISOString();
+      const known = new Set(db.reviewCandidates.map((c) => c.messageId));
+      const inserted: ReviewCandidate[] = [];
+      for (const item of list) {
+        if (known.has(item.messageId)) continue;
+        known.add(item.messageId);
+        const candidate: ReviewCandidate = {
+          ...item,
+          id: `rc-${item.messageId}`,
+          status: 'pending',
+          reviewId: null,
+          createdAt: now,
+          updatedAt: now,
+        };
+        db.reviewCandidates.push(candidate);
+        inserted.push(candidate);
+      }
+      return inserted;
+    });
+  }
+
+  updateReviewCandidate(id: string, patch: Partial<Omit<ReviewCandidate, 'id'>>): Promise<ReviewCandidate> {
+    return this.withLock((db) => {
+      const candidate = db.reviewCandidates.find((c) => c.id === id);
+      if (!candidate) notFound('ReviewCandidate', id);
+      Object.assign(candidate, patch, { updatedAt: new Date().toISOString() });
+      return candidate;
     });
   }
 }

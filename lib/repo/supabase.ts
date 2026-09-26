@@ -8,6 +8,7 @@ import { randomUUID } from 'node:crypto';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type {
   Assignee,
+  CalendarEvent,
   Deadline,
   Milestone,
   MilestoneStatus,
@@ -16,6 +17,7 @@ import type {
   PaperStage,
   Project,
   ProjectActivity,
+  ReviewCandidate,
   ReviewJob,
   StatusSnapshot,
   Task,
@@ -25,6 +27,8 @@ import { moveTask as moveTaskLogic } from '@/lib/logic/tasks';
 import { movePaper as movePaperLogic } from '@/lib/logic/papers';
 import type { Repo } from '@/lib/repo/index';
 import {
+  calendarEventFromRow,
+  calendarEventToRow,
   deadlineFromRow,
   deadlineToRow,
   milestoneFromRow,
@@ -37,6 +41,8 @@ import {
   projectActivityToRow,
   projectFromRow,
   projectToRow,
+  reviewCandidateFromRow,
+  reviewCandidateToRow,
   reviewFromRow,
   reviewToRow,
   taskFromRow,
@@ -90,7 +96,17 @@ export class SupabaseRepo implements Repo {
     tags?: string[];
     date?: string | null;
     source: Note['source'];
+    externalId?: string | null;
   }): Promise<Note> {
+    if (input.externalId) {
+      const { data, error } = await this.sb
+        .from('notes')
+        .select('*')
+        .eq('external_id', input.externalId)
+        .maybeSingle();
+      if (error) throw new Error(`createNote: ${error.message}`);
+      if (data) return noteFromRow(data);
+    }
     const n = now();
     const note: Note = {
       id: randomUUID(),
@@ -104,6 +120,7 @@ export class SupabaseRepo implements Repo {
       source: input.source,
       deliveredAt: null,
       taskId: null,
+      externalId: input.externalId ?? null,
       createdAt: n,
       updatedAt: n,
     };
@@ -470,5 +487,75 @@ export class SupabaseRepo implements Repo {
   async setMeta(key: string, value: unknown): Promise<void> {
     const { error } = await this.sb.from('app_meta').upsert({ key, value, updated_at: now() }, { onConflict: 'key' });
     if (error) throw new Error(`setMeta: ${error.message}`);
+  }
+
+  // --- calendar events (phase 3) ---
+
+  async listCalendarEvents(from: string, to: string): Promise<CalendarEvent[]> {
+    const { data, error } = await this.sb
+      .from('calendar_events')
+      .select('*')
+      .lte('start_date', to)
+      .gte('end_date', from);
+    if (error) throw new Error(`listCalendarEvents: ${error.message}`);
+    return (data ?? []).map(calendarEventFromRow);
+  }
+
+  async replaceCalendarEvents(account: string, from: string, to: string, events: CalendarEvent[]): Promise<void> {
+    const { error } = await this.sb.rpc('replace_calendar_events', {
+      p_account: account,
+      p_from: from,
+      p_to: to,
+      p_events: events.map(calendarEventToRow),
+      p_now: now(),
+    });
+    if (error) throw new Error(`replaceCalendarEvents: ${error.message}`);
+  }
+
+  // --- review candidates (phase 3) ---
+
+  async listReviewCandidates(status?: ReviewCandidate['status']): Promise<ReviewCandidate[]> {
+    let query = this.sb.from('review_candidates').select('*');
+    if (status) query = query.eq('status', status);
+    const { data, error } = await query;
+    if (error) throw new Error(`listReviewCandidates: ${error.message}`);
+    return (data ?? []).map(reviewCandidateFromRow);
+  }
+
+  async upsertReviewCandidates(
+    list: Array<Omit<ReviewCandidate, 'id' | 'status' | 'reviewId' | 'createdAt' | 'updatedAt'>>
+  ): Promise<ReviewCandidate[]> {
+    if (list.length === 0) return [];
+    const n = now();
+    const rows = list.map((item) =>
+      reviewCandidateToRow({
+        ...item,
+        id: `rc-${item.messageId}`,
+        status: 'pending',
+        reviewId: null,
+        createdAt: n,
+        updatedAt: n,
+      })
+    );
+    // ignoreDuplicates -> INSERT ... ON CONFLICT (message_id) DO NOTHING, so an
+    // existing (including previously dismissed) row is left untouched and never
+    // returned here — only genuinely new rows come back from .select().
+    const { data, error } = await this.sb
+      .from('review_candidates')
+      .upsert(rows, { onConflict: 'message_id', ignoreDuplicates: true })
+      .select();
+    if (error) throw new Error(`upsertReviewCandidates: ${error.message}`);
+    return (data ?? []).map(reviewCandidateFromRow);
+  }
+
+  async updateReviewCandidate(id: string, patch: Partial<Omit<ReviewCandidate, 'id'>>): Promise<ReviewCandidate> {
+    const { data, error } = await this.sb
+      .from('review_candidates')
+      .update({ ...reviewCandidateToRow(patch as ReviewCandidate), updated_at: now() })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error || !data) notFound('ReviewCandidate', id);
+    return reviewCandidateFromRow(data);
   }
 }

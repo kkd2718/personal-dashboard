@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  calendarEventFromRow,
+  calendarEventToRow,
   deadlineFromRow,
   deadlineToRow,
   milestoneFromRow,
@@ -12,18 +14,22 @@ import {
   projectActivityToRow,
   projectFromRow,
   projectToRow,
+  reviewCandidateFromRow,
+  reviewCandidateToRow,
   reviewFromRow,
   reviewToRow,
   taskFromRow,
   taskToRow,
 } from '@/lib/repo/mappers';
 import type {
+  CalendarEvent,
   Deadline,
   Milestone,
   Note,
   Paper,
   Project,
   ProjectActivity,
+  ReviewCandidate,
   ReviewJob,
   Task,
 } from '@/lib/types';
@@ -86,6 +92,7 @@ const note: Note = {
   source: 'shortcut',
   deliveredAt: null,
   taskId: null,
+  externalId: null,
   createdAt: '2026-01-01T00:00:00Z',
   updatedAt: '2026-01-01T00:00:00Z',
 };
@@ -146,6 +153,40 @@ const activity: ProjectActivity = {
   collectedAt: '2026-01-01T00:00:00Z',
 };
 
+const calendarEvent: CalendarEvent = {
+  id: 'main:primary:evt1',
+  account: 'main',
+  calendarName: 'Personal',
+  title: 'Team sync',
+  startDate: '2026-04-01',
+  endDate: '2026-04-01',
+  startTime: '10:00',
+  endTime: '11:00',
+  location: 'Room A',
+  updatedAt: '2026-01-01T00:00:00Z',
+};
+
+const reviewCandidate: ReviewCandidate = {
+  id: 'rc-msg1',
+  account: 'main',
+  messageId: 'msg1',
+  receivedAt: '2026-01-01T00:00:00Z',
+  fromAddr: 'editor@example-journal.test',
+  subject: 'Invitation to review',
+  snippet: 'We would like to invite you to review...',
+  kind: 'invitation',
+  journal: 'Example Journal',
+  manuscriptId: 'EJ-2026-0001',
+  title: 'A Study of Fictional Things',
+  dueDate: '2026-02-01',
+  link: 'https://example-journal.test/review/1',
+  status: 'pending',
+  reviewId: null,
+  revisionType: null,
+  createdAt: '2026-01-01T00:00:00Z',
+  updatedAt: '2026-01-01T00:00:00Z',
+};
+
 describe('mappers round-trip', () => {
   it('project', () => expect(projectFromRow(projectToRow(project))).toEqual(project));
   it('milestone', () => expect(milestoneFromRow(milestoneToRow(milestone))).toEqual(milestone));
@@ -155,6 +196,9 @@ describe('mappers round-trip', () => {
   it('review', () => expect(reviewFromRow(reviewToRow(review))).toEqual(review));
   it('deadline', () => expect(deadlineFromRow(deadlineToRow(deadline))).toEqual(deadline));
   it('projectActivity', () => expect(projectActivityFromRow(projectActivityToRow(activity))).toEqual(activity));
+  it('calendarEvent', () => expect(calendarEventFromRow(calendarEventToRow(calendarEvent))).toEqual(calendarEvent));
+  it('reviewCandidate', () =>
+    expect(reviewCandidateFromRow(reviewCandidateToRow(reviewCandidate))).toEqual(reviewCandidate));
 });
 
 describe('mappers tolerate missing/null jsonb', () => {
@@ -184,6 +228,7 @@ describe('mappers tolerate missing/null jsonb', () => {
     expect(n.tags).toEqual([]);
     expect(n.projectId).toBeNull();
     expect(n.taskId).toBeNull();
+    expect(n.externalId).toBeNull();
   });
 
   it('paper defaults arrays', () => {
