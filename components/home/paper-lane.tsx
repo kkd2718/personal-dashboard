@@ -64,7 +64,7 @@ export function PaperLane({
                 >
                   <Chip className="shrink-0">{g.label}</Chip>
                   {/* name capped so the status line (리비전 D-20, 심사 N일째) always has room */}
-                  <span className="max-w-[55%] shrink-0 truncate font-medium">{p.shortName}</span>
+                  <span className="max-w-[40%] shrink-0 truncate font-medium">{p.shortName}</span>
                   {line && <span className="min-w-0 flex-1 truncate text-right text-foreground/50">{line}</span>}
                 </Link>
               );
