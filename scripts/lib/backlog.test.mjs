@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { countBacklog, extractSection, parseBacklogEntry } from './backlog.mjs';
+import { countBacklog, countJsonProgress, extractSection, parseBacklogEntry } from './backlog.mjs';
 
 describe('countBacklog', () => {
   it('counts checkbox-style markdown', () => {
@@ -34,13 +34,27 @@ describe('countBacklog', () => {
 describe('backlog sections', () => {
   const md = ['# BACKLOG', '## 코드 (coder 소관)', '1. **a** ✅', '2. **b**', '## 콘텐츠', '3. **c**', '4. **d**'].join('\n');
   it('parses file#section entries', () => {
-    expect(parseBacklogEntry('docs/BACKLOG.md#코드')).toEqual({ file: 'docs/BACKLOG.md', section: '코드' });
-    expect(parseBacklogEntry('docs/TODO.md')).toEqual({ file: 'docs/TODO.md', section: null });
+    expect(parseBacklogEntry('docs/BACKLOG.md#코드')).toEqual({ label: null, file: 'docs/BACKLOG.md', section: '코드' });
+    expect(parseBacklogEntry('docs/TODO.md')).toEqual({ label: null, file: 'docs/TODO.md', section: null });
   });
   it('counts only the named section', () => {
     expect(countBacklog(extractSection(md, '코드'))).toEqual({ open: 1, done: 1 });
   });
   it('missing section counts nothing', () => {
     expect(extractSection(md, '없음')).toBe('');
+  });
+});
+
+describe('labeled entries + JSON progress files', () => {
+  it('parses a 라벨= prefix', () => {
+    expect(parseBacklogEntry('노트=docs/progress.json#notes')).toEqual({ label: '노트', file: 'docs/progress.json', section: 'notes' });
+    expect(parseBacklogEntry('코드=docs/BACKLOG.md#코드')).toEqual({ label: '코드', file: 'docs/BACKLOG.md', section: '코드' });
+  });
+
+  it('reads {key:{done,total}} and rejects nonsense', () => {
+    expect(countJsonProgress('{"notes":{"done":161,"total":420}}', 'notes')).toEqual({ open: 259, done: 161 });
+    expect(countJsonProgress('{"notes":{"done":5,"total":0}}', 'notes')).toEqual({ open: 0, done: 0 });
+    expect(countJsonProgress('not json', 'notes')).toEqual({ open: 0, done: 0 });
+    expect(countJsonProgress('{"notes":{"done":9,"total":4}}', 'notes')).toEqual({ open: 0, done: 4 });
   });
 });

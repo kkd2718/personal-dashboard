@@ -32,6 +32,32 @@ export function backlogProgress(activity: ProjectActivity | undefined): Progress
   return { done: d, total, pct: total === 0 ? null : Math.round((100 * d) / total) };
 }
 
+export interface LabeledProgress extends Progress {
+  label: string;
+}
+
+/** Named bars the collector wrote as `bar:<label>:done` / `bar:<label>:open` (a
+ * `라벨=` backlogGlobs entry, e.g. Amgi 코드 / 노트), in the order they appear. */
+export function labeledBars(activity: ProjectActivity | undefined): LabeledProgress[] {
+  if (!activity) return [];
+  const labels: string[] = [];
+  for (const key of Object.keys(activity.metrics)) {
+    const m = /^bar:(.+):(done|open)$/.exec(key);
+    if (m && !labels.includes(m[1])) labels.push(m[1]);
+  }
+  return labels.map((label) => {
+    const done = Number(activity.metrics[`bar:${label}:done`] ?? 0) || 0;
+    const open = Number(activity.metrics[`bar:${label}:open`] ?? 0) || 0;
+    const total = done + open;
+    return { label, done, total, pct: total === 0 ? null : Math.round((100 * done) / total) };
+  });
+}
+
+/** "코드 67%" — the percentage the owner asked for, with the raw count on hover. */
+export function labeledBarText(b: LabeledProgress): string {
+  return `${b.label} ${b.pct ?? 0}%`;
+}
+
 /** Korean progress copy (ux-advice.md §6): never "0/1 (0%)". Below 3 tasks say the
  * count only; at 3+ show the completed/total fraction. */
 export function progressLabel(p: Progress): string {

@@ -15,7 +15,7 @@ import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { loadEnvFile } from './lib/env.mjs';
 import { encodeProjectDir, isWslPath, toWslPath } from './lib/project-dir.mjs';
-import { countBacklog, extractSection, parseBacklogEntry } from './lib/backlog.mjs';
+import { countBacklog, countJsonProgress, extractSection, parseBacklogEntry } from './lib/backlog.mjs';
 import { tradingStatus } from './lib/trading-probe.mjs';
 import { buildStatusItems } from './lib/status-items.mjs';
 import { applyImports, defaultInboxContent, externalIdFor, parseNewMemos } from './lib/obsidian-inbox.mjs';
@@ -189,18 +189,28 @@ async function collectBacklogMetrics(projectPath, wsl, globs) {
   if (!globs || globs.length === 0) return {};
   let open = 0;
   let done = 0;
+  const bars = {};
   for (const entry of globs) {
-    // `file#Heading` limits counting to one markdown section (e.g. Amgi 'docs/BACKLOG.md#코드').
-    const { file, section } = parseBacklogEntry(entry);
+    // `file#Heading` limits counting to one markdown section (e.g. Amgi 'docs/BACKLOG.md#코드');
+    // `라벨=` makes it a separate named bar; a .json file is a project-written {key:{done,total}}.
+    const { label, file, section } = parseBacklogEntry(entry);
     const raw = await readBacklogGlob(projectPath, wsl, file);
     if (!raw) continue;
-    const text = section ? extractSection(raw, section) : raw;
-    const counts = countBacklog(text);
+    const counts = file.endsWith('.json')
+      ? countJsonProgress(raw, section)
+      : countBacklog(section ? extractSection(raw, section) : raw);
+    if (label) {
+      if (counts.open + counts.done > 0) {
+        bars[`bar:${label}:done`] = counts.done;
+        bars[`bar:${label}:open`] = counts.open;
+      }
+      continue;
+    }
     open += counts.open;
     done += counts.done;
   }
-  if (open === 0 && done === 0) return {};
-  return { backlogOpen: open, backlogDone: done };
+  if (open === 0 && done === 0) return bars;
+  return { backlogOpen: open, backlogDone: done, ...bars };
 }
 
 async function collectProjectActivity(project) {

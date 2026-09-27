@@ -40,15 +40,46 @@ export function countBacklog(text) {
 }
 
 /**
- * Splits a backlogGlobs entry `path#Heading` into { file, section }. No `#` -> section null.
+ * Splits a backlogGlobs entry `[라벨=]path[#Heading]` into { label, file, section }.
+ * No `#` -> section null. A `라벨=` prefix makes the entry its own named progress bar
+ * (e.g. Amgi `코드=docs/BACKLOG.md#코드`, `노트=docs/progress.json#notes`); unlabeled
+ * entries are summed into the single legacy backlog bar.
  * @param {string} entry
- * @returns {{ file: string, section: string | null }}
+ * @returns {{ label: string | null, file: string, section: string | null }}
  */
 export function parseBacklogEntry(entry) {
-  const i = entry.indexOf('#');
-  if (i < 0) return { file: entry, section: null };
-  const section = entry.slice(i + 1).trim();
-  return { file: entry.slice(0, i), section: section || null };
+  let label = null;
+  let rest = entry;
+  const eq = entry.indexOf('=');
+  if (eq > 0 && !entry.slice(0, eq).includes('/')) {
+    label = entry.slice(0, eq).trim() || null;
+    rest = entry.slice(eq + 1);
+  }
+  const i = rest.indexOf('#');
+  if (i < 0) return { label, file: rest, section: null };
+  const section = rest.slice(i + 1).trim();
+  return { label, file: rest.slice(0, i), section: section || null };
+}
+
+/**
+ * Reads `{ "<key>": { "done": n, "total": n } }` (a project-written progress file)
+ * as open/done counts. Missing key, bad JSON or nonsense numbers -> zeros.
+ * @param {string} text
+ * @param {string | null} key
+ * @returns {{ open: number, done: number }}
+ */
+export function countJsonProgress(text, key) {
+  try {
+    const obj = JSON.parse(text);
+    const v = key ? obj?.[key] : obj;
+    const done = Number(v?.done);
+    const total = Number(v?.total);
+    if (!Number.isFinite(done) || !Number.isFinite(total) || total <= 0 || done < 0) return { open: 0, done: 0 };
+    const d = Math.min(done, total);
+    return { open: total - d, done: d };
+  } catch {
+    return { open: 0, done: 0 };
+  }
 }
 
 /**

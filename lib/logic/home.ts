@@ -1,6 +1,6 @@
 import type { Deadline, Group, Milestone, Paper, PaperStage, Project, ProjectActivity, Task } from '@/lib/types';
 import { dday, endOfIsoWeek, relTime } from '@/lib/logic/dates';
-import { backlogProgress, milestoneProgress, type Progress } from '@/lib/logic/progress';
+import { backlogProgress, labeledBars, milestoneProgress, type LabeledProgress, type Progress } from '@/lib/logic/progress';
 
 export interface DeadlineCounts {
   overdue: number;
@@ -99,6 +99,7 @@ export function paperStageSummary(papers: Paper[]): string {
 export type QueueLaneCard =
   | { kind: 'queue'; project: Project; milestone: Milestone; progress: Progress; nextTaskTitle: string | null; agentOpenCount: number }
   | { kind: 'backlog'; project: Project; backlog: Progress }
+  | { kind: 'bars'; project: Project; bars: LabeledProgress[] }
   | { kind: 'nextAction'; project: Project; nextAction: string };
 
 const GROUP_ORDER: Group[] = ['app', 'research', 'personal'];
@@ -146,6 +147,12 @@ export function buildQueueLaneCards(
           agentOpenCount: msTasks.filter((t) => t.assignee === 'agent' && t.status !== 'done').length,
         });
       }
+      continue;
+    }
+
+    const bars = labeledBars(activityByProjectId.get(project.id));
+    if (bars.length > 0) {
+      cards.push({ kind: 'bars', project, bars });
       continue;
     }
 

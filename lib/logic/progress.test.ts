@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { backlogLabel, backlogProgress, progress, progressLabel, shouldShowBacklogBar } from './progress';
+import { backlogLabel, backlogProgress, labeledBars, labeledBarText, progress, progressLabel, shouldShowBacklogBar } from './progress';
 import type { Project, ProjectActivity, Task } from '@/lib/types';
 
 function task(status: Task['status']): Task {
@@ -120,5 +120,23 @@ describe('shouldShowBacklogBar', () => {
   it('hides when there is no backlog progress', () => {
     const p = project({ group: 'app' });
     expect(shouldShowBacklogBar(p, [], null)).toBe(false);
+  });
+});
+
+describe('labeledBars', () => {
+  const act = (metrics: Record<string, number | string>) => ({ metrics }) as ProjectActivity;
+
+  it('reads bar:<label>:done/open pairs in order, with percentages', () => {
+    const bars = labeledBars(act({ backlogOpen: 1, 'bar:코드:done': 8, 'bar:코드:open': 4, 'bar:노트:done': 1, 'bar:노트:open': 3 }));
+    expect(bars).toEqual([
+      { label: '코드', done: 8, total: 12, pct: 67 },
+      { label: '노트', done: 1, total: 4, pct: 25 },
+    ]);
+    expect(labeledBarText(bars[0])).toBe('코드 67%');
+  });
+
+  it('empty without activity or bar metrics', () => {
+    expect(labeledBars(undefined)).toEqual([]);
+    expect(labeledBars(act({ backlogOpen: 3 }))).toEqual([]);
   });
 });

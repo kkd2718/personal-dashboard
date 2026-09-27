@@ -4,7 +4,7 @@ import { LaneCard } from '@/components/home/lane-card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { DdayChip } from '@/components/dday-chip';
 import { buildQueueLaneCards } from '@/lib/logic/home';
-import { backlogLabel, progressLabel } from '@/lib/logic/progress';
+import { backlogLabel, labeledBarText, progressLabel } from '@/lib/logic/progress';
 import { dday, todayKST } from '@/lib/logic/dates';
 import { projectColorClasses } from '@/lib/project-colors';
 import type { Milestone, Paper, Project, ProjectActivity, Task } from '@/lib/types';
@@ -95,6 +95,16 @@ export function QueueLane({
                       <span className="shrink-0 text-foreground/50">{backlogLabel(card.backlog)}</span>
                     </div>
                   )}
+
+                  {card.kind === 'bars' &&
+                    card.bars.map((b) => (
+                      <div key={b.label} className="flex items-center gap-2" title={`${b.label} ${b.done}/${b.total}`}>
+                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-foreground/10">
+                          <div className="h-full rounded-full bg-foreground/30" style={{ width: `${b.pct ?? 0}%` }} />
+                        </div>
+                        <span className="tnum w-16 shrink-0 text-right text-foreground/50">{labeledBarText(b)}</span>
+                      </div>
+                    ))}
 
                   {card.kind === 'nextAction' && <span className="truncate text-foreground/50">다음: {card.nextAction}</span>}
                 </Link>

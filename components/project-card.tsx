@@ -2,7 +2,15 @@ import Link from 'next/link';
 import { Folder, GitBranch, Laptop, Link2, Pin, Radio } from 'lucide-react';
 import type { Milestone, Project, ProjectActivity, Task } from '@/lib/types';
 import { dday, relTime, todayKST } from '@/lib/logic/dates';
-import { backlogLabel, backlogProgress, progressLabel, projectProgress, shouldShowBacklogBar } from '@/lib/logic/progress';
+import {
+  backlogLabel,
+  backlogProgress,
+  labeledBars,
+  labeledBarText,
+  progressLabel,
+  projectProgress,
+  shouldShowBacklogBar,
+} from '@/lib/logic/progress';
 import { staleness } from '@/lib/logic/staleness';
 import { projectColorClasses } from '@/lib/project-colors';
 
@@ -52,7 +60,8 @@ export function ProjectCard({
     activity?.lastSessionAt != null && now != null ? relTime(activity.lastSessionAt, now) : null;
   const progress = projectProgress(project.id, tasks);
   const backlog = backlogProgress(activity);
-  const showBacklog = shouldShowBacklogBar(project, tasks, backlog);
+  const bars = labeledBars(activity);
+  const showBacklog = bars.length === 0 && shouldShowBacklogBar(project, tasks, backlog);
   const activeQueue = milestones.find((m) => m.projectId === project.id && m.status === 'active');
   const colors = projectColorClasses(project.color);
   const wsl = activity?.metrics?.wsl === '1';
@@ -96,6 +105,14 @@ export function ProjectCard({
         ) : (
           <p className="tnum text-[11px] text-foreground/50">{progressLabel(progress)}</p>
         ))}
+      {bars.map((b) => (
+        <div key={b.label} className="flex items-center gap-2" title={`${b.label} ${b.done}/${b.total}`}>
+          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-foreground/10">
+            <div className="h-full rounded-full bg-foreground/30" style={{ width: `${b.pct ?? 0}%` }} />
+          </div>
+          <span className="tnum w-16 shrink-0 text-right text-[11px] text-foreground/50">{labeledBarText(b)}</span>
+        </div>
+      ))}
       {showBacklog && backlog && (
         <div className="flex items-center gap-2">
           <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-foreground/10">
