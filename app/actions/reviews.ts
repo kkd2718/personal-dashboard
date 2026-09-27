@@ -128,12 +128,14 @@ export async function acceptRevisionCandidateAction(input: unknown): Promise<voi
   if (!paper) throw new Error('No matching paper found — pick one');
 
   const decision = decideRevisionAccept(candidate, paper);
-  if (!decision) throw new Error('Paper has no submissions to update');
 
   const now = new Date().toISOString();
-  const submissions = paper.submissions.map((s, i) =>
-    i === decision.submissionIndex ? { ...s, decision: decision.decision, decidedAt: now } : s
-  );
+  const submissions =
+    decision.submissionIndex === null
+      ? [{ journal: candidate.journal ?? '(저널 미상)', submittedAt: null, decision: decision.decision, decidedAt: now }]
+      : paper.submissions.map((s, i) =>
+          i === decision.submissionIndex ? { ...s, decision: decision.decision, decidedAt: now } : s
+        );
   await repo.updatePaper(paper.id, { submissions });
   if (candidate.dueDate) {
     await repo.createDeadline({

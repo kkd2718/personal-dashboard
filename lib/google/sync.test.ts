@@ -154,3 +154,12 @@ describe('candidatesToDismiss / shouldPushCandidate', () => {
     expect(shouldPushCandidate('other')).toBe(false);
   });
 });
+
+describe('buildCalendarEvent — recurring instances', () => {
+  it('instances sharing one Apps Script event id get distinct ids', () => {
+    const base = { calendarId: 'primary', calendarName: 'P', eventId: 'rec1', title: 'Weekly', allDay: false };
+    const a = buildCalendarEvent('main', NOW, { ...base, start: '2026-09-21T08:00:00+09:00', end: '2026-09-21T09:00:00+09:00' });
+    const b = buildCalendarEvent('main', NOW, { ...base, start: '2026-09-28T08:00:00+09:00', end: '2026-09-28T09:00:00+09:00' });
+    expect(a.id).not.toBe(b.id);
+  });
+});

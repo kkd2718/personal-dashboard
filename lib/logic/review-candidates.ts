@@ -92,7 +92,7 @@ export function findMatchingPaper(candidate: ReviewCandidate, papers: Paper[]): 
 
 export interface RevisionAcceptDecision {
   paperId: string;
-  submissionIndex: number; // the paper's latest submission
+  submissionIndex: number | null; // the paper's latest submission; null = none yet, append one
   decision: SubmissionDecision;
   deadlineTitle: string;
 }
@@ -100,14 +100,13 @@ export interface RevisionAcceptDecision {
 /** Decides how accepting a revision candidate updates `paper`: the latest
  * submission's decision becomes 'major'/'minor' (revisionType null defaults to
  * 'major', the safer/more conservative assumption), and a Deadline title is
- * derived from the paper's short name. Null when the paper has no submissions
- * yet to attach a decision to. */
-export function decideRevisionAccept(candidate: ReviewCandidate, paper: Paper): RevisionAcceptDecision | null {
-  if (paper.submissions.length === 0) return null;
+ * derived from the paper's short name. A paper with no submissions recorded yet gets
+ * submissionIndex null: the caller appends one for the candidate's journal. */
+export function decideRevisionAccept(candidate: ReviewCandidate, paper: Paper): RevisionAcceptDecision {
   const decision: SubmissionDecision = candidate.revisionType === 'minor' ? 'minor' : 'major';
   return {
     paperId: paper.id,
-    submissionIndex: paper.submissions.length - 1,
+    submissionIndex: paper.submissions.length > 0 ? paper.submissions.length - 1 : null,
     decision,
     deadlineTitle: `${paper.shortName} 리비전 제출`,
   };

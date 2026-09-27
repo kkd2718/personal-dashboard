@@ -28,7 +28,9 @@ export interface SyncMailInput {
 /** Converts one Google Calendar event to KST domain fields. All-day events'
  * exclusive end (Google convention) becomes an inclusive end_date one day earlier. */
 export function buildCalendarEvent(account: string, now: string, e: SyncCalendarEventInput): CalendarEvent {
-  const id = `${account}:${e.calendarId}:${e.eventId}`;
+  // CalendarApp gives every instance of a recurring event the same id, so the start
+  // instant is part of the key (duplicate ids made the replace RPC fail with a 500).
+  const id = `${account}:${e.calendarId}:${e.eventId}:${e.start}`;
   if (e.allDay) {
     const startDate = kstDateTime(e.start).date;
     const endExclusive = kstDateTime(e.end).date;

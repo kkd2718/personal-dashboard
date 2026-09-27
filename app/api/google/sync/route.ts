@@ -142,7 +142,7 @@ function formatNewCandidatesAlert(
     const journal = c.journal ? escapeHtml(c.journal) : '(저널 미상)';
     const ms = c.manuscriptId ? ` ${escapeHtml(c.manuscriptId)}` : '';
     const due = c.dueDate ? c.dueDate.slice(5) : '미상';
-    const label = c.kind === 'revision' ? '📝 리비전 요청' : '⏰ 리뷰 마감 알림';
+    const label = c.kind === 'revision' ? '📝 내 논문 리비전' : '⏰ 리뷰 마감 알림';
     return `${label}: ${journal}${ms} · 마감 ${due}`;
   });
   if (cloudUrl) lines.push(`${cloudUrl.replace(/\/$/, '')}/papers?tab=review`);

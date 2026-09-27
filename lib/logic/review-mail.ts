@@ -140,13 +140,17 @@ function extractManuscriptId(text: string): string | null {
 
 // --- journal -----------------------------------------------------------
 
-const BRACKET_BLOCKLIST = /^(reminder|action required|urgent|external|fwd|re|automated message)$/i;
+const BRACKET_BLOCKLIST = /^(reminder|action required|urgent|external|fwd|re|automated message|EMID:.*)$/i;
 
 function trimJournal(s: string): string {
   return s.replace(/[.,;:\s]+$/, '').trim();
 }
 
 function extractJournal(subject: string, body: string, from: string): string | null {
+  // "Fwd: npj Digital Medicine: Decision on your manuscript"
+  const decisionSubject = /^(?:\s*(?:fwd?|re|fw)\s*:\s*)*(?!(?:fwd?|re|fw)\s*:)([^:[\]]{3,60}?)\s*:\s*(?:editorial )?decision on/i.exec(subject);
+  if (decisionSubject) return trimJournal(decisionSubject[1]);
+
   const bracket = /\[([^\]]{3,80})\]/.exec(subject);
   if (bracket && !BRACKET_BLOCKLIST.test(bracket[1].trim())) return trimJournal(bracket[1]);
 
@@ -163,6 +167,12 @@ function extractJournal(subject: string, body: string, from: string): string | n
   if (display && /journal|review|editor/i.test(display[1])) return trimJournal(display[1]);
 
   return null;
+}
+
+/** Editorial Manager ids start with the journal code ('ISCIENCE-D-26-03733' -> 'ISCIENCE'). */
+function journalFromManuscriptId(id: string | null): string | null {
+  const m = id ? /^([A-Z]{3,8})-[A-Z]-\d{2}-\d{3,6}$/.exec(id) : null;
+  return m ? m[1] : null;
 }
 
 // --- title ---------------------------------------------------------------
@@ -229,17 +239,28 @@ const LANDMARK_RE = /\b(due|deadline|by|within|in)\b/gi;
 const RELATIVE_RE = /^\s*(\d{1,3})\s+days?\b/i;
 const WINDOW = 160;
 
+// A forwarding note like "10월 17일까지 입니다" (no year): the next such date on/after receipt.
+const KO_UNTIL_RE = /(\d{1,2})월\s*(\d{1,2})일\s*까지/;
+
 function extractDueDate(body: string, receivedAt: string): string | null {
   const receivedDate = receivedAt.slice(0, 10);
+  const ko = KO_UNTIL_RE.exec(body);
+  if (ko) {
+    const year = Number(receivedDate.slice(0, 4));
+    const md = `${pad(Number(ko[1]))}-${pad(Number(ko[2]))}`;
+    const thisYear = `${year}-${md}`;
+    return thisYear >= receivedDate ? thisYear : `${year + 1}-${md}`;
+  }
   for (const landmark of body.matchAll(LANDMARK_RE)) {
     const rest = body.slice(landmark.index + landmark[0].length, landmark.index + landmark[0].length + WINDOW);
     const relative = RELATIVE_RE.exec(rest);
     if (relative) return addDaysStr(receivedDate, Number(relative[1]));
     // Absolute dates can appear a few words after the landmark ("due on 15 October 2026"),
     // so scan a short sliding window rather than requiring an exact match at position 0.
+    // Dates before the mail itself (e.g. a forwarded header's "Sent: ...") aren't due dates.
     for (let offset = 0; offset < rest.length; offset += 1) {
       const found = matchAbsoluteDate(rest.slice(offset));
-      if (found) return found;
+      if (found && found >= receivedDate) return found;
     }
   }
   return null;
@@ -281,7 +302,7 @@ export function parseReviewMail(input: ReviewMailInput): ParsedReviewMail | null
   return {
     kind,
     manuscriptId,
-    journal: extractJournal(input.subject, input.body, input.from),
+    journal: extractJournal(input.subject, input.body, input.from) ?? journalFromManuscriptId(manuscriptId),
     title: extractTitle(input.body),
     dueDate: extractDueDate(input.body, input.receivedAt),
     link: extractLink(input.body),

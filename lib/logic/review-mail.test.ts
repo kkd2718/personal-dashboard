@@ -435,3 +435,41 @@ describe('parseReviewMail — owner rules: MDPI ignored, submitted-review thank-
     expect(result?.kind).toBe('completed');
   });
 });
+
+describe('parseReviewMail — forwarded revision letters (professor note on top)', () => {
+  it('Editorial Manager id -> journal code, EMID bracket ignored, Korean "M월 D일까지" due date', () => {
+    const result = parseReviewMail({
+      from: 'Fictional Professor <professor@fictional-university.test>',
+      subject: 'Fwd: Editorial Decision on Manuscript FICSCI-D-26-01234 - [EMID:0123abcd4567ef89]',
+      body:
+        '축하드립니다. major revision입니다. 10월 17일까지 입니다.\n\n' +
+        '---------- Forwarded message ---------\nSent: Sep 17, 2026 by Editorial Office\n' +
+        'Manuscript FICSCI-D-26-01234 requires major revision.',
+      receivedAt: '2026-09-18T01:04:55.000Z',
+    });
+    expect(result?.kind).toBe('revision');
+    expect(result?.journal).toBe('FICSCI');
+    expect(result?.dueDate).toBe('2026-10-17');
+  });
+
+  it('"Fwd: <Journal>: Decision on your manuscript" subject -> journal', () => {
+    const result = parseReviewMail({
+      from: 'Fictional Professor <professor@fictional-university.test>',
+      subject: 'Fwd: npj Fictional Medicine: Decision on your manuscript',
+      body: 'revision이 왔습니다. Reviewer 1 has concerns. Please revise the manuscript.',
+      receivedAt: RECEIVED,
+    });
+    expect(result?.kind).toBe('revision');
+    expect(result?.journal).toBe('npj Fictional Medicine');
+  });
+
+  it('an absolute date before the mail was received is not a due date', () => {
+    const result = parseReviewMail({
+      from: 'Editor <eo@fictional-journal.test>',
+      subject: 'Invitation to review',
+      body: 'Would you be willing to review? Sent by the office on 2026-09-01.',
+      receivedAt: RECEIVED,
+    });
+    expect(result?.dueDate).toBeNull();
+  });
+});

@@ -162,8 +162,8 @@ describe('decideRevisionAccept', () => {
     expect(decision?.decision).toBe('minor');
   });
 
-  it('null when the paper has no submissions', () => {
-    expect(decideRevisionAccept(candidate(), paper({ submissions: [] }))).toBeNull();
+  it('no submissions yet -> submissionIndex null (caller appends one)', () => {
+    expect(decideRevisionAccept(candidate(), paper({ submissions: [] })).submissionIndex).toBeNull();
   });
 });
 
