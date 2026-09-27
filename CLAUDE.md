@@ -96,8 +96,19 @@ project's DB password isn't always available/known. Run scripts with
   `/today` + `/deadlines`, daily 09:00 digest (`app_meta` table for once-per-day idempotency),
   immediate alerts on newly-critical status (`lib/logic/status-diff.ts`). `scripts/telegram-setup.mjs`
   discovers the chat id, generates the webhook secret, registers the webhook + commands.
-- **2**: Gmail/Obsidian dispatch into the inbox is still phase 3 (see below).
-- **3**: Google Calendar, Gmail review-deadline extraction, Obsidian sync.
+- **3 (done)**: Google Apps Script per account (`integrations/google/Code.gs` → `POST /api/google/sync`,
+  `GOOGLE_SYNC_TOKEN`): calendar events (ids carry the start instant — recurring instances share an
+  Apps Script id), Gmail review/revision detection (`lib/logic/review-mail.ts`: MDPI and
+  editing-service mail dropped, trashed mail = declined → candidate dismissed, one candidate per
+  letter across both accounts, due-date lines past 3000 chars kept by `trimBody_`), and
+  `WRITE_DEADLINES=true` mirrors open deadlines into Google Calendar as `[CC:key]` all-day events.
+  Obsidian inbox note → memos via the collector.
+- **Post-3 polish (2026-09-27)**: home v2 four lanes + account strip (`app_meta 'trading:summary'`,
+  built by `scripts/lib/trading-summary.mjs` from the local trading dashboard's GET endpoints —
+  totals/per-account values only, never holdings), sidebar 바로가기 (`lib/logic/quick-links.ts`),
+  named progress bars (`라벨=path#section` backlogGlobs, `.json` = project-written `{key:{done,total}}`),
+  published papers leave the home lane after 90 days, `next dev` never sends Telegram unless
+  `TELEGRAM_DEV_SEND=1`.
 
 ## Conventions
 - Opus plans (`docs/PLAN.md`), Sonnet implements. Don't redesign a plan's data model/signatures
