@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { TRADING_SUMMARY_META_KEY } from '@/lib/logic/trading';
+import { TRADING_PROJECT_ID, TRADING_SUMMARY_META_KEY } from '@/lib/logic/trading';
+import { AccountStrip } from '@/components/trading/account-strip';
 import type { TradingSummary } from '@/lib/types';
 import { getRepo } from '@/lib/repo';
 import { getStatusPanelData } from '@/lib/status';
@@ -73,6 +74,8 @@ export default async function HomePage({
   const visibleEvents = filterVisibleEvents(calendarEvents, visibleCalendars);
   const todayEvents = todayCalendarEvents(visibleEvents.filter((e) => e.startDate <= today && e.endDate >= today));
   const counts = deadlineCounts(deadlines, today);
+  // Account strip shows only while the trading project exists and isn't archived.
+  const tradingProject = projects.find((p) => p.id === TRADING_PROJECT_ID && p.status !== 'archived') ?? null;
   const nextDeadline = nextDeadlineAfterWeek(deadlines, today);
 
   // Lane tab badge counts (HomeLanes' mobile tab bar) — cheap to recompute inside
@@ -126,6 +129,15 @@ export default async function HomePage({
         projects={projects}
       />
 
+      {tradingProject && (
+        <AccountStrip
+          summary={tradingSummary}
+          href={`/projects/${tradingProject.slug}`}
+          today={today}
+          now={new Date().toISOString()}
+        />
+      )}
+
       <HomeLanes
         initialTab={tab}
         counts={{
@@ -134,7 +146,7 @@ export default async function HomePage({
           todo: checklistItemCount(meChecklist),
           memo: openNoteCount,
         }}
-        queue={<QueueLane projects={projects} milestones={milestones} tasks={tasks} activityList={activityList} papers={papers} tradingSummary={tradingSummary} />}
+        queue={<QueueLane projects={projects} milestones={milestones} tasks={tasks} activityList={activityList} papers={papers} />}
         papers={
           <PaperLane papers={papers} deadlines={deadlines} reviews={reviews} reviewCandidateCount={reviewCandidates.length} />
         }

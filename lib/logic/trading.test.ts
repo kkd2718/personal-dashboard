@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { accountStateText, accountValueText, krwShort, pctText, sparklinePath, tradingOneLine } from './trading';
+import { accountChipText, accountStateText, accountValueText, isStale, krwShort, pctText, sparklinePath, tradingOneLine } from './trading';
 import type { TradingAccountSummary, TradingSummary } from '@/lib/types';
 
 const acct = (over: Partial<TradingAccountSummary>): TradingAccountSummary => ({
@@ -41,5 +41,19 @@ describe('trading formatting', () => {
   it('sparkline', () => {
     expect(sparklinePath([{ totalKrw: 1 }], 10, 10)).toBeNull();
     expect(sparklinePath([{ totalKrw: 1 }, { totalKrw: 3 }], 10, 10)).toBe('M0.0,10.0 L10.0,0.0');
+  });
+});
+
+describe('home strip helpers', () => {
+  it('chip text drops the parenthesised note and 원', () => {
+    expect(accountChipText(acct({ label: 'ISA (국내)', totalValue: 25340000 }), '2026-09-27')).toBe('ISA 2,534만');
+    expect(accountChipText(acct({ label: 'IB+VR (해외, 실전)', dormantUntil: '2026-10-01', noData: true }), '2026-09-27')).toBe('IB+VR 10/1 시작');
+    expect(accountChipText(acct({ label: 'X', totalValue: null }), '2026-09-27')).toBe('X —');
+  });
+
+  it('isStale', () => {
+    const s = { collectedAt: '2026-09-27T00:00:00Z' } as TradingSummary;
+    expect(isStale(s, Date.parse('2026-09-27T10:00:00Z'))).toBe(false);
+    expect(isStale(s, Date.parse('2026-09-28T12:00:00Z'))).toBe(true);
   });
 });

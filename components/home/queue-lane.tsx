@@ -7,9 +7,7 @@ import { buildQueueLaneCards } from '@/lib/logic/home';
 import { backlogLabel, labeledBarText, progressLabel } from '@/lib/logic/progress';
 import { dday, todayKST } from '@/lib/logic/dates';
 import { projectColorClasses } from '@/lib/project-colors';
-import type { Milestone, Paper, Project, ProjectActivity, Task, TradingSummary } from '@/lib/types';
-import { TRADING_PROJECT_ID, tradingOneLine } from '@/lib/logic/trading';
-import { Sparkline } from '@/components/trading/account-summary';
+import type { Milestone, Paper, Project, ProjectActivity, Task } from '@/lib/types';
 
 /** Home 개발 큐 lane (PLAN_HOME2.md §Lanes 1). */
 export function QueueLane({
@@ -18,14 +16,12 @@ export function QueueLane({
   tasks,
   activityList,
   papers,
-  tradingSummary = null,
 }: {
   projects: Project[];
   milestones: Milestone[];
   tasks: Task[];
   activityList: ProjectActivity[];
   papers: Paper[];
-  tradingSummary?: TradingSummary | null;
 }) {
   const today = todayKST();
   const cards = buildQueueLaneCards(projects, milestones, tasks, activityList, papers);
@@ -61,13 +57,6 @@ export function QueueLane({
                     <span className="truncate">{card.project.name}</span>
                   </span>
 
-                  {/* trading-system: the account summary rides on its queue card */}
-                  {card.project.id === TRADING_PROJECT_ID && tradingSummary && (
-                    <span className="flex min-w-0 items-center gap-2 text-foreground/70">
-                      <span className="tnum truncate">{tradingOneLine(tradingSummary, today)}</span>
-                      <Sparkline points={tradingSummary.points} className="ml-auto text-foreground/35" />
-                    </span>
-                  )}
 
                   {card.kind === 'queue' && (
                     <>

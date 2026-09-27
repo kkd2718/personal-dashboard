@@ -68,3 +68,17 @@ export function sparklinePath(points: Array<{ totalKrw: number }>, w: number, h:
     .map((v, i) => `${i === 0 ? 'M' : 'L'}${((i / (vals.length - 1)) * w).toFixed(1)},${(h - ((v - min) / span) * h).toFixed(1)}`)
     .join(' ');
 }
+
+/** Home strip chip: 'ISA 2,534만' / 'IB+VR 10/1 시작' (label without its parenthesised note). */
+export function accountChipText(a: TradingAccountSummary, today: string): string {
+  const label = a.label.replace(/\s*\(.*\)\s*$/, '').trim() || a.label;
+  if (a.dormantUntil && a.dormantUntil > today) return `${label} ${md(a.dormantUntil)} 시작`;
+  const value = accountValueText(a);
+  if (!value) return `${label} —`;
+  return `${label} ${value.replace(/원$/, '')}`;
+}
+
+/** True when the summary is older than `hours` (PC/collector off) — the strip says so. */
+export function isStale(s: TradingSummary, nowMs: number, hours = 30): boolean {
+  return nowMs - new Date(s.collectedAt).getTime() > hours * 3_600_000;
+}
