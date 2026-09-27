@@ -473,3 +473,20 @@ describe('parseReviewMail — forwarded revision letters (professor note on top)
     expect(result?.dueDate).toBeNull();
   });
 });
+
+describe('parseReviewMail — long forwarded letter trimmed by the Apps Script', () => {
+  it('reads "Deadline: D Mon YYYY" from the hint lines appended after the first 3000 chars', () => {
+    const comments =
+      'Reviewer 1\nI appreciate the efforts, but due to the limited cohort I still have concerns. ' +
+      'The model was trained in 2019 and validated by two readers. '.repeat(45);
+    const body = 'revision이 왔습니다. R1은 여전히 우려를 제기하네요.\n' + comments.slice(0, 2950) + '\n…\nDeadline: 22 Oct 2026';
+    const result = parseReviewMail({
+      from: 'Fictional Professor <professor@fictional-university.test>',
+      subject: 'Fwd: npj Fictional Medicine: Decision on your manuscript',
+      body,
+      receivedAt: '2026-09-24T01:58:56.000Z',
+    });
+    expect(result?.kind).toBe('revision');
+    expect(result?.dueDate).toBe('2026-10-22');
+  });
+});
