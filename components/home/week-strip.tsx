@@ -86,8 +86,7 @@ export function WeekStrip({
               <Link
                 key={date}
                 href="/calendar"
-                title={dayPoints.map((p) => (p.startTime ? `${p.startTime} ${p.title}` : p.title)).join('
-') || undefined}
+                title={dayPoints.map((p) => (p.startTime ? `${p.startTime} ${p.title}` : p.title)).join('\n') || undefined}
                 className={`tnum relative rounded px-1 pt-0.5 pb-1.5 ${date === today ? 'bg-accent-soft font-medium text-accent' : 'text-foreground/50 hover:bg-foreground/5'}`}
               >
                 {DAY_LABELS[i]}
