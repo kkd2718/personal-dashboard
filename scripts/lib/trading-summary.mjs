@@ -37,6 +37,10 @@ export function buildTradingSummary(overview, health, trend, collectedAt) {
       currency: str(a.currency),
       totalValue: a.no_data ? null : num(a.total_value),
       cumReturnPct: a.no_data ? null : num(a.cum_return_pct),
+      // DCA accounts have no principal before the dashboard first saw them, so the
+      // trading dashboard reports P&L since that baseline instead of a cumulative return.
+      sinceBaselinePct: a.no_data ? null : num(a.dca_info?.since_baseline?.pnl_since_baseline_pct),
+      baselineDate: a.no_data ? null : str(a.dca_info?.baseline?.first_seen_date),
       noData: Boolean(a.no_data),
       reserveUsd: num(a.reserve_usd), // broker-side cash waiting (e.g. IB+VR before its start date)
       status: str(d.status),

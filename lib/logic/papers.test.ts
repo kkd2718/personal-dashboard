@@ -181,3 +181,10 @@ describe('paperLaneGroups — published papers leave the lane after ~3 months', 
     expect(paperLaneGroups(papers, '2026-09-27')).toHaveLength(1);
   });
 });
+
+describe('paperCardLine — published with no journal recorded', () => {
+  it("'(게재)' placeholder reads as 게재 YYYY-MM", () => {
+    const submissions = [{ journal: '(게재)', submittedAt: null, decision: 'accept' as const, decidedAt: '2026-09-04T00:00:00+09:00' }];
+    expect(paperCardLine(paper({ stage: 'published', journal: null, submissions }), [], '2026-09-27')).toBe('게재 2026-09');
+  });
+});

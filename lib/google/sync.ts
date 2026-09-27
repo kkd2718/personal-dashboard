@@ -177,3 +177,18 @@ export function dropDuplicateCandidates<
   }
   return out;
 }
+
+/** "Thank you for your review" mails aren't a to-do (the owner only tracks reviews
+ * still to write): they never become candidates, they only close the matching open
+ * ReviewJob. Returns the job ids to mark 'submitted'. */
+export function reviewsToMarkSubmitted(
+  inputs: Array<{ kind: string; manuscriptId: string | null }>,
+  reviews: ReviewJob[]
+): string[] {
+  const ids = new Set(
+    inputs.filter((c) => c.kind === 'completed' && c.manuscriptId).map((c) => c.manuscriptId as string)
+  );
+  return reviews
+    .filter((r) => r.manuscriptId && ids.has(r.manuscriptId) && (r.status === 'invited' || r.status === 'accepted'))
+    .map((r) => r.id);
+}

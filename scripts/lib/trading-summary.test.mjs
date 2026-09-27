@@ -9,7 +9,7 @@ const overview = {
     { state_id: 'lump', label: 'Fic Lump', group: 'lump_sum', no_data: true, reserve_usd: 100 },
     {
       state_id: 'dca', label: 'Fic DCA', group: 'recurring', currency: 'KRW', no_data: false,
-      total_value: 5000000, cum_return_pct: 3.2, sub_accounts: { a: { assets: { X: {} } } }, cash: 10,
+      total_value: 5000000, cum_return_pct: 3.2, dca_info: { since_baseline: { pnl_since_baseline_pct: 1.5 }, baseline: { first_seen_date: '2026-08-01' } }, sub_accounts: { a: { assets: { X: {} } } }, cash: 10,
     },
   ],
 };
@@ -26,7 +26,7 @@ describe('buildTradingSummary', () => {
     expect(s.dayChangePct).toBe(-0.1);
     expect(s.points).toEqual([{ date: '2026-09-21', totalKrw: 12300000 }]);
     expect(s.accounts[0]).toMatchObject({ id: 'lump', noData: true, totalValue: null, dormantUntil: '2026-10-01' });
-    expect(s.accounts[1]).toMatchObject({ id: 'dca', totalValue: 5000000, cumReturnPct: 3.2, dormantUntil: null, nextDue: '2026-09-28' });
+    expect(s.accounts[1]).toMatchObject({ id: 'dca', totalValue: 5000000, cumReturnPct: 3.2, sinceBaselinePct: 1.5, baselineDate: '2026-08-01', dormantUntil: null, nextDue: '2026-09-28' });
     expect(JSON.stringify(s)).not.toMatch(/sub_accounts|assets|cash/);
   });
 

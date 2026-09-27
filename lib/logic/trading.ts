@@ -82,3 +82,18 @@ export function accountChipText(a: TradingAccountSummary, today: string): string
 export function isStale(s: TradingSummary, nowMs: number, hours = 30): boolean {
   return nowMs - new Date(s.collectedAt).getTime() > hours * 3_600_000;
 }
+
+/** The return to show for an account: cumulative when the trading dashboard has a
+ * principal, else P&L since its baseline ('+1.5% · 8/1~'). Null when neither exists. */
+export function accountReturnText(a: TradingAccountSummary): string | null {
+  if (a.cumReturnPct !== null) return pctText(a.cumReturnPct);
+  if (a.sinceBaselinePct !== null && a.sinceBaselinePct !== undefined) {
+    return a.baselineDate ? `${pctText(a.sinceBaselinePct)} · ${md(a.baselineDate)}~` : pctText(a.sinceBaselinePct);
+  }
+  return null;
+}
+
+/** Numeric value behind accountReturnText (for up/down colouring). */
+export function accountReturnValue(a: TradingAccountSummary): number | null {
+  return a.cumReturnPct ?? a.sinceBaselinePct ?? null;
+}

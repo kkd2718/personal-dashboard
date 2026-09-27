@@ -1,5 +1,5 @@
 import type { TradingSummary } from '@/lib/types';
-import { accountStateText, accountValueText, krwShort, pctText, sparklinePath } from '@/lib/logic/trading';
+import { accountReturnText, accountReturnValue, accountStateText, accountValueText, krwShort, pctText, sparklinePath } from '@/lib/logic/trading';
 import { relTime } from '@/lib/logic/dates';
 
 function changeClass(n: number | null): string {
@@ -21,7 +21,8 @@ export function Sparkline({ points, className = '' }: { points: TradingSummary['
 export function AccountSummaryPanel({ summary, today, now }: { summary: TradingSummary; today: string; now: string }) {
   // DCA accounts have no cost basis in the trading dashboard (cum return null) — drop
   // the column rather than show a row of dashes.
-  const showReturn = summary.accounts.some((a) => a.cumReturnPct !== null);
+  const showReturn = summary.accounts.some((a) => accountReturnText(a) !== null);
+  const anyBaseline = summary.accounts.some((a) => a.cumReturnPct === null && accountReturnText(a) !== null);
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-3">
       <div className="flex flex-wrap items-end gap-x-3 gap-y-1">
@@ -43,8 +44,8 @@ export function AccountSummaryPanel({ summary, today, now }: { summary: TradingS
             <span className="min-w-0 flex-1 truncate">{a.label}</span>
             <span className="tnum w-28 shrink-0 text-right">{accountValueText(a) ?? '—'}</span>
             {showReturn && (
-              <span className={`tnum w-16 shrink-0 text-right ${changeClass(a.cumReturnPct)}`}>
-                {a.cumReturnPct !== null ? pctText(a.cumReturnPct) : '—'}
+              <span className={`tnum w-24 shrink-0 text-right ${changeClass(accountReturnValue(a))}`}>
+                {accountReturnText(a) ?? '—'}
               </span>
             )}
             <span className="w-20 shrink-0 text-right text-xs text-foreground/50">{accountStateText(a, today)}</span>
@@ -52,7 +53,7 @@ export function AccountSummaryPanel({ summary, today, now }: { summary: TradingS
         ))}
       </ul>
       <p className="text-[11px] text-foreground/35">
-        {showReturn ? '수익률은 누적 기준 · ' : ''}보유 종목·주문 내역은 PC의 계좌 대시보드에서
+        {anyBaseline ? '적립식 계좌 수익률은 기준일(M/D~) 이후 손익 · ' : ''}보유 종목·주문 내역은 PC의 계좌 대시보드에서
       </p>
     </div>
   );

@@ -8,6 +8,7 @@ import {
   candidatesToDismiss,
   deadlinesForCalendar,
   dropDuplicateCandidates,
+  reviewsToMarkSubmitted,
   shouldPushCandidate,
 } from '@/lib/google/sync';
 import { sendMessage, telegramConfig } from '@/lib/telegram/client';
@@ -105,7 +106,12 @@ export async function POST(request: Request) {
       const knownIds = new Set(known.map((c) => c.messageId));
       // Messages already stored keep flowing through upsert (a no-op for them); only
       // new messages are checked against the other account's copies.
-      const inputs = buildReviewCandidateInputs(account, mails);
+      const parsedInputs = buildReviewCandidateInputs(account, mails);
+      // Submitted-review thank-yous only close an open review; they're never a candidate.
+      for (const id of reviewsToMarkSubmitted(parsedInputs, await repo.listReviews())) {
+        await repo.updateReview(id, { status: 'submitted' });
+      }
+      const inputs = parsedInputs.filter((c) => c.kind !== 'completed');
       const fresh = dropDuplicateCandidates(
         inputs.filter((c) => !knownIds.has(c.messageId)),
         known

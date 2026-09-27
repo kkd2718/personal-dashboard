@@ -119,7 +119,9 @@ export function paperCardLine(paper: Paper, deadlines: Deadline[], today: string
     case 'published': {
       const latest = [...paper.submissions].reverse().find((s) => s.decidedAt);
       if (!latest?.decidedAt) return paper.journal;
-      return `${paper.journal ?? latest.journal} · ${latest.decidedAt.slice(0, 7)}`;
+      // A placeholder journal like '(게재)' (date known, journal not recorded) reads as '게재 2026-09'.
+      const journal = paper.journal ?? (/^\(.*\)$/.test(latest.journal) || !latest.journal ? null : latest.journal);
+      return journal ? `${journal} · ${latest.decidedAt.slice(0, 7)}` : `게재 ${latest.decidedAt.slice(0, 7)}`;
     }
     default:
       return null;

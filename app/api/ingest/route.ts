@@ -55,6 +55,8 @@ const bodySchema = z.object({
             currency: z.string().nullable(),
             totalValue: z.number().nullable(),
             cumReturnPct: z.number().nullable(),
+            sinceBaselinePct: z.number().nullable().optional(),
+            baselineDate: z.string().nullable().optional(),
             noData: z.boolean(),
             reserveUsd: z.number().nullable().optional(),
             status: z.string().nullable(),

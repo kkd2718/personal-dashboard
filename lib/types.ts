@@ -260,6 +260,8 @@ export interface TradingAccountSummary {
   currency: string | null;
   totalValue: number | null; // in `currency`
   cumReturnPct: number | null;
+  sinceBaselinePct?: number | null; // DCA accounts: P&L since the dashboard's baseline
+  baselineDate?: string | null; // 'YYYY-MM-DD' that baseline started
   noData: boolean;
   reserveUsd?: number | null; // cash waiting at the broker (older summaries lack it)
   status: string | null;

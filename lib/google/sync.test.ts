@@ -7,6 +7,7 @@ import {
   shouldPushCandidate,
   deadlinesForCalendar,
   dropDuplicateCandidates,
+  reviewsToMarkSubmitted,
 } from '@/lib/google/sync';
 import type { Deadline, ReviewJob } from '@/lib/types';
 
@@ -215,5 +216,16 @@ describe('dropDuplicateCandidates — same letter in both accounts', () => {
   it('keeps different kinds for the same manuscript and dedups within one batch', () => {
     const inputs = [c('confirmation', 'FJ-2026-0001', 'a'), c('reminder', 'FJ-2026-0001', 'b'), c('reminder', 'FJ-2026-0001', 'c')];
     expect(dropDuplicateCandidates(inputs, [])).toEqual([inputs[0], inputs[1]]);
+  });
+});
+
+describe('reviewsToMarkSubmitted', () => {
+  const rv = (id: string, manuscriptId: string | null, status: ReviewJob['status']) =>
+    ({ id, journal: 'F', manuscriptId, title: null, status, invitedAt: null, dueDate: null, link: null, note: null, updatedAt: NOW }) as ReviewJob;
+
+  it('closes open reviews whose manuscript got a thank-you mail', () => {
+    const inputs = [{ kind: 'completed', manuscriptId: 'FJ-1' }, { kind: 'reminder', manuscriptId: 'FJ-2' }, { kind: 'completed', manuscriptId: null }];
+    const reviews = [rv('r1', 'FJ-1', 'accepted'), rv('r2', 'FJ-2', 'accepted'), rv('r3', 'FJ-1', 'submitted')];
+    expect(reviewsToMarkSubmitted(inputs, reviews)).toEqual(['r1']);
   });
 });

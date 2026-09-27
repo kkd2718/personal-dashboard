@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { accountChipText, accountStateText, accountValueText, isStale, krwShort, pctText, sparklinePath, tradingOneLine } from './trading';
+import { accountReturnText, accountChipText, accountStateText, accountValueText, isStale, krwShort, pctText, sparklinePath, tradingOneLine } from './trading';
 import type { TradingAccountSummary, TradingSummary } from '@/lib/types';
 
 const acct = (over: Partial<TradingAccountSummary>): TradingAccountSummary => ({
@@ -55,5 +55,13 @@ describe('home strip helpers', () => {
     const s = { collectedAt: '2026-09-27T00:00:00Z' } as TradingSummary;
     expect(isStale(s, Date.parse('2026-09-27T10:00:00Z'))).toBe(false);
     expect(isStale(s, Date.parse('2026-09-28T12:00:00Z'))).toBe(true);
+  });
+});
+
+describe('accountReturnText', () => {
+  it('cumulative first, else since-baseline with its start date', () => {
+    expect(accountReturnText(acct({ cumReturnPct: 3.21 }))).toBe('+3.2%');
+    expect(accountReturnText(acct({ cumReturnPct: null, sinceBaselinePct: -0.44, baselineDate: '2026-08-01' }))).toBe('-0.4% · 8/1~');
+    expect(accountReturnText(acct({ cumReturnPct: null }))).toBeNull();
   });
 });
