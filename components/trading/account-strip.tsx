@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { Wallet } from 'lucide-react';
 import type { TradingSummary } from '@/lib/types';
-import { accountChipText, isStale, krwShort, pctText } from '@/lib/logic/trading';
+import { accountChipText, accountReturnText, accountReturnValue, isStale, krwShort, pctText } from '@/lib/logic/trading';
 import { relTime } from '@/lib/logic/dates';
 import { Sparkline } from '@/components/trading/account-summary';
 
@@ -23,6 +23,11 @@ export function AccountStrip({
   today: string;
   now: string;
 }) {
+  // DCA accounts report P&L since the dashboard first saw them (owner decision
+  // 2026-09-27: that is the return basis), so the strip names the baseline once.
+  const baselines = summary
+    ? [...new Set(summary.accounts.filter((a) => a.cumReturnPct === null && a.sinceBaselinePct != null && a.baselineDate).map((a) => a.baselineDate!))]
+    : [];
   const body = !summary ? (
     <span className="text-foreground/40">PC 수집기가 계좌 대시보드를 읽으면 여기에 합계·계좌별 금액이 표시돼요</span>
   ) : (
@@ -34,10 +39,14 @@ export function AccountStrip({
       <Sparkline points={summary.points} className="text-foreground/35" />
       <span className="flex min-w-0 basis-full flex-wrap gap-x-2 gap-y-0.5 text-foreground/55 sm:basis-auto">
         {summary.accounts.map((a) => (
-          <span key={a.id} className="tnum whitespace-nowrap">
+          <span key={a.id} className="tnum whitespace-nowrap" title={accountReturnText(a) ?? undefined}>
             {accountChipText(a, today)}
+            {accountReturnValue(a) !== null && !(a.dormantUntil && a.dormantUntil > today) && (
+              <span className={`ml-1 ${changeClass(accountReturnValue(a))}`}>{pctText(accountReturnValue(a)!)}</span>
+            )}
           </span>
         ))}
+        {baselines.length === 1 && <span className="text-foreground/35">수익률 {Number(baselines[0].slice(5, 7))}/{Number(baselines[0].slice(8, 10))} 이후</span>}
       </span>
       {isStale(summary, Date.parse(now)) && (
         <span className="text-amber-600 dark:text-amber-400">{relTime(summary.collectedAt, now)} 기준</span>
