@@ -1,5 +1,5 @@
 import type { Deadline, Paper, PaperStage } from '@/lib/types';
-import { ddayLabel, dday } from '@/lib/logic/dates';
+import { addDaysStr, ddayLabel, dday, kstDateTime } from '@/lib/logic/dates';
 
 /**
  * Move a paper to `toStage` at `toIndex`, renumbering `sort` densely (0..n-1)
@@ -70,11 +70,24 @@ export interface PaperLaneGroup {
 
 /** Home 논문 lane rows (PLAN_HOME2.md §Lanes 2): papers grouped by stage in
  * pipeline order, empty stages omitted, each group's papers sorted by `sort`. */
-export function paperLaneGroups(papers: Paper[]): PaperLaneGroup[] {
+// Print-ahead-of-publication can lag up to ~3 months, so a published paper stays in
+// the home lane that long, then drops out (it stays on /papers).
+const PUBLISHED_LANE_DAYS = 90;
+
+/** When the paper became published: the latest submission decision date, else its
+ * last update (moving a card to 게재 on the board stamps updatedAt). */
+function publishedSince(paper: Paper): string {
+  const decided = paper.submissions.map((s) => s.decidedAt).filter((d): d is string => !!d).sort().pop();
+  return kstDateTime(decided ?? paper.updatedAt).date;
+}
+
+export function paperLaneGroups(papers: Paper[], today?: string): PaperLaneGroup[] {
+  const cutoff = today ? addDaysStr(today, -PUBLISHED_LANE_DAYS) : null;
+  const visible = papers.filter((p) => !(cutoff && p.stage === 'published' && publishedSince(p) < cutoff));
   return PAPER_STAGE_ORDER.map((stage) => ({
     stage,
     label: PAPER_STAGE_LABEL[stage],
-    papers: papers.filter((p) => p.stage === stage).sort((a, b) => a.sort - b.sort),
+    papers: visible.filter((p) => p.stage === stage).sort((a, b) => a.sort - b.sort),
   })).filter((g) => g.papers.length > 0);
 }
 
@@ -82,8 +95,11 @@ export function paperLaneGroups(papers: Paper[]): PaperLaneGroup[] {
  * board component just renders whatever this returns. */
 export function paperCardLine(paper: Paper, deadlines: Deadline[], today: string): string | null {
   switch (paper.stage) {
-    case 'writing':
-      return paper.nextAction ? `▸ ${paper.nextAction}` : null;
+    case 'writing': {
+      const target = paper.targetJournals[0];
+      if (paper.nextAction) return target ? `▸ ${paper.nextAction} · 목표 ${target}` : `▸ ${paper.nextAction}`;
+      return target ? `목표 ${target}` : null;
+    }
     case 'submitted':
     case 'under_review': {
       const latest = [...paper.submissions].reverse().find((s) => s.submittedAt);
@@ -91,6 +107,8 @@ export function paperCardLine(paper: Paper, deadlines: Deadline[], today: string
         const days = -dday(latest.submittedAt.slice(0, 10), today);
         return `심사 ${days}일째`;
       }
+      const current = paper.submissions[paper.submissions.length - 1];
+      if (current && (current.decision === null || current.decision === 'pending')) return `${current.journal} 심사 중`;
       return paper.submissions.length > 0 ? `투고 ${paper.submissions.length}회` : null;
     }
     case 'revision': {

@@ -94,6 +94,20 @@ describe('paperCardLine', () => {
     );
   });
 
+  it('writing: appends the first target journal', () => {
+    expect(
+      paperCardLine(paper({ stage: 'writing', nextAction: 'discussion 작성', targetJournals: ['FJA', 'FJB'] }), [], today)
+    ).toBe('▸ discussion 작성 · 목표 FJA');
+  });
+
+  it('under review without a submit date: names the journal', () => {
+    const submissions = [
+      { journal: 'Fictional A', submittedAt: null, decision: 'reject' as const, decidedAt: null },
+      { journal: 'Fictional B', submittedAt: null, decision: 'pending' as const, decidedAt: null },
+    ];
+    expect(paperCardLine(paper({ stage: 'under_review', submissions }), [], today)).toBe('Fictional B 심사 중');
+  });
+
   it('writing: null when there is no next action', () => {
     expect(paperCardLine(paper({ stage: 'writing', nextAction: null }), [], today)).toBeNull();
   });
@@ -106,10 +120,10 @@ describe('paperCardLine', () => {
     expect(paperCardLine(p, [], today)).toBe('심사 41일째');
   });
 
-  it('submitted: falls back to submission count when never submittedAt', () => {
+  it('submitted: falls back to submission count when never submittedAt and nothing pending', () => {
     const p = paper({
       stage: 'submitted',
-      submissions: [{ journal: 'J', submittedAt: null, decision: 'pending', decidedAt: null }],
+      submissions: [{ journal: 'J', submittedAt: null, decision: 'reject', decidedAt: null }],
     });
     expect(paperCardLine(p, [], today)).toBe('투고 1회');
   });
@@ -148,5 +162,22 @@ describe('paperLaneGroups', () => {
 
   it('returns an empty list for no papers', () => {
     expect(paperLaneGroups([])).toEqual([]);
+  });
+});
+
+describe('paperLaneGroups — published papers leave the lane after ~3 months', () => {
+  it('keeps a recently published paper, drops one published over 90 days ago', () => {
+    const papers = [
+      paper({ id: 'new', stage: 'published', updatedAt: '2026-08-01T00:00:00.000Z' }),
+      paper({ id: 'old', stage: 'published', updatedAt: '2026-05-01T00:00:00.000Z' }),
+    ];
+    const ids = paperLaneGroups(papers, '2026-09-27').flatMap((g) => g.papers.map((p) => p.id));
+    expect(ids).toEqual(['new']);
+  });
+
+  it('uses the latest decision date when there is one', () => {
+    const submissions = [{ journal: 'F', submittedAt: null, decision: 'accept' as const, decidedAt: '2026-09-01T00:00:00.000Z' }];
+    const papers = [paper({ id: 'p', stage: 'published', updatedAt: '2026-01-01T00:00:00.000Z', submissions })];
+    expect(paperLaneGroups(papers, '2026-09-27')).toHaveLength(1);
   });
 });

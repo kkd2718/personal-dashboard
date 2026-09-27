@@ -214,10 +214,23 @@ function collectMails_() {
       receivedAt: msg.getDate().toISOString(),
       from: msg.getFrom(),
       subject: msg.getSubject(),
-      body: (msg.getPlainBody() || '').slice(0, 4000),
+      body: trimBody_(msg.getPlainBody() || ''),
     });
   }
   return out;
+}
+
+var DUE_HINT_RE = /\b(due|deadline|within \d+ days?|by [A-Z0-9])|까지|기한/i;
+
+/** First 3000 chars plus, from the rest, lines that look like a due date (a forwarded
+ * decision letter's deadline often sits below long reviewer comments). Max 4000. */
+function trimBody_(body) {
+  if (body.length <= 4000) return body;
+  var head = body.slice(0, 3000);
+  var hints = body.slice(3000).split(/\r?\n/).filter(function (line) {
+    return DUE_HINT_RE.test(line);
+  }).join('\n');
+  return (head + '\n…\n' + hints).slice(0, 4000);
 }
 
 /** Message ids (ids only, no content) of matching mail now in trash. The owner

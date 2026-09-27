@@ -13,6 +13,7 @@ import {
 import { sendMessage, telegramConfig } from '@/lib/telegram/client';
 import { escapeHtml } from '@/lib/telegram/format';
 import { todayKST } from '@/lib/logic/dates';
+import { findMatchingPaper } from '@/lib/logic/review-candidates';
 
 export const dynamic = 'force-dynamic';
 
@@ -110,6 +111,7 @@ export async function POST(request: Request) {
         known
       );
       newCandidates = await repo.upsertReviewCandidates(fresh);
+      await backfillDueDates(repo, inputs, known);
     }
     let pending = await repo.listReviewCandidates('pending');
     if (trashedMessageIds && trashedMessageIds.length > 0) {
@@ -142,6 +144,32 @@ export async function POST(request: Request) {
     candidates: { new: newCandidates.length, total: totalCandidates },
     deadlines: deadlinesForCalendar(deadlines, reviews, todayKST()),
   });
+}
+
+/** A stored candidate whose due date wasn't found the first time (e.g. before the
+ * Apps Script started sending due-date lines past 3000 chars) picks it up on a later
+ * sync. An already-accepted revision also gets its paper Deadline then. */
+async function backfillDueDates(
+  repo: ReturnType<typeof getRepo>,
+  inputs: ReturnType<typeof buildReviewCandidateInputs>,
+  known: Awaited<ReturnType<ReturnType<typeof getRepo>['listReviewCandidates']>>
+) {
+  const byMessage = new Map(known.map((c) => [c.messageId, c]));
+  for (const input of inputs) {
+    const stored = byMessage.get(input.messageId);
+    if (!stored || stored.dueDate || !input.dueDate) continue;
+    const updated = await repo.updateReviewCandidate(stored.id, { dueDate: input.dueDate });
+    if (updated.kind !== 'revision' || updated.status !== 'accepted') continue;
+    const [papers, deadlines] = await Promise.all([repo.listPapers(), repo.listDeadlines()]);
+    const paper = findMatchingPaper(updated, papers);
+    if (!paper || deadlines.some((d) => d.paperId === paper.id && !d.done)) continue;
+    await repo.createDeadline({
+      title: `${paper.shortName} 리비전 제출${updated.journal ? ` (${updated.journal})` : ''}`,
+      kind: 'paper',
+      paperId: paper.id,
+      dueDate: input.dueDate,
+    });
+  }
 }
 
 function formatNewCandidatesAlert(

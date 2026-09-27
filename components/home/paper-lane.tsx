@@ -22,7 +22,7 @@ export function PaperLane({
   reviewCandidateCount: number;
 }) {
   const today = todayKST();
-  const groups = paperLaneGroups(papers);
+  const groups = paperLaneGroups(papers, today);
   const openReviews = reviews.filter((r) => (r.status === 'invited' || r.status === 'accepted') && r.dueDate);
   const isEmpty = groups.length === 0 && openReviews.length === 0;
 
