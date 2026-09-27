@@ -1,7 +1,9 @@
 // Plain JS, Node >=18. Re-implements lib/status/trading.ts's GET-only probe logic
 // for the standalone collector process (which can't import .ts files). Never POSTs.
 
-const TIMEOUT_MS = 3000;
+// Background job — latency is irrelevant, and /api/overview can take several seconds
+// on its first call after idle (it rebuilds totals from journal files).
+const TIMEOUT_MS = 10000;
 
 function addDaysToDateStr(dateStr, n) {
   const d = new Date(`${dateStr.slice(0, 10)}T00:00:00Z`);
