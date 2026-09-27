@@ -25,6 +25,7 @@ describe('trading formatting', () => {
   it('account value and state', () => {
     expect(accountValueText(acct({ currency: 'USD', totalValue: 12345.6 }))).toBe('$12,346');
     expect(accountValueText(acct({ totalValue: null }))).toBeNull();
+    expect(accountValueText(acct({ totalValue: null, reserveUsd: 16000 }))).toBe('$16,000 대기');
     expect(accountStateText(acct({ dormantUntil: '2026-10-01', noData: true }), '2026-09-27')).toBe('10/1 시작');
     expect(accountStateText(acct({ noData: true }), '2026-09-27')).toBe('데이터 없음');
     expect(accountStateText(acct({}), '2026-09-27')).toBe('다음 9/28');

@@ -38,6 +38,7 @@ export function buildTradingSummary(overview, health, trend, collectedAt) {
       totalValue: a.no_data ? null : num(a.total_value),
       cumReturnPct: a.no_data ? null : num(a.cum_return_pct),
       noData: Boolean(a.no_data),
+      reserveUsd: num(a.reserve_usd), // broker-side cash waiting (e.g. IB+VR before its start date)
       status: str(d.status),
       dormantUntil: d.dormant ? str(d.dormant_until) : null,
       lastRun: str(d.last_run),

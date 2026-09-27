@@ -25,7 +25,12 @@ function QueueChip({ milestone, tasks, onEdit }: { milestone: Milestone; tasks: 
       </div>
       {(milestone.startDate || milestone.endDate) && (
         <span className="text-foreground/40">
-          {milestone.startDate ?? '?'} ~ {milestone.endDate ?? '?'}
+          {/* one-sided ranges read as '~ 10-01' / '09-20 ~', never '? ~' */}
+          {milestone.startDate && milestone.endDate
+            ? `${milestone.startDate} ~ ${milestone.endDate}`
+            : milestone.endDate
+              ? `~ ${milestone.endDate}`
+              : `${milestone.startDate} ~`}
         </span>
       )}
       {progress.total > 0 && (

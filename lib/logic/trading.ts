@@ -26,7 +26,10 @@ export function pctText(n: number): string {
 
 /** An account's value in its own currency. */
 export function accountValueText(a: TradingAccountSummary): string | null {
-  if (a.totalValue === null) return null;
+  if (a.totalValue === null) {
+    // Not trading yet but money is parked at the broker (IB+VR before 10/1).
+    return a.reserveUsd ? `$${Math.round(a.reserveUsd).toLocaleString('en-US')} 대기` : null;
+  }
   if (a.currency === 'USD') return `$${Math.round(a.totalValue).toLocaleString('en-US')}`;
   return krwShort(a.totalValue);
 }

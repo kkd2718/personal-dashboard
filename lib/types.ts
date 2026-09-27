@@ -261,6 +261,7 @@ export interface TradingAccountSummary {
   totalValue: number | null; // in `currency`
   cumReturnPct: number | null;
   noData: boolean;
+  reserveUsd?: number | null; // cash waiting at the broker (older summaries lack it)
   status: string | null;
   dormantUntil: string | null; // 'YYYY-MM-DD'
   lastRun: string | null;
