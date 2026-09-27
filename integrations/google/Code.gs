@@ -17,6 +17,9 @@
  *   GMAIL_QUERY    Gmail search query for candidate reviewer mail (default below)
  *   DAYS_BACK      how many days of past calendar events to sync (default 7)
  *   DAYS_AHEAD     how many days of future calendar events to sync (default 60)
+ *   WRITE_DEADLINES 'true' on ONE account only: mirror the dashboard's due dates
+ *                  (paper revisions, accepted reviews, other deadlines) into this
+ *                  account's default calendar as all-day events tagged [CC:...]
  */
 
 var DEFAULT_GMAIL_QUERY =
@@ -101,8 +104,57 @@ function sync() {
     payload: JSON.stringify(payload),
     muteHttpExceptions: true,
   });
+  var code = response.getResponseCode();
+  var written = '-';
+  if (code === 200 && getProp_('WRITE_DEADLINES', '') === 'true') {
+    var body = JSON.parse(response.getContentText());
+    written = writeDeadlines_(body.deadlines || []);
+  }
   // Log status only — never the token or the payload body.
-  Logger.log('sync() -> HTTP ' + response.getResponseCode() + ', events=' + events.length + ', mails=' + mails.length + ', trashed=' + trashedMessageIds.length);
+  Logger.log('sync() -> HTTP ' + code + ', events=' + events.length + ', mails=' + mails.length +
+    ', trashed=' + trashedMessageIds.length + ', deadlines=' + written);
+}
+
+var CC_MARKER_RE = /\[CC:([^\]]+)\]/;
+
+/** Upserts one all-day event per dashboard deadline (matched by the [CC:key] marker in
+ * the description) and deletes marker events whose deadline is gone or done. Only
+ * touches events carrying a marker — never the user's own events. */
+function writeDeadlines_(deadlines) {
+  var cal = CalendarApp.getDefaultCalendar();
+  var now = new Date();
+  var existing = cal.getEvents(new Date(now.getTime() - 30 * 864e5), new Date(now.getTime() + 400 * 864e5));
+  var byKey = {};
+  for (var i = 0; i < existing.length; i++) {
+    var m = CC_MARKER_RE.exec(existing[i].getDescription() || '');
+    if (m) byKey[m[1]] = existing[i];
+  }
+  var wanted = {};
+  var created = 0, updated = 0, removed = 0;
+  for (var j = 0; j < deadlines.length; j++) {
+    var d = deadlines[j];
+    wanted[d.key] = true;
+    var parts = d.date.split('-');
+    var day = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    var ev = byKey[d.key];
+    if (!ev) {
+      cal.createAllDayEvent(d.title, day, { description: 'Command Center 마감 [CC:' + d.key + ']' });
+      created++;
+    } else {
+      var changed = false;
+      if (ev.getTitle() !== d.title) { ev.setTitle(d.title); changed = true; }
+      if (!ev.isAllDayEvent() || formatLocal_(ev.getAllDayStartDate()) !== d.date) { ev.setAllDayDate(day); changed = true; }
+      if (changed) updated++;
+    }
+  }
+  for (var key in byKey) {
+    if (!wanted[key]) { byKey[key].deleteEvent(); removed++; }
+  }
+  return '+' + created + '/~' + updated + '/-' + removed;
+}
+
+function formatLocal_(d) {
+  return Utilities.formatDate(d, Session.getScriptTimeZone(), 'yyyy-MM-dd');
 }
 
 function formatDate_(d) {
@@ -121,6 +173,7 @@ function collectEvents_(calendarIds, from, to) {
     for (var j = 0; j < events.length; j++) {
       var ev = events[j];
       if (isDeclined_(ev)) continue;
+      if (CC_MARKER_RE.test(ev.getDescription() || '')) continue; // our own mirrored deadlines
       out.push({
         calendarId: calId,
         calendarName: calName,

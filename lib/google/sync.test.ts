@@ -5,7 +5,9 @@ import {
   candidatesToDismiss,
   makeSnippet,
   shouldPushCandidate,
+  deadlinesForCalendar,
 } from '@/lib/google/sync';
+import type { Deadline, ReviewJob } from '@/lib/types';
 
 const NOW = '2026-09-20T00:00:00.000Z';
 
@@ -161,5 +163,32 @@ describe('buildCalendarEvent — recurring instances', () => {
     const a = buildCalendarEvent('main', NOW, { ...base, start: '2026-09-21T08:00:00+09:00', end: '2026-09-21T09:00:00+09:00' });
     const b = buildCalendarEvent('main', NOW, { ...base, start: '2026-09-28T08:00:00+09:00', end: '2026-09-28T09:00:00+09:00' });
     expect(a.id).not.toBe(b.id);
+  });
+});
+
+describe('deadlinesForCalendar', () => {
+  const dl = (over: Partial<Deadline>): Deadline => ({
+    id: 'd1', title: 'Fictional 리비전 제출', kind: 'paper', dueDate: '2026-10-17', dueTime: null,
+    projectId: null, paperId: 'p1', reviewId: null, done: false, remindDays: [7, 3, 1], updatedAt: NOW, ...over,
+  });
+  const rv = (over: Partial<ReviewJob>): ReviewJob => ({
+    id: 'r1', journal: 'Fictional Journal', manuscriptId: 'FJ-2026-0001', title: null, status: 'accepted',
+    invitedAt: null, dueDate: '2026-10-05', link: null, note: null, updatedAt: NOW, ...over,
+  });
+
+  it('lists open deadlines and accepted reviews, sorted by date', () => {
+    expect(deadlinesForCalendar([dl({})], [rv({})], '2026-09-27')).toEqual([
+      { key: 'review:r1', title: '📌 Fictional Journal FJ-2026-0001 리뷰 마감', date: '2026-10-05' },
+      { key: 'deadline:d1', title: '📌 Fictional 리비전 제출', date: '2026-10-17' },
+    ]);
+  });
+
+  it('skips done/old deadlines, non-accepted reviews, and reviews that already have a deadline', () => {
+    const out = deadlinesForCalendar(
+      [dl({ id: 'done', done: true }), dl({ id: 'old', dueDate: '2026-09-01' }), dl({ id: 'rd', reviewId: 'r2' })],
+      [rv({ id: 'inv', status: 'invited' }), rv({ id: 'r2' }), rv({ id: 'nodue', dueDate: null })],
+      '2026-09-27'
+    );
+    expect(out.map((d) => d.key)).toEqual(['deadline:rd']);
   });
 });

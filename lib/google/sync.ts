@@ -3,7 +3,7 @@
 // repo.upsertReviewCandidates with the results of these functions.
 import { addDaysStr, kstDateTime } from '@/lib/logic/dates';
 import { parseReviewMail } from '@/lib/logic/review-mail';
-import type { CalendarEvent, ReviewCandidate } from '@/lib/types';
+import type { CalendarEvent, Deadline, ReviewCandidate, ReviewJob } from '@/lib/types';
 
 export interface SyncCalendarEventInput {
   calendarId: string;
@@ -124,4 +124,30 @@ const PUSH_KINDS: ReadonlySet<ReviewCandidate['kind']> = new Set(['revision', 'r
 
 export function shouldPushCandidate(kind: ReviewCandidate['kind']): boolean {
   return PUSH_KINDS.has(kind);
+}
+
+export interface CalendarDeadline {
+  key: string; // stable marker the Apps Script stores in the event description
+  title: string;
+  date: string; // 'YYYY-MM-DD' KST, all-day
+}
+
+/** Open deadlines + accepted reviews' due dates (from a week ago on), for the Apps
+ * Script to mirror into Google Calendar as all-day events. A review that already has
+ * its own Deadline row (reviewId) isn't listed twice. */
+export function deadlinesForCalendar(deadlines: Deadline[], reviews: ReviewJob[], today: string): CalendarDeadline[] {
+  const from = addDaysStr(today, -7);
+  const out: CalendarDeadline[] = [];
+  const reviewsWithDeadline = new Set<string>();
+  for (const d of deadlines) {
+    if (d.reviewId) reviewsWithDeadline.add(d.reviewId);
+    if (d.done || d.dueDate < from) continue;
+    out.push({ key: `deadline:${d.id}`, title: `📌 ${d.title}`, date: d.dueDate });
+  }
+  for (const r of reviews) {
+    if (r.status !== 'accepted' || !r.dueDate || r.dueDate < from || reviewsWithDeadline.has(r.id)) continue;
+    const ms = r.manuscriptId ? ` ${r.manuscriptId}` : '';
+    out.push({ key: `review:${r.id}`, title: `📌 ${r.journal}${ms} 리뷰 마감`, date: r.dueDate });
+  }
+  return out.sort((a, b) => a.date.localeCompare(b.date));
 }

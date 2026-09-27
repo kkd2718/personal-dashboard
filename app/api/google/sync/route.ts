@@ -6,10 +6,12 @@ import {
   buildCalendarEvents,
   buildReviewCandidateInputs,
   candidatesToDismiss,
+  deadlinesForCalendar,
   shouldPushCandidate,
 } from '@/lib/google/sync';
 import { sendMessage, telegramConfig } from '@/lib/telegram/client';
 import { escapeHtml } from '@/lib/telegram/format';
+import { todayKST } from '@/lib/logic/dates';
 
 export const dynamic = 'force-dynamic';
 
@@ -121,10 +123,14 @@ export async function POST(request: Request) {
     detail: `캘린더 ${eventCount}개 · 후보 ${totalCandidates}개`,
   });
 
+  // The Apps Script mirrors these into Google Calendar when WRITE_DEADLINES is set.
+  const [deadlines, reviews] = await Promise.all([repo.listDeadlines(), repo.listReviews()]);
+
   return NextResponse.json({
     ok: true,
     events: eventCount,
     candidates: { new: newCandidates.length, total: totalCandidates },
+    deadlines: deadlinesForCalendar(deadlines, reviews, todayKST()),
   });
 }
 
