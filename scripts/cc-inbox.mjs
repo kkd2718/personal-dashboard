@@ -50,7 +50,10 @@ function renderBlock(data) {
   const lines = ['## Command Center — 이 프로젝트에 전달된 항목'];
   if (data.tasks.length > 0) {
     lines.push('에이전트 할 일:');
-    for (const t of data.tasks) lines.push(`- [${t.id}] ${t.title}${formatDue(t.dueDate)}`);
+    for (const t of data.tasks) {
+      lines.push(`- [${t.id}] ${t.title}${formatDue(t.dueDate)}`);
+      if (t.description) for (const d of t.description.split('\n')) lines.push(`  ${d}`);
+    }
   }
   if (data.memos.length > 0) {
     lines.push('사용자 메모:');

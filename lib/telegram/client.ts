@@ -33,6 +33,11 @@ export interface SendResult {
 export async function sendMessage(text: string, opts?: { chatId?: string }): Promise<SendResult> {
   const config = telegramConfig();
   if (!config) return { ok: false, error: 'not configured' };
+  // `next dev` reads the same .env.local as production, so local test posts once sent
+  // real alerts (a fictional E2E revision mail reached the owner). Opt in explicitly.
+  if (process.env.NODE_ENV === 'development' && process.env.TELEGRAM_DEV_SEND !== '1') {
+    return { ok: false, error: 'dev: not sent (set TELEGRAM_DEV_SEND=1)' };
+  }
 
   const body = text.length > MAX_LEN ? `${text.slice(0, TRUNCATE_TO)}…` : text;
   try {
