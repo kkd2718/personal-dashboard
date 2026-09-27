@@ -270,6 +270,35 @@ export interface TradingAccountSummary {
   nextDue: string | null;
 }
 
+export type CcChecklistStatus = 'todo' | 'doing' | 'done';
+export type CcChecklistOwner = 'me' | 'agent';
+
+export interface CcChecklistItem {
+  text: string;
+  status: CcChecklistStatus;
+  section: string | null;
+  owner: CcChecklistOwner;
+}
+
+/** docs/cc-status.json, written by a managed project's own Claude session (Post-3 polish). */
+export interface CcStatus {
+  updatedAt: string | null;
+  focus: string | null;
+  next: string[];
+  blockers: string[];
+  done: Array<{ date: string | null; text: string }>;
+  checklist: CcChecklistItem[];
+}
+
+/** Per-project detail blob (open backlog item titles + CcStatus), stored under
+ * meta key `project:detail:<id>` — see lib/logic/project-detail.ts. */
+export interface ProjectDetail {
+  projectId: string;
+  collectedAt: string;
+  openItems: Record<string, string[]>;
+  status: CcStatus | null;
+}
+
 export interface TradingSummary {
   collectedAt: string;
   totalKrw: number | null;

@@ -15,7 +15,8 @@ import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { loadEnvFile } from './lib/env.mjs';
 import { encodeProjectDir, isWslPath, toWslPath } from './lib/project-dir.mjs';
-import { countBacklog, countJsonProgress, extractSection, parseBacklogEntry } from './lib/backlog.mjs';
+import { countBacklog, countJsonProgress, extractSection, listOpenItems, parseBacklogEntry } from './lib/backlog.mjs';
+import { parseCcStatus } from './lib/cc-status.mjs';
 import { tradingSummary } from './lib/trading-summary.mjs';
 import { tradingStatus } from './lib/trading-probe.mjs';
 import { buildStatusItems } from './lib/status-items.mjs';
@@ -187,31 +188,43 @@ async function readBacklogGlob(projectPath, wsl, glob) {
 }
 
 async function collectBacklogMetrics(projectPath, wsl, globs) {
-  if (!globs || globs.length === 0) return {};
+  if (!globs || globs.length === 0) return { metrics: {}, openItems: {} };
   let open = 0;
   let done = 0;
   const bars = {};
+  const openItems = {};
   for (const entry of globs) {
     // `file#Heading` limits counting to one markdown section (e.g. Amgi 'docs/BACKLOG.md#코드');
     // `라벨=` makes it a separate named bar; a .json file is a project-written {key:{done,total}}.
     const { label, file, section } = parseBacklogEntry(entry);
     const raw = await readBacklogGlob(projectPath, wsl, file);
     if (!raw) continue;
-    const counts = file.endsWith('.json')
-      ? countJsonProgress(raw, section)
-      : countBacklog(section ? extractSection(raw, section) : raw);
+    const sectionText = section ? extractSection(raw, section) : raw;
+    const counts = file.endsWith('.json') ? countJsonProgress(raw, section) : countBacklog(sectionText);
     if (label) {
       if (counts.open + counts.done > 0) {
         bars[`bar:${label}:done`] = counts.done;
         bars[`bar:${label}:open`] = counts.open;
+      }
+      if (!file.endsWith('.json')) {
+        const items = listOpenItems(sectionText);
+        if (items.length > 0) openItems[label] = items;
       }
       continue;
     }
     open += counts.open;
     done += counts.done;
   }
-  if (open === 0 && done === 0) return bars;
-  return { backlogOpen: open, backlogDone: done, ...bars };
+  const metrics = open === 0 && done === 0 ? bars : { backlogOpen: open, backlogDone: done, ...bars };
+  return { metrics, openItems };
+}
+
+/** Reads docs/cc-status.json (the Command Center protocol file a project's own Claude
+ * session writes) and parses it. Missing/unreadable/bad JSON -> null. */
+async function collectCcStatus(projectPath, wsl) {
+  const raw = await readBacklogGlob(projectPath, wsl, 'docs/cc-status.json');
+  if (!raw) return null;
+  return parseCcStatus(raw);
 }
 
 async function collectProjectActivity(project) {
@@ -221,18 +234,28 @@ async function collectProjectActivity(project) {
   const collectedAt = new Date().toISOString();
 
   if (!projectPath) {
-    return { projectId: project.id, branch: null, lastCommitAt: null, lastCommitMsg: null, dirty: null, lastSessionAt: null, memoryDigest: null, metrics: {}, collectedAt };
+    const activity = { projectId: project.id, branch: null, lastCommitAt: null, lastCommitMsg: null, dirty: null, lastSessionAt: null, memoryDigest: null, metrics: {}, collectedAt };
+    return { activity, detail: null };
   }
 
   const wsl = wslPath != null;
-  const [{ commitAt, msg, dirty, skipped }, branch, sessionAt, backlogMetrics] = await Promise.all([
+  const [{ commitAt, msg, dirty, skipped }, branch, sessionAt, { metrics: backlogMetrics, openItems }, status] = await Promise.all([
     readGit(projectPath, wsl),
     readGitBranch(projectPath, wsl),
     lastSessionAt(project.paths).catch(() => null),
-    collectBacklogMetrics(projectPath, wsl, project.backlogGlobs).catch(() => ({})),
+    collectBacklogMetrics(projectPath, wsl, project.backlogGlobs).catch(() => ({ metrics: {}, openItems: {} })),
+    collectCcStatus(projectPath, wsl).catch(() => null),
   ]);
 
-  return {
+  // checklist -> a 체크리스트 progress bar too, unless the project already names its
+  // own bar '체크리스트' via backlogGlobs (never overwrite a project's own choice).
+  let checklistBar = {};
+  if (status?.checklist?.length > 0 && backlogMetrics['bar:체크리스트:done'] == null && backlogMetrics['bar:체크리스트:open'] == null) {
+    const done = status.checklist.filter((c) => c.status === 'done').length;
+    checklistBar = { 'bar:체크리스트:done': done, 'bar:체크리스트:open': status.checklist.length - done };
+  }
+
+  const activity = {
     projectId: project.id,
     branch,
     lastCommitAt: skipped ? null : commitAt,
@@ -240,9 +263,14 @@ async function collectProjectActivity(project) {
     dirty: skipped ? null : dirty,
     lastSessionAt: sessionAt,
     memoryDigest: null,
-    metrics: wsl && skipped ? { wsl: '1', ...backlogMetrics } : backlogMetrics,
+    metrics: wsl && skipped ? { wsl: '1', ...backlogMetrics, ...checklistBar } : { ...backlogMetrics, ...checklistBar },
     collectedAt,
   };
+  const detail =
+    Object.keys(openItems).length > 0 || status != null
+      ? { projectId: project.id, collectedAt, openItems, status }
+      : null;
+  return { activity, detail };
 }
 
 /** Imports new memo bullets from the Obsidian inbox note into /api/capture, then
@@ -317,8 +345,10 @@ async function main() {
   }
 
   const today = todayKST();
-  const projectActivity = await Promise.all(projects.map((p) => collectProjectActivity(p).catch(() => null)));
-  const validActivity = projectActivity.filter(Boolean);
+  const collected = await Promise.all(projects.map((p) => collectProjectActivity(p).catch(() => null)));
+  const validCollected = collected.filter(Boolean);
+  const validActivity = validCollected.map((c) => c.activity);
+  const projectDetails = validCollected.map((c) => c.detail).filter(Boolean);
 
   const trading = await tradingStatus(TRADING_URL, today).catch(() => []);
   const tradingSum = await tradingSummary(TRADING_URL, new Date().toISOString()).catch(() => null);
@@ -335,6 +365,7 @@ async function main() {
   const payload = {
     statusItems,
     projectActivity: validActivity,
+    ...(projectDetails.length > 0 ? { projectDetails } : {}),
     ...(OBSIDIAN_VAULT ? { obsidian: { imported: obsidian.imported } } : {}),
     ...(tradingSum ? { trading: tradingSum } : {}),
   };

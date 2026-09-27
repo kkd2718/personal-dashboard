@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { checkBearer } from '@/lib/auth/bearer';
 import { getRepo } from '@/lib/repo';
 import { newCriticalItems } from '@/lib/logic/status-diff';
+import { projectDetailMetaKey } from '@/lib/logic/project-detail';
 import { telegramConfig, sendMessage } from '@/lib/telegram/client';
 import { formatCriticalAlert } from '@/lib/telegram/format';
 
@@ -33,9 +34,35 @@ const projectActivitySchema = z.object({
   collectedAt: z.string(),
 });
 
+const ccChecklistItemSchema = z.object({
+  text: z.string().max(200),
+  status: z.enum(['todo', 'doing', 'done']),
+  section: z.string().max(40).nullable(),
+  owner: z.enum(['me', 'agent']),
+});
+
+const ccStatusSchema = z.object({
+  updatedAt: z.string().nullable(),
+  focus: z.string().max(200).nullable(),
+  next: z.array(z.string().max(200)).max(8),
+  blockers: z.array(z.string().max(200)).max(8),
+  done: z.array(z.object({ date: z.string().nullable(), text: z.string().max(200) })).max(10),
+  checklist: z.array(ccChecklistItemSchema).max(60),
+});
+
+const projectDetailSchema = z.object({
+  projectId: z.string().min(1),
+  collectedAt: z.string(),
+  openItems: z.record(z.string(), z.array(z.string().max(200)).max(15)).refine((o) => Object.keys(o).length <= 10, {
+    message: 'openItems: max 10 labels',
+  }),
+  status: ccStatusSchema.nullable(),
+});
+
 const bodySchema = z.object({
   statusItems: z.array(statusItemSchema),
   projectActivity: z.array(projectActivitySchema).optional(),
+  projectDetails: z.array(projectDetailSchema).max(50).optional(),
   obsidian: z.object({ imported: z.number().int().min(0) }).optional(),
   trading: z
     .object({
@@ -102,6 +129,13 @@ export async function POST(request: Request) {
   await repo.setStatusSnapshot({ items: parsed.data.statusItems, collectedAt });
   if (parsed.data.projectActivity) {
     await Promise.all(parsed.data.projectActivity.map((a) => repo.upsertProjectActivity(a)));
+  }
+  // A collector run that failed to read a project's files just omits it here — never
+  // wipe the last good detail for a project absent from this payload.
+  if (parsed.data.projectDetails) {
+    await Promise.all(
+      parsed.data.projectDetails.map((d) => repo.setMeta(projectDetailMetaKey(d.projectId), d))
+    );
   }
   // Settings §5.8 연동 상태 rows read this back (PLAN_UX.md decision 3).
   await repo.setMeta('integration:collector', {

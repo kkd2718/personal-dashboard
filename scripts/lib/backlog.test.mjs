@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { countBacklog, countJsonProgress, extractSection, parseBacklogEntry } from './backlog.mjs';
+import { countBacklog, countJsonProgress, extractSection, listOpenItems, parseBacklogEntry } from './backlog.mjs';
 
 describe('countBacklog', () => {
   it('counts checkbox-style markdown', () => {
@@ -28,6 +28,38 @@ describe('countBacklog', () => {
 
   it('returns zeros for a file with neither format', () => {
     expect(countBacklog('# just a heading\nsome prose')).toEqual({ open: 0, done: 0 });
+  });
+});
+
+describe('listOpenItems', () => {
+  it('titles an Amgi-style numbered list (bold lead, strike+완료, ✅ are done)', () => {
+    const text = [
+      '13. ~~submit-answer-batch 다건 INSERT 재시도 중복쓰기 리스크~~ **완료·배포(2026-09-02)** — 상세',
+      '3. **테스트 격리 부채 라운드** — 병렬 워커 공유 실DB 레이스 ✅ **해소(2026-09-14)**',
+      '8. **scripts/export/knowledge.ts JSONL 덤프** — digital twin export',
+    ].join('\n');
+    expect(listOpenItems(text)).toEqual(['scripts/export/knowledge.ts JSONL 덤프']);
+  });
+
+  it('titles a checkbox list', () => {
+    const text = ['- [ ] 첫 번째 항목', '- [x] 끝난 항목', '* [ ] **강조된 항목**'].join('\n');
+    expect(listOpenItems(text)).toEqual(['첫 번째 항목', '강조된 항목']);
+  });
+
+  it('truncates to 80 chars with an ellipsis', () => {
+    const long = 'a'.repeat(100);
+    expect(listOpenItems(`- [ ] **${long}**`)[0]).toBe(`${'a'.repeat(79)}…`);
+  });
+
+  it('caps at max items', () => {
+    const text = Array.from({ length: 20 }, (_, i) => `- [ ] item ${i}`).join('\n');
+    expect(listOpenItems(text, 3)).toHaveLength(3);
+    expect(listOpenItems(text)).toHaveLength(15);
+  });
+
+  it('combines with extractSection', () => {
+    const md = ['# BACKLOG', '## 코드', '1. **a**', '2. **b** ✅', '## 콘텐츠', '3. **c**'].join('\n');
+    expect(listOpenItems(extractSection(md, '코드'))).toEqual(['a']);
   });
 });
 

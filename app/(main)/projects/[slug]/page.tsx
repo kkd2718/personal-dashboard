@@ -5,6 +5,7 @@ import type { TradingSummary } from '@/lib/types';
 import { GitBranch, Laptop, Link2, Folder, Radio } from 'lucide-react';
 import { getRepo } from '@/lib/repo';
 import { ProjectEditSheet } from '@/components/projects/project-edit-sheet';
+import { ProjectStatusCard } from '@/components/projects/project-status-card';
 import { StatusPillSelect } from '@/components/projects/status-pill-select';
 import { CopyPathButton } from '@/components/projects/copy-path-button';
 import { NextActionEditor } from '@/components/projects/next-action-editor';
@@ -18,7 +19,8 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { relTime, dday, todayKST } from '@/lib/logic/dates';
 import { tagCounts } from '@/lib/logic/notes';
 import { projectProgress } from '@/lib/logic/progress';
-import type { LinkRef } from '@/lib/types';
+import { projectDetailMetaKey } from '@/lib/logic/project-detail';
+import type { LinkRef, ProjectDetail } from '@/lib/types';
 
 // D-day depends on "today" in KST; never cache this page.
 export const dynamic = 'force-dynamic';
@@ -35,7 +37,7 @@ export default async function ProjectDetailPage({
   const project = await repo.getProjectBySlug(slug);
   if (!project) notFound();
 
-  const [notes, deadlines, papers, projects, activityList, milestones, tasks, tradingSummary] = await Promise.all([
+  const [notes, deadlines, papers, projects, activityList, milestones, tasks, tradingSummary, projectDetail] = await Promise.all([
     repo.listNotes(),
     repo.listDeadlines(),
     repo.listPapers(),
@@ -44,6 +46,7 @@ export default async function ProjectDetailPage({
     repo.listMilestones(),
     repo.listTasks(),
     project.id === TRADING_PROJECT_ID ? repo.getMeta<TradingSummary>(TRADING_SUMMARY_META_KEY) : Promise.resolve(null),
+    repo.getMeta<ProjectDetail>(projectDetailMetaKey(project.id)),
   ]);
   const activity = activityList.find((a) => a.projectId === project.id);
 
@@ -117,6 +120,8 @@ export default async function ProjectDetailPage({
           <AccountSummaryPanel summary={tradingSummary} today={todayKST()} now={new Date().toISOString()} />
         </section>
       )}
+
+      <ProjectStatusCard detail={projectDetail} now={now} />
 
       <section className="flex flex-col gap-2">
         <h2 className="text-sm font-medium text-foreground/60">지금</h2>

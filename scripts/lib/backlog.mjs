@@ -40,6 +40,46 @@ export function countBacklog(text) {
 }
 
 /**
+ * Titles of the *open* items in a BACKLOG-style markdown file, using the same
+ * checkbox-vs-numbered classification as countBacklog. Title = the line's first
+ * `**bold**` segment if present, else the line with its prefix removed and
+ * `**`/`~~`/backticks stripped. Trailing `:`/`—` trimmed, truncated to 80 chars.
+ * @param {string} text
+ * @param {number} max
+ * @returns {string[]}
+ */
+export function listOpenItems(text, max = 15) {
+  const lines = text.split(/\r?\n/);
+  const checkboxRe = /^\s*[-*]\s\[( |x|X)\]\s*/;
+  const numberedRe = /^\d+\.\s*/;
+
+  const checkboxLines = lines.filter((l) => checkboxRe.test(l));
+  const openLines = [];
+  if (checkboxLines.length > 0) {
+    for (const line of checkboxLines) {
+      const m = checkboxRe.exec(line);
+      if (m[1] === ' ') openLines.push(line.replace(checkboxRe, ''));
+    }
+  } else {
+    for (const line of lines) {
+      if (!numberedRe.test(line)) continue;
+      const isDone = line.includes('✅') || /^\d+\.\s*~~/.test(line) || line.includes('**완료');
+      if (!isDone) openLines.push(line.replace(numberedRe, ''));
+    }
+  }
+
+  return openLines.slice(0, max).map(titleFromLine);
+}
+
+/** Extracts a display title from one open-item line (see listOpenItems). */
+function titleFromLine(line) {
+  const bold = /\*\*(.+?)\*\*/.exec(line);
+  let title = bold ? bold[1] : line.replace(/\*\*|~~|`/g, '');
+  title = title.trim().replace(/[:—]$/, '').trim();
+  return title.length > 80 ? `${title.slice(0, 79)}…` : title;
+}
+
+/**
  * Splits a backlogGlobs entry `[라벨=]path[#Heading]` into { label, file, section }.
  * No `#` -> section null. A `라벨=` prefix makes the entry its own named progress bar
  * (e.g. Amgi `코드=docs/BACKLOG.md#코드`, `노트=docs/progress.json#notes`); unlabeled

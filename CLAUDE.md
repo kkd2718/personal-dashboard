@@ -108,7 +108,14 @@ project's DB password isn't always available/known. Run scripts with
   totals/per-account values only, never holdings), sidebar 바로가기 (`lib/logic/quick-links.ts`),
   named progress bars (`라벨=path#section` backlogGlobs, `.json` = project-written `{key:{done,total}}`),
   published papers leave the home lane after 90 days, `next dev` never sends Telegram unless
-  `TELEGRAM_DEV_SEND=1`.
+  `TELEGRAM_DEV_SEND=1`. Project detail (`/projects/[slug]`) shows open backlog item titles per
+  label (`scripts/lib/backlog.mjs`'s `listOpenItems`, automatic from the same labeled markdown bars)
+  plus each project's own `docs/cc-status.json` (`{updatedAt, focus, next[], blockers[], done[]}`,
+  written by that project's Claude session per the protocol block the SessionStart hook prints —
+  `scripts/cc-inbox.mjs`), collected via `scripts/collector.mjs` and stored under meta key
+  `project:detail:<id>` (`lib/logic/project-detail.ts`). A Stop hook (`cc-inbox.mjs stop`) nudges
+  once per session — via `{"decision":"block",...}` — when the session committed but never
+  refreshed the file (`scripts/lib/cc-hook.mjs`, marker file in `os.tmpdir()`).
 
 ## Conventions
 - Opus plans (`docs/PLAN.md`), Sonnet implements. Don't redesign a plan's data model/signatures
