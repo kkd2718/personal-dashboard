@@ -246,3 +246,27 @@ function collectTrashedIds_() {
   }
   return out;
 }
+
+/**
+ * Diagnostic: shows where the due-date line sits in the latest matching mail and
+ * whether the text sent to the app still contains it. Logs lengths, positions and
+ * the due-date line only — never the rest of the body.
+ * Edit DEBUG_QUERY below, pick debugDueDate in the editor, press Run.
+ */
+var DEBUG_QUERY = 'subject:(npj Digital Medicine) newer_than:30d';
+
+function debugDueDate() {
+  var threads = GmailApp.search(DEBUG_QUERY, 0, 1);
+  if (threads.length === 0) { Logger.log('no mail matches: ' + DEBUG_QUERY); return; }
+  var messages = threads[0].getMessages();
+  var msg = messages[messages.length - 1];
+  var body = msg.getPlainBody() || '';
+  var sent = trimBody_(body);
+  var re = /deadline|due|within \d+ days?|까지|기한/i;
+  var at = body.search(re);
+  var line = at >= 0 ? body.slice(body.lastIndexOf('\n', at) + 1, body.indexOf('\n', at) === -1 ? undefined : body.indexOf('\n', at)) : '';
+  Logger.log('subject=' + msg.getSubject());
+  Logger.log('bodyLength=' + body.length + ', dueLineAt=' + at + ', sentLength=' + sent.length +
+    ', sentHasDue=' + (sent.search(re) >= 0));
+  Logger.log('dueLine=' + line.slice(0, 200));
+}
