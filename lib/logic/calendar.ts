@@ -11,13 +11,13 @@ export function isHolidayCalendar(calendarName: string): boolean {
 }
 
 /** Recovers the Google calendarId embedded in a CalendarEvent.id
- * ('<account>:<calendarId>:<eventId>' — see lib/google/sync.ts). Account is
- * validated colon-free by the sync route's zod schema; eventId may theoretically
- * contain a colon, in which case this over-includes into calendarId, which is
- * harmless here (only used to detect the literal calendarId 'primary'). */
+ * ('<account>:<calendarId>:<eventId>:<startISO>' — see lib/google/sync.ts). Account
+ * is validated colon-free by the sync route's zod schema and Google calendar ids
+ * carry no colons, so it's always the second segment (the start instant and even
+ * eventId may contain colons — taking "everything in between" once hid every
+ * primary-calendar event after the start instant was added to the id). */
 function calendarIdFromEventId(id: string): string {
-  const parts = id.split(':');
-  return parts.slice(1, -1).join(':');
+  return id.split(':')[1] ?? '';
 }
 
 /** True for events from an account's 'primary' Google calendar (Apps Script's

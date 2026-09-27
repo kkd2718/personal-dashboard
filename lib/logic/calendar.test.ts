@@ -169,6 +169,8 @@ describe('isPrimaryCalendarEvent (Addendum A)', () => {
   it('true only when the id embeds calendarId "primary"', () => {
     expect(isPrimaryCalendarEvent(googleEvent({ id: 'main:primary:e1' }))).toBe(true);
     expect(isPrimaryCalendarEvent(googleEvent({ id: 'amc:professor@fictional-univ.test:e1' }))).toBe(false);
+    // Ids built by buildCalendarEvent end with the start instant, which has colons.
+    expect(isPrimaryCalendarEvent(googleEvent({ id: 'main:primary:e1@google.com:2026-09-21T23:00:00.000Z' }))).toBe(true);
   });
 });
 

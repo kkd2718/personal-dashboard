@@ -22,14 +22,16 @@ const STATUS_TONE: Record<Project['status'], 'success' | 'warn' | 'accent' | 'ne
 
 const LINK_ICON = { public: Link2, repo: GitBranch, local: Laptop, tailscale: Radio, folder: Folder };
 
-/** Activity sentence: "방금 세션 · 커밋 3일 전" style, empty parts omitted. */
-function activitySentence(activity: ProjectActivity | undefined, now: string): string | null {
+/** Activity sentence: "방금 세션 · 커밋 3일 전" style, empty parts omitted. Finished
+ * (done/archived) projects aren't probed any more, so their last dirty flag is stale
+ * and omitted. */
+function activitySentence(activity: ProjectActivity | undefined, now: string, finished: boolean): string | null {
   if (!activity) return null;
   const parts: string[] = [];
   if (activity.lastSessionAt) parts.push(`세션 ${relTime(activity.lastSessionAt, now)}`);
   if (activity.lastCommitAt) {
     parts.push(`커밋 ${relTime(activity.lastCommitAt, now)}`);
-    if (activity.dirty) parts.push('미커밋 변경 있음');
+    if (activity.dirty && !finished) parts.push('미커밋 변경 있음');
   } else if (activity.metrics.wsl === '1') {
     parts.push('WSL · 아직 수집 전');
   } else if (parts.length === 0) {
@@ -56,7 +58,7 @@ export function ProjectRow({
   const colors = projectColorClasses(project.color);
   const progress = projectProgress(project.id, tasks);
   const activeQueue = milestones.find((m) => m.projectId === project.id && m.status === 'active');
-  const sentence = activitySentence(activity, now);
+  const sentence = activitySentence(activity, now, project.status === 'done' || project.status === 'archived');
   const secondary = activeQueue ? `큐: ${activeQueue.title}` : project.nextAction ? `다음: ${project.nextAction}` : null;
 
   return (

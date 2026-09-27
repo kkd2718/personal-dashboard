@@ -25,12 +25,28 @@ export function deadlineCounts(deadlines: Deadline[], today: string): DeadlineCo
  * Header count sentence (§6): non-zero parts only, joined by " · ";
  * all-zero falls back to "이번 주 마감 없음".
  */
-export function headerCountLabel(counts: DeadlineCounts): string {
+export function headerCountLabel(counts: DeadlineCounts, next?: { title: string; dueDate: string; today: string }): string {
   const parts: string[] = [];
   if (counts.today > 0) parts.push(`오늘 마감 ${counts.today}`);
   if (counts.thisWeek > 0) parts.push(`이번 주 ${counts.thisWeek}`);
   if (counts.overdue > 0) parts.push(`지남 ${counts.overdue}`);
-  return parts.length > 0 ? parts.join(' · ') : '이번 주 마감 없음';
+  if (parts.length > 0) return parts.join(' · ');
+  // Nothing this week: name the next one instead of a dead-end "없음".
+  if (next) {
+    const [, m, d] = next.dueDate.split('-');
+    return `다음 마감 ${Number(m)}/${Number(d)} ${next.title} (D-${dday(next.dueDate, next.today)})`;
+  }
+  return '이번 주 마감 없음';
+}
+
+/** Earliest open deadline after this week (for headerCountLabel's fallback). */
+export function nextDeadlineAfterWeek(deadlines: Deadline[], today: string): Deadline | null {
+  const weekEnd = endOfIsoWeek(today);
+  return (
+    deadlines
+      .filter((d) => !d.done && d.dueDate > weekEnd)
+      .sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0] ?? null
+  );
 }
 
 /**
@@ -99,8 +115,12 @@ export function buildQueueLaneCards(
   projects: Project[],
   milestones: Milestone[],
   tasks: Task[],
-  activityList: ProjectActivity[]
+  activityList: ProjectActivity[],
+  papers: Paper[] = []
 ): QueueLaneCard[] {
+  // A research project whose work is a paper already has its row (and next action)
+  // in the 논문 lane — a bare next-action card here would just duplicate it.
+  const projectsWithPaper = new Set(papers.map((p) => p.projectId).filter((id): id is string => !!id));
   const activityByProjectId = new Map(activityList.map((a) => [a.projectId, a]));
   const active = [...projects.filter((p) => p.status === 'active')].sort((a, b) => {
     const byGroup = GROUP_ORDER.indexOf(a.group) - GROUP_ORDER.indexOf(b.group);
@@ -135,7 +155,7 @@ export function buildQueueLaneCards(
       continue;
     }
 
-    if (project.nextAction) {
+    if (project.nextAction && !projectsWithPaper.has(project.id)) {
       cards.push({ kind: 'nextAction', project, nextAction: project.nextAction });
     }
   }

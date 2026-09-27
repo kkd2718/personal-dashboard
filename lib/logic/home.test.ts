@@ -50,6 +50,12 @@ describe('headerCountLabel', () => {
   it('falls back to a no-deadlines sentence when all zero', () => {
     expect(headerCountLabel({ overdue: 0, today: 0, thisWeek: 0 })).toBe('이번 주 마감 없음');
   });
+
+  it('names the next deadline when nothing is due this week', () => {
+    expect(
+      headerCountLabel({ overdue: 0, today: 0, thisWeek: 0 }, { title: 'Fic 리비전 제출', dueDate: '2026-10-17', today: '2026-09-27' })
+    ).toBe('다음 마감 10/17 Fic 리비전 제출 (D-20)');
+  });
 });
 
 describe('projectActivitySentence', () => {
@@ -285,5 +291,13 @@ describe('buildQueueLaneCards', () => {
     const paused = makeProject({ id: 'z', status: 'paused', nextAction: 'z' });
     const cards = buildQueueLaneCards([research, app, paused], [], [], []);
     expect(cards.map((c) => c.project.id)).toEqual(['a', 'r']);
+  });
+
+  it('skips the bare next-action card when the project has a linked paper', () => {
+    const withPaper = makeProject({ id: 'p-a', group: 'research', nextAction: '데이터 확인' });
+    const without = makeProject({ id: 'p-b', group: 'research', nextAction: '데이터 확인' });
+    const papers = [{ projectId: 'p-a' } as Paper];
+    const cards = buildQueueLaneCards([withPaper, without], [], [], [], papers);
+    expect(cards.map((c) => c.project.id)).toEqual(['p-b']);
   });
 });

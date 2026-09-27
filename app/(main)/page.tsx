@@ -12,7 +12,7 @@ import { HomeLanes } from '@/components/home/home-lanes';
 import { StatusWarnChip } from '@/components/home/status-warn-chip';
 import { tagCounts } from '@/lib/logic/notes';
 import { checklist, checklistItemCount } from '@/lib/logic/checklist';
-import { buildQueueLaneCards, deadlineCounts, headerCountLabel } from '@/lib/logic/home';
+import { buildQueueLaneCards, deadlineCounts, headerCountLabel, nextDeadlineAfterWeek } from '@/lib/logic/home';
 import { addDaysStr, startOfIsoWeek, todayKST } from '@/lib/logic/dates';
 import { CALENDAR_VISIBLE_META_KEY, filterVisibleEvents, todayCalendarEvents } from '@/lib/logic/calendar';
 
@@ -69,10 +69,11 @@ export default async function HomePage({
   const visibleEvents = filterVisibleEvents(calendarEvents, visibleCalendars);
   const todayEvents = todayCalendarEvents(visibleEvents.filter((e) => e.startDate <= today && e.endDate >= today));
   const counts = deadlineCounts(deadlines, today);
+  const nextDeadline = nextDeadlineAfterWeek(deadlines, today);
 
   // Lane tab badge counts (HomeLanes' mobile tab bar) — cheap to recompute inside
   // each lane too, but the tab bar needs them before those lanes render.
-  const queueCount = buildQueueLaneCards(projects, milestones, tasks, activityList).length;
+  const queueCount = buildQueueLaneCards(projects, milestones, tasks, activityList, papers).length;
   const openReviewCount = reviews.filter((r) => (r.status === 'invited' || r.status === 'accepted') && r.dueDate).length;
   const meChecklist = checklist(tasks, deadlines, reviews, today, new Set(activeMilestoneIds)).me;
   const openNoteCount = notes.filter((n) => n.status === 'inbox' || n.status === 'filed').length;
@@ -82,7 +83,7 @@ export default async function HomePage({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
           <h1 className="text-xl font-semibold">{HEADER_DATE_FMT.format(new Date())}</h1>
-          <span className="text-sm text-foreground/50">{headerCountLabel(counts)}</span>
+          <span className="text-sm text-foreground/50">{headerCountLabel(counts, nextDeadline ? { title: nextDeadline.title, dueDate: nextDeadline.dueDate, today } : undefined)}</span>
         </div>
         <div className="flex items-center gap-2">
           {reviewCandidates.length > 0 && (
@@ -129,7 +130,7 @@ export default async function HomePage({
           todo: checklistItemCount(meChecklist),
           memo: openNoteCount,
         }}
-        queue={<QueueLane projects={projects} milestones={milestones} tasks={tasks} activityList={activityList} />}
+        queue={<QueueLane projects={projects} milestones={milestones} tasks={tasks} activityList={activityList} papers={papers} />}
         papers={
           <PaperLane papers={papers} deadlines={deadlines} reviews={reviews} reviewCandidateCount={reviewCandidates.length} />
         }

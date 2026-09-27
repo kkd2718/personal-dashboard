@@ -212,7 +212,7 @@ export function ChecklistPanel({
     { key: 'today', label: '오늘' },
     { key: 'thisWeek', label: '이번 주' },
     { key: 'doing', label: '진행 중' },
-    { key: 'next', label: '다음 (진행 중인 큐)' },
+    { key: 'next', label: '진행 중인 큐' },
   ];
   // Empty sections are omitted entirely (ux-advice.md §5.1) — a section with
   // nothing collapses to nothing instead of an "없음" line. Today's Google

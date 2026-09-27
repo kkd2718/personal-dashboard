@@ -35,6 +35,7 @@ const projectActivitySchema = z.object({
 const bodySchema = z.object({
   statusItems: z.array(statusItemSchema),
   projectActivity: z.array(projectActivitySchema).optional(),
+  obsidian: z.object({ imported: z.number().int().min(0) }).optional(),
 });
 
 /** For the status collector (phase 2) / scripts/push-status.mjs. Bearer-token auth (INGEST_TOKEN). */
@@ -75,6 +76,10 @@ export async function POST(request: Request) {
     at: collectedAt,
     detail: `${parsed.data.projectActivity?.length ?? 0}개 프로젝트`,
   });
+  if (parsed.data.obsidian) {
+    const n = parsed.data.obsidian.imported;
+    await repo.setMeta('integration:obsidian', { at: collectedAt, detail: n > 0 ? `메모 ${n}건 가져옴` : '확인함 · 새 메모 없음' });
+  }
 
   // Immediate alert on newly-critical status only (no hourly repeats) — a Telegram
   // failure here never fails ingest itself.

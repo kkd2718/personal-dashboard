@@ -59,7 +59,8 @@ export default async function ProjectDetailPage({
   const activityParts: string[] = [];
   if (activity?.lastCommitAt) {
     activityParts.push(`${activity.branch ? `(${activity.branch}) ` : ''}커밋 ${relTime(activity.lastCommitAt, now)}`);
-    if (activity.dirty) activityParts.push('미커밋 변경 있음');
+    // done/archived projects aren't probed any more — their dirty flag is stale.
+    if (activity.dirty && project.status !== 'done' && project.status !== 'archived') activityParts.push('미커밋 변경 있음');
   } else if (activity?.metrics.wsl === '1') {
     activityParts.push('WSL · 아직 수집 전');
   }

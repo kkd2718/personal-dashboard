@@ -7,7 +7,7 @@ import { buildQueueLaneCards } from '@/lib/logic/home';
 import { backlogLabel, progressLabel } from '@/lib/logic/progress';
 import { dday, todayKST } from '@/lib/logic/dates';
 import { projectColorClasses } from '@/lib/project-colors';
-import type { Milestone, Project, ProjectActivity, Task } from '@/lib/types';
+import type { Milestone, Paper, Project, ProjectActivity, Task } from '@/lib/types';
 
 /** Home 개발 큐 lane (PLAN_HOME2.md §Lanes 1). */
 export function QueueLane({
@@ -15,14 +15,16 @@ export function QueueLane({
   milestones,
   tasks,
   activityList,
+  papers,
 }: {
   projects: Project[];
   milestones: Milestone[];
   tasks: Task[];
   activityList: ProjectActivity[];
+  papers: Paper[];
 }) {
   const today = todayKST();
-  const cards = buildQueueLaneCards(projects, milestones, tasks, activityList);
+  const cards = buildQueueLaneCards(projects, milestones, tasks, activityList, papers);
 
   return (
     <LaneCard title="개발 큐" count={cards.length} href="/projects">

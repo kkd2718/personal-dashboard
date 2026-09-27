@@ -136,7 +136,12 @@ export async function acceptRevisionCandidateAction(input: unknown): Promise<voi
       : paper.submissions.map((s, i) =>
           i === decision.submissionIndex ? { ...s, decision: decision.decision, decidedAt: now } : s
         );
-  await repo.updatePaper(paper.id, { submissions });
+  // The journal now handling the paper shows on its card (board "AI · <journal>").
+  await repo.updatePaper(paper.id, {
+    submissions,
+    stage: 'revision',
+    ...(candidate.journal && !paper.journal ? { journal: candidate.journal } : {}),
+  });
   if (candidate.dueDate) {
     await repo.createDeadline({
       title: decision.deadlineTitle,

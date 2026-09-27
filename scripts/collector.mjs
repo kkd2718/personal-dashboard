@@ -312,7 +312,19 @@ async function main() {
   const trading = await tradingStatus(TRADING_URL, today).catch(() => []);
   const statusItems = buildStatusItems(projects, validActivity, trading, today);
 
-  const payload = { statusItems, projectActivity: validActivity };
+  // Obsidian import runs first so ingest can report it (settings shows "확인함" even
+  // when nothing new was imported, instead of "설정되지 않음").
+  const obsidian = await syncObsidianInbox().catch((e) => {
+    console.error(`Obsidian sync failed: ${e instanceof Error ? e.message : e}`);
+    return { imported: 0 };
+  });
+  console.log(`Obsidian: ${obsidian.imported} imported`);
+
+  const payload = {
+    statusItems,
+    projectActivity: validActivity,
+    ...(OBSIDIAN_VAULT ? { obsidian: { imported: obsidian.imported } } : {}),
+  };
   await mkdir(path.join(ROOT, '.data'), { recursive: true });
   await writeFile(path.join(ROOT, '.data', 'collector-last.json'), JSON.stringify(payload, null, 2), 'utf-8');
 
@@ -329,11 +341,6 @@ async function main() {
     process.exit(1);
   }
 
-  const obsidian = await syncObsidianInbox().catch((e) => {
-    console.error(`Obsidian sync failed: ${e instanceof Error ? e.message : e}`);
-    return { imported: 0 };
-  });
-  console.log(`Obsidian: ${obsidian.imported} imported`);
 }
 
 await main();
