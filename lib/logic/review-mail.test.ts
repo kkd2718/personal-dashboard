@@ -276,7 +276,17 @@ describe('parseReviewMail — Addendum A: revision letters on the user\'s own pa
 });
 
 describe('parseReviewMail — ambiguous reviewer-related -> other', () => {
-  it('mentions review without invitation/reminder/confirmation language', () => {
+  it('mentions review + a manuscript id, no invitation/reminder/confirmation language', () => {
+    const result = parseReviewMail({
+      from: 'Editorial Office <eo@fictional-journal.test>',
+      subject: 'Regarding the review of FJS-2026-0042',
+      body: 'Dear colleague,\n\nA quick note about the review of FJS-2026-0042.',
+      receivedAt: RECEIVED,
+    });
+    expect(result?.kind).toBe('other');
+  });
+
+  it('vague review mention without a manuscript id -> null', () => {
     const result = parseReviewMail({
       from: '"Fictional Journal of Statistics" <office@fictional-stats-press.test>',
       subject: 'Following up on the review process',
@@ -285,7 +295,17 @@ describe('parseReviewMail — ambiguous reviewer-related -> other', () => {
         'Please let us know if you have any questions.',
       receivedAt: RECEIVED,
     });
-    expect(result?.kind).toBe('other');
+    expect(result).toBeNull();
+  });
+
+  it('editing-service marketing that mentions 심사 의견 -> null', () => {
+    const result = parseReviewMail({
+      from: '"Fictional Editing" <news@editage.com>',
+      subject: '[Fictional Editing] 재투고 전, 답변서가 모든 심사 의견에 답하는지 확인하세요',
+      body: '심사 의견 대응 서비스 안내 FJS-2026-0042',
+      receivedAt: RECEIVED,
+    });
+    expect(result).toBeNull();
   });
 });
 

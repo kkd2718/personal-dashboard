@@ -260,6 +260,9 @@ function extractLink(body: string): string | null {
 // The owner doesn't review for MDPI, so its reviewer mail is dropped by sender
 // domain. Revision letters on the owner's own MDPI papers are still kept.
 const IGNORED_REVIEW_SENDER = /@(?:[\w-]+\.)*mdpi\.com>?\s*$/i;
+// Author-services marketing (editing/translation vendors) talks about "심사 의견"/
+// "reviewer comments" constantly but is never a review assignment.
+const MARKETING_SENDER = /@(?:[\w-]+\.)*(?:editage|enago|aje|wordvice|cactusglobal)\.[a-z.]+>?\s*$/i;
 
 /** Parses one Gmail message; returns null when it isn't an actual review assignment
  * (calls for reviewers, submit/contribute solicitations, issue alerts, the user's
@@ -268,11 +271,16 @@ export function parseReviewMail(input: ReviewMailInput): ParsedReviewMail | null
   const text = `${input.subject}\n${input.body}`;
   const kind = detectKind(text);
   if (!kind) return null;
-  if (kind !== 'revision' && IGNORED_REVIEW_SENDER.test(input.from.trim())) return null;
+  const from = input.from.trim();
+  if (MARKETING_SENDER.test(from)) return null;
+  if (kind !== 'revision' && IGNORED_REVIEW_SENDER.test(from)) return null;
+  const manuscriptId = extractManuscriptId(text);
+  // A vague "review"-mentioning mail is only worth a candidate when it names a manuscript.
+  if (kind === 'other' && !manuscriptId) return null;
 
   return {
     kind,
-    manuscriptId: extractManuscriptId(text),
+    manuscriptId,
     journal: extractJournal(input.subject, input.body, input.from),
     title: extractTitle(input.body),
     dueDate: extractDueDate(input.body, input.receivedAt),
