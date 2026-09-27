@@ -77,16 +77,30 @@ export function WeekStrip({
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-xs">
         <span className="shrink-0 font-medium text-foreground/70">이번 주</span>
         <div className="flex shrink-0 gap-0.5">
-          {days.map((date, i) => (
-            <Link
-              key={date}
-              href="/calendar"
-              className={`tnum rounded px-1 py-0.5 ${date === today ? 'bg-accent-soft font-medium text-accent' : 'text-foreground/50 hover:bg-foreground/5'}`}
-            >
-              {DAY_LABELS[i]}
-              {Number(date.slice(8, 10))}
-            </Link>
-          ))}
+          {days.map((date, i) => {
+            // A dot per day with anything scheduled (red when a deadline/review is due);
+            // hover lists the titles.
+            const dayPoints = (points[date] ?? []).filter((p) => p.kind !== 'task');
+            const urgent = dayPoints.some((p) => p.kind === 'deadline' || p.kind === 'review');
+            return (
+              <Link
+                key={date}
+                href="/calendar"
+                title={dayPoints.map((p) => (p.startTime ? `${p.startTime} ${p.title}` : p.title)).join('
+') || undefined}
+                className={`tnum relative rounded px-1 pt-0.5 pb-1.5 ${date === today ? 'bg-accent-soft font-medium text-accent' : 'text-foreground/50 hover:bg-foreground/5'}`}
+              >
+                {DAY_LABELS[i]}
+                {Number(date.slice(8, 10))}
+                {dayPoints.length > 0 && (
+                  <span
+                    aria-hidden
+                    className={`absolute bottom-0.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full ${urgent ? 'bg-danger' : 'bg-foreground/30'}`}
+                  />
+                )}
+              </Link>
+            );
+          })}
         </div>
         {weekRanges.map((seg) => {
           const milestone = milestoneById.get(seg.milestoneId);
