@@ -2,7 +2,12 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { checkBearer } from '@/lib/auth/bearer';
 import { getRepo } from '@/lib/repo';
-import { buildCalendarEvents, buildReviewCandidateInputs } from '@/lib/google/sync';
+import {
+  buildCalendarEvents,
+  buildReviewCandidateInputs,
+  candidatesToDismiss,
+  shouldPushCandidate,
+} from '@/lib/google/sync';
 import { sendMessage, telegramConfig } from '@/lib/telegram/client';
 import { escapeHtml } from '@/lib/telegram/format';
 
@@ -46,6 +51,8 @@ const bodySchema = z.object({
     })
     .optional(),
   mails: z.array(mailSchema).max(200).optional(),
+  // Message ids of recent review-ish mail now in Gmail trash (declined invitations).
+  trashedMessageIds: z.array(z.string().min(1)).max(1000).optional(),
 });
 
 /** For the Google Apps Script installed per account (integrations/google/Code.gs).
@@ -77,7 +84,7 @@ export async function POST(request: Request) {
 
   const repo = getRepo();
   const now = new Date().toISOString();
-  const { account, calendar, mails } = parsed.data;
+  const { account, calendar, mails, trashedMessageIds } = parsed.data;
 
   let eventCount = 0;
   if (calendar) {
@@ -88,13 +95,23 @@ export async function POST(request: Request) {
 
   let newCandidates: Awaited<ReturnType<typeof repo.upsertReviewCandidates>> = [];
   let totalCandidates = 0;
-  if (mails) {
-    const inputs = buildReviewCandidateInputs(account, mails);
-    newCandidates = await repo.upsertReviewCandidates(inputs);
-    totalCandidates = (await repo.listReviewCandidates('pending')).length;
+  if (mails || trashedMessageIds) {
+    if (mails) {
+      newCandidates = await repo.upsertReviewCandidates(buildReviewCandidateInputs(account, mails));
+    }
+    let pending = await repo.listReviewCandidates('pending');
+    if (trashedMessageIds && trashedMessageIds.length > 0) {
+      const dismiss = candidatesToDismiss(pending, trashedMessageIds);
+      for (const c of dismiss) await repo.updateReviewCandidate(c.id, { status: 'dismissed' });
+      const dismissed = new Set(dismiss.map((c) => c.id));
+      pending = pending.filter((c) => !dismissed.has(c.id));
+      newCandidates = newCandidates.filter((c) => !dismissed.has(c.id));
+    }
+    totalCandidates = pending.length;
 
-    if (newCandidates.length > 0 && telegramConfig()) {
-      await sendMessage(formatNewCandidatesAlert(newCandidates));
+    const toPush = newCandidates.filter((c) => shouldPushCandidate(c.kind));
+    if (toPush.length > 0 && telegramConfig()) {
+      await sendMessage(formatNewCandidatesAlert(toPush));
     }
   }
 
@@ -112,7 +129,12 @@ export async function POST(request: Request) {
 }
 
 function formatNewCandidatesAlert(
-  candidates: Array<{ journal: string | null; manuscriptId: string | null; dueDate: string | null }>
+  candidates: Array<{
+    kind: string;
+    journal: string | null;
+    manuscriptId: string | null;
+    dueDate: string | null;
+  }>
 ): string {
   const cloudUrl = process.env.CLOUD_URL;
   const maxItems = cloudUrl ? 4 : 5; // total message stays <=5 lines including the link
@@ -120,7 +142,8 @@ function formatNewCandidatesAlert(
     const journal = c.journal ? escapeHtml(c.journal) : '(저널 미상)';
     const ms = c.manuscriptId ? ` ${escapeHtml(c.manuscriptId)}` : '';
     const due = c.dueDate ? c.dueDate.slice(5) : '미상';
-    return `📨 리뷰 메일 감지: ${journal}${ms} · 마감 ${due}`;
+    const label = c.kind === 'revision' ? '📝 리비전 요청' : '⏰ 리뷰 마감 알림';
+    return `${label}: ${journal}${ms} · 마감 ${due}`;
   });
   if (cloudUrl) lines.push(`${cloudUrl.replace(/\/$/, '')}/papers?tab=review`);
   return lines.join('\n');

@@ -20,7 +20,7 @@
  */
 
 var DEFAULT_GMAIL_QUERY =
-  'newer_than:21d -category:promotions -category:social ' +
+  'newer_than:21d -category:promotions -category:social -from:mdpi.com ' +
   '(subject:(review OR reviewer OR reviewing OR 심사 OR decision OR revision OR revise OR 수정) ' +
   'OR "invitation to review" OR "review is due")';
 
@@ -81,6 +81,7 @@ function sync() {
 
   var events = collectEvents_(calendarIds, from, to);
   var mails = collectMails_();
+  var trashedMessageIds = collectTrashedIds_();
 
   var payload = {
     account: props.account,
@@ -90,6 +91,7 @@ function sync() {
       events: events,
     },
     mails: mails,
+    trashedMessageIds: trashedMessageIds,
   };
 
   var response = UrlFetchApp.fetch(props.ccUrl.replace(/\/$/, '') + '/api/google/sync', {
@@ -100,7 +102,7 @@ function sync() {
     muteHttpExceptions: true,
   });
   // Log status only — never the token or the payload body.
-  Logger.log('sync() -> HTTP ' + response.getResponseCode() + ', events=' + events.length + ', mails=' + mails.length);
+  Logger.log('sync() -> HTTP ' + response.getResponseCode() + ', events=' + events.length + ', mails=' + mails.length + ', trashed=' + trashedMessageIds.length);
 }
 
 function formatDate_(d) {
@@ -161,6 +163,20 @@ function collectMails_() {
       subject: msg.getSubject(),
       body: (msg.getPlainBody() || '').slice(0, 4000),
     });
+  }
+  return out;
+}
+
+/** Message ids (ids only, no content) of matching mail now in trash. The owner
+ * deletes review invitations after declining them, so the server dismisses any
+ * still-pending candidate for these. GmailApp.search skips trash by default. */
+function collectTrashedIds_() {
+  var query = 'in:trash ' + getProp_('GMAIL_QUERY', DEFAULT_GMAIL_QUERY);
+  var threads = GmailApp.search(query, 0, 100);
+  var out = [];
+  for (var i = 0; i < threads.length; i++) {
+    var messages = threads[i].getMessages();
+    for (var j = 0; j < messages.length; j++) out.push(messages[j].getId());
   }
   return out;
 }

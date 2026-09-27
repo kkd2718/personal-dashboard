@@ -104,3 +104,22 @@ export function buildReviewCandidateInputs(account: string, mails: SyncMailInput
   }
   return out;
 }
+
+/** Pending candidates whose Gmail message the user has since trashed. The owner
+ * deletes invitations after declining them, so a trashed mail means "handled". */
+export function candidatesToDismiss<T extends { messageId: string; status: string }>(
+  pending: T[],
+  trashedMessageIds: string[]
+): T[] {
+  const trashed = new Set(trashedMessageIds);
+  return pending.filter((c) => c.status === 'pending' && trashed.has(c.messageId));
+}
+
+// Pushed to Telegram right away: revision letters and deadline reminders for reviews
+// already accepted. Invitations are not pushed (the owner sees them in Gmail and
+// usually declines and deletes them); confirmation/completed follow the owner's own action.
+const PUSH_KINDS: ReadonlySet<ReviewCandidate['kind']> = new Set(['revision', 'reminder']);
+
+export function shouldPushCandidate(kind: ReviewCandidate['kind']): boolean {
+  return PUSH_KINDS.has(kind);
+}

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { buildCalendarEvent, buildReviewCandidateInputs, makeSnippet } from '@/lib/google/sync';
+import {
+  buildCalendarEvent,
+  buildReviewCandidateInputs,
+  candidatesToDismiss,
+  makeSnippet,
+  shouldPushCandidate,
+} from '@/lib/google/sync';
 
 const NOW = '2026-09-20T00:00:00.000Z';
 
@@ -124,5 +130,27 @@ describe('buildReviewCandidateInputs', () => {
     expect(inputs[0].manuscriptId).toBe('FJ-2026-0001');
     expect((inputs[0] as Record<string, unknown>).body).toBeUndefined();
     expect(inputs[0].snippet.length).toBeLessThanOrEqual(300);
+  });
+});
+
+describe('candidatesToDismiss / shouldPushCandidate', () => {
+  const c = (messageId: string, status: string) => ({ messageId, status });
+
+  it('dismisses only pending candidates whose message is in trash', () => {
+    const pending = [c('m1', 'pending'), c('m2', 'pending'), c('m3', 'accepted')];
+    expect(candidatesToDismiss(pending, ['m2', 'm3', 'mX'])).toEqual([c('m2', 'pending')]);
+  });
+
+  it('no trashed ids -> nothing dismissed', () => {
+    expect(candidatesToDismiss([c('m1', 'pending')], [])).toEqual([]);
+  });
+
+  it('pushes revision + reminder only', () => {
+    expect(shouldPushCandidate('revision')).toBe(true);
+    expect(shouldPushCandidate('reminder')).toBe(true);
+    expect(shouldPushCandidate('invitation')).toBe(false);
+    expect(shouldPushCandidate('confirmation')).toBe(false);
+    expect(shouldPushCandidate('completed')).toBe(false);
+    expect(shouldPushCandidate('other')).toBe(false);
   });
 });

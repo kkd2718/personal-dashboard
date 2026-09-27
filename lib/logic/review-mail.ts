@@ -6,7 +6,7 @@ import { addDaysStr } from '@/lib/logic/dates';
 // 'revision' (Addendum A): editorial decision letters on the user's own paper
 // asking for major/minor revision — wanted, unlike plain accept/reject/received
 // notices (which stay null, see NEGATIVE_PATTERNS below).
-export type ReviewMailKind = 'invitation' | 'reminder' | 'confirmation' | 'revision' | 'other';
+export type ReviewMailKind = 'invitation' | 'reminder' | 'confirmation' | 'completed' | 'revision' | 'other';
 
 export interface ParsedReviewMail {
   kind: ReviewMailKind;
@@ -47,6 +47,14 @@ const NEGATIVE_PATTERNS: RegExp[] = [
 ];
 
 // --- positive kinds, most-specific first ---------------------------------
+
+// The journal's thank-you after the user submitted a review. Checked before the
+// negative classes: these mails often also quote "manuscript ... received".
+const COMPLETED_PATTERNS: RegExp[] = [
+  /thank you for (?:your|completing|submitting)(?: your)? review\b/i,
+  /(?:we have|we've) received your review/i,
+  /your review (?:has been|was) (?:received|submitted)/i,
+];
 
 const CONFIRMATION_PATTERNS: RegExp[] = [
   /thank you for agreeing to review/i,
@@ -94,6 +102,7 @@ function isRevision(text: string): boolean {
 
 function detectKind(text: string): ReviewMailKind | null {
   if (isRevision(text)) return 'revision';
+  if (COMPLETED_PATTERNS.some((re) => re.test(text))) return 'completed';
   if (NEGATIVE_PATTERNS.some((re) => re.test(text))) return null;
   // Confirmation and invitation phrases are checked before reminder: a fresh
   // invitation email often also states its due date ("...is due by <date>"),
@@ -248,6 +257,10 @@ function extractLink(body: string): string | null {
   return null;
 }
 
+// The owner doesn't review for MDPI, so its reviewer mail is dropped by sender
+// domain. Revision letters on the owner's own MDPI papers are still kept.
+const IGNORED_REVIEW_SENDER = /@(?:[\w-]+\.)*mdpi\.com>?\s*$/i;
+
 /** Parses one Gmail message; returns null when it isn't an actual review assignment
  * (calls for reviewers, submit/contribute solicitations, issue alerts, the user's
  * own manuscript acknowledgements/decisions, and anything not review-related). */
@@ -255,6 +268,7 @@ export function parseReviewMail(input: ReviewMailInput): ParsedReviewMail | null
   const text = `${input.subject}\n${input.body}`;
   const kind = detectKind(text);
   if (!kind) return null;
+  if (kind !== 'revision' && IGNORED_REVIEW_SENDER.test(input.from.trim())) return null;
 
   return {
     kind,

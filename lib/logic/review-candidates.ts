@@ -21,6 +21,7 @@ const KIND_TO_STATUS: Record<ReviewCandidate['kind'], ReviewStatus> = {
   invitation: 'invited',
   confirmation: 'accepted',
   reminder: 'accepted',
+  completed: 'submitted',
   revision: 'invited',
   other: 'invited',
 };
@@ -134,6 +135,8 @@ export function candidateHeadline(candidate: ReviewCandidate, matchedPaper: Pape
         : `${journal} 리뷰 마감 알림`;
     case 'confirmation':
       return `${journal} 리뷰 수락 확인됨`;
+    case 'completed':
+      return `${journal} 리뷰 제출 완료`;
     case 'revision': {
       const label = candidate.revisionType === 'minor' ? 'Minor revision' : 'Major revision';
       const name = matchedPaper?.shortName ?? '어느 논문인가요?';

@@ -360,3 +360,58 @@ describe('parseReviewMail — negative classes -> null (never stored)', () => {
     expect(result).toBeNull();
   });
 });
+
+describe('parseReviewMail — owner rules: MDPI ignored, submitted-review thank-you', () => {
+  it('drops reviewer mail sent from an mdpi.com address', () => {
+    const result = parseReviewMail({
+      from: '"Fictional Editorial Office" <fictional-office@mdpi.com>',
+      subject: 'Invitation to review manuscripts-12345',
+      body: 'Dear Dr. Reviewer,\n\nWould you be willing to review manuscripts-12345? Due within 10 days.',
+      receivedAt: RECEIVED,
+    });
+    expect(result).toBeNull();
+  });
+
+  it('still keeps a revision letter from an mdpi.com address (the owner\'s own paper)', () => {
+    const result = parseReviewMail({
+      from: 'Fictional Office <office@mdpi.com>',
+      subject: 'Decision on manuscripts-12345: minor revision',
+      body: 'Dear Author,\n\nYour manuscript requires minor revision. Please resubmit within 10 days.',
+      receivedAt: RECEIVED,
+    });
+    expect(result?.kind).toBe('revision');
+  });
+
+  it('a non-MDPI address that merely contains "mdpi" is not dropped', () => {
+    const result = parseReviewMail({
+      from: 'Editor <editor@notmdpi-fictional.test>',
+      subject: 'Invitation to review',
+      body: 'Would you be willing to review this manuscript?',
+      receivedAt: RECEIVED,
+    });
+    expect(result?.kind).toBe('invitation');
+  });
+
+  it('"Thank you for your review" -> completed, even when it quotes "manuscript received"', () => {
+    const result = parseReviewMail({
+      from: '"Fictional Pediatric Imaging" <em@fictional-peds.test>',
+      subject: 'Thank you for your review of FPI-D-26-00412',
+      body:
+        'Dear Dr. Reviewer,\n\nThank you for your review of manuscript FPI-D-26-00412. ' +
+        'Your comments on the manuscript have been received and forwarded to the editor.',
+      receivedAt: RECEIVED,
+    });
+    expect(result?.kind).toBe('completed');
+    expect(result?.manuscriptId).toBe('FPI-D-26-00412');
+  });
+
+  it('"your review has been submitted" -> completed', () => {
+    const result = parseReviewMail({
+      from: 'Editorial Office <eo@fictional-journal.test>',
+      subject: 'Review submitted',
+      body: 'Your review has been submitted successfully. Thank you.',
+      receivedAt: RECEIVED,
+    });
+    expect(result?.kind).toBe('completed');
+  });
+});

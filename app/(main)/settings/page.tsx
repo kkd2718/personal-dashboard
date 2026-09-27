@@ -34,7 +34,6 @@ export default async function SettingsPage() {
 
   const isSupabase = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL);
   const commitSha = process.env.VERCEL_GIT_COMMIT_SHA;
-  const deployedAt = process.env.VERCEL ? now : null;
 
   return (
     <div className="flex flex-col gap-5">
@@ -103,7 +102,6 @@ export default async function SettingsPage() {
           <ul className="flex flex-col gap-1 text-sm text-foreground/60">
             <li>어댑터: {isSupabase ? 'Supabase' : '로컬 (JSON 파일)'}</li>
             <li>빌드: {commitSha ? commitSha.slice(0, 7) : '알 수 없음 (로컬 개발)'}</li>
-            {deployedAt && <li>배포: {deployedAt}</li>}
           </ul>
         </Card>
       </section>

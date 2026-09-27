@@ -201,7 +201,8 @@ export interface CalendarEvent {
 // 'revision' (Addendum A): an editorial decision letter on the user's own paper
 // asking for major/minor revision — forwarded from the amc account, wanted (unlike
 // plain accept/reject/received notices, which stay null in the parser).
-export type ReviewCandidateKind = 'invitation' | 'reminder' | 'confirmation' | 'revision' | 'other';
+// 'completed': the journal's thank-you after the user submitted a review.
+export type ReviewCandidateKind = 'invitation' | 'reminder' | 'confirmation' | 'completed' | 'revision' | 'other';
 export type ReviewCandidateStatus = 'pending' | 'accepted' | 'dismissed';
 
 /** A Gmail message that looks like a reviewer assignment (phase 3, detected by
