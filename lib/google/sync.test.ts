@@ -6,6 +6,7 @@ import {
   makeSnippet,
   shouldPushCandidate,
   deadlinesForCalendar,
+  dropDuplicateCandidates,
 } from '@/lib/google/sync';
 import type { Deadline, ReviewJob } from '@/lib/types';
 
@@ -190,5 +191,29 @@ describe('deadlinesForCalendar', () => {
       '2026-09-27'
     );
     expect(out.map((d) => d.key)).toEqual(['deadline:rd']);
+  });
+});
+
+describe('dropDuplicateCandidates — same letter in both accounts', () => {
+  const c = (kind: string, manuscriptId: string | null, subject: string) => ({ kind, manuscriptId, subject });
+
+  it('drops a revision already known from the other account (same manuscript id)', () => {
+    const existing = [c('revision', 'FICSCI-D-26-01234', 'Fwd: Editorial Decision on Manuscript FICSCI-D-26-01234')];
+    const inputs = [c('revision', 'FICSCI-D-26-01234', 'Editorial Decision on Manuscript FICSCI-D-26-01234')];
+    expect(dropDuplicateCandidates(inputs, existing)).toEqual([]);
+  });
+
+  it('without an id, matches on the Fwd:/Re:-stripped subject', () => {
+    const existing = [c('revision', null, 'Fwd: npj Fictional Medicine: Decision on your manuscript')];
+    const inputs = [
+      c('revision', null, 'npj Fictional Medicine: Decision on your manuscript'),
+      c('revision', null, 'Fictional Letters: Decision on your manuscript'),
+    ];
+    expect(dropDuplicateCandidates(inputs, existing)).toEqual([inputs[1]]);
+  });
+
+  it('keeps different kinds for the same manuscript and dedups within one batch', () => {
+    const inputs = [c('confirmation', 'FJ-2026-0001', 'a'), c('reminder', 'FJ-2026-0001', 'b'), c('reminder', 'FJ-2026-0001', 'c')];
+    expect(dropDuplicateCandidates(inputs, [])).toEqual([inputs[0], inputs[1]]);
   });
 });

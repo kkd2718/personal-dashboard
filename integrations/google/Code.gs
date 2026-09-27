@@ -23,7 +23,7 @@
  */
 
 var DEFAULT_GMAIL_QUERY =
-  'newer_than:21d -category:promotions -category:social -from:mdpi.com ' +
+  'newer_than:21d -category:promotions -category:social ' +
   '(subject:(review OR reviewer OR reviewing OR 심사 OR decision OR revision OR revise OR 수정) ' +
   'OR "invitation to review" OR "review is due")';
 

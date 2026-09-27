@@ -151,3 +151,29 @@ export function deadlinesForCalendar(deadlines: Deadline[], reviews: ReviewJob[]
   }
   return out.sort((a, b) => a.date.localeCompare(b.date));
 }
+
+function subjectKey(subject: string): string {
+  return subject.replace(/^(?:\s*(?:fwd?|re|fw|전달)\s*:\s*)+/i, '').replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function dedupKey(c: { kind: string; manuscriptId: string | null; subject: string }): string {
+  return `${c.kind}|${c.manuscriptId ?? subjectKey(c.subject)}`;
+}
+
+/** Both accounts can receive the same letter (the journal writes to one, the
+ * professor forwards it to the other), so a candidate whose kind + manuscript id
+ * (or, without an id, its Fwd:/Re:-stripped subject) is already known — in any
+ * account, any status — or repeats within this batch is dropped. */
+export function dropDuplicateCandidates<
+  T extends { kind: string; manuscriptId: string | null; subject: string },
+>(inputs: T[], existing: Array<{ kind: string; manuscriptId: string | null; subject: string }>): T[] {
+  const seen = new Set(existing.map(dedupKey));
+  const out: T[] = [];
+  for (const c of inputs) {
+    const key = dedupKey(c);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(c);
+  }
+  return out;
+}
