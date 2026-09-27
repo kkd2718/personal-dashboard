@@ -80,12 +80,12 @@ export default async function HomePage({
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-          <h1 className="text-xl font-semibold">{HEADER_DATE_FMT.format(new Date())}</h1>
-          <span className="text-sm text-foreground/50">{headerCountLabel(counts, nextDeadline ? { title: nextDeadline.title, dueDate: nextDeadline.dueDate, today } : undefined)}</span>
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex min-w-0 flex-1 flex-col sm:flex-row sm:items-baseline sm:gap-2">
+          <h1 className="shrink-0 text-xl font-semibold">{HEADER_DATE_FMT.format(new Date())}</h1>
+          <span className="truncate text-sm text-foreground/50">{headerCountLabel(counts, nextDeadline ? { title: nextDeadline.title, dueDate: nextDeadline.dueDate, today } : undefined)}</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           {reviewCandidates.length > 0 && (
             <Link
               href="/papers?tab=review"

@@ -54,7 +54,7 @@ describe('headerCountLabel', () => {
   it('names the next deadline when nothing is due this week', () => {
     expect(
       headerCountLabel({ overdue: 0, today: 0, thisWeek: 0 }, { title: 'Fic 리비전 제출', dueDate: '2026-10-17', today: '2026-09-27' })
-    ).toBe('다음 마감 10/17 Fic 리비전 제출 (D-20)');
+    ).toBe('다음 마감 D-20 · 10/17 Fic 리비전 제출');
   });
 });
 

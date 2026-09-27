@@ -34,7 +34,7 @@ export function headerCountLabel(counts: DeadlineCounts, next?: { title: string;
   // Nothing this week: name the next one instead of a dead-end "없음".
   if (next) {
     const [, m, d] = next.dueDate.split('-');
-    return `다음 마감 ${Number(m)}/${Number(d)} ${next.title} (D-${dday(next.dueDate, next.today)})`;
+    return `다음 마감 D-${dday(next.dueDate, next.today)} · ${Number(m)}/${Number(d)} ${next.title}`;
   }
   return '이번 주 마감 없음';
 }
