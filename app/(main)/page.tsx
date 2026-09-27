@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { TRADING_SUMMARY_META_KEY } from '@/lib/logic/trading';
+import type { TradingSummary } from '@/lib/types';
 import { getRepo } from '@/lib/repo';
 import { getStatusPanelData } from '@/lib/status';
 import { QuickCapture } from '@/components/quick-capture';
@@ -49,6 +51,7 @@ export default async function HomePage({
     reviewCandidates,
     calendarEvents,
     visibleCalendars,
+    tradingSummary,
   ] = await Promise.all([
     repo.listProjects(),
     repo.listTasks(),
@@ -61,6 +64,7 @@ export default async function HomePage({
     repo.listReviewCandidates('pending'),
     repo.listCalendarEvents(addDaysStr(todayKST(), -60), addDaysStr(todayKST(), 180)),
     repo.getMeta<string[]>(CALENDAR_VISIBLE_META_KEY),
+    repo.getMeta<TradingSummary>(TRADING_SUMMARY_META_KEY),
   ]);
   const status = await getStatusPanelData(repo, projects);
   const activeProjects = projects.filter((p) => p.status === 'active');
@@ -130,7 +134,7 @@ export default async function HomePage({
           todo: checklistItemCount(meChecklist),
           memo: openNoteCount,
         }}
-        queue={<QueueLane projects={projects} milestones={milestones} tasks={tasks} activityList={activityList} papers={papers} />}
+        queue={<QueueLane projects={projects} milestones={milestones} tasks={tasks} activityList={activityList} papers={papers} tradingSummary={tradingSummary} />}
         papers={
           <PaperLane papers={papers} deadlines={deadlines} reviews={reviews} reviewCandidateCount={reviewCandidates.length} />
         }

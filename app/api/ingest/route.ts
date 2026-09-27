@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { TRADING_SUMMARY_META_KEY } from '@/lib/logic/trading';
 import { z } from 'zod';
 import { checkBearer } from '@/lib/auth/bearer';
 import { getRepo } from '@/lib/repo';
@@ -36,6 +37,34 @@ const bodySchema = z.object({
   statusItems: z.array(statusItemSchema),
   projectActivity: z.array(projectActivitySchema).optional(),
   obsidian: z.object({ imported: z.number().int().min(0) }).optional(),
+  trading: z
+    .object({
+      collectedAt: z.string(),
+      totalKrw: z.number().nullable(),
+      dayChangeKrw: z.number().nullable(),
+      dayChangePct: z.number().nullable(),
+      fxRate: z.number().nullable(),
+      lastSyncOk: z.boolean().nullable(),
+      points: z.array(z.object({ date: z.string(), totalKrw: z.number() })).max(60),
+      accounts: z
+        .array(
+          z.object({
+            id: z.string(),
+            label: z.string(),
+            group: z.string().nullable(),
+            currency: z.string().nullable(),
+            totalValue: z.number().nullable(),
+            cumReturnPct: z.number().nullable(),
+            noData: z.boolean(),
+            status: z.string().nullable(),
+            dormantUntil: z.string().nullable(),
+            lastRun: z.string().nullable(),
+            nextDue: z.string().nullable(),
+          })
+        )
+        .max(20),
+    })
+    .optional(),
 });
 
 /** For the status collector (phase 2) / scripts/push-status.mjs. Bearer-token auth (INGEST_TOKEN). */
@@ -76,6 +105,9 @@ export async function POST(request: Request) {
     at: collectedAt,
     detail: `${parsed.data.projectActivity?.length ?? 0}개 프로젝트`,
   });
+  if (parsed.data.trading) {
+    await repo.setMeta(TRADING_SUMMARY_META_KEY, parsed.data.trading);
+  }
   if (parsed.data.obsidian) {
     const n = parsed.data.obsidian.imported;
     await repo.setMeta('integration:obsidian', { at: collectedAt, detail: n > 0 ? `메모 ${n}건 가져옴` : '확인함 · 새 메모 없음' });

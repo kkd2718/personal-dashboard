@@ -1,4 +1,7 @@
 import { notFound } from 'next/navigation';
+import { AccountSummaryPanel } from '@/components/trading/account-summary';
+import { TRADING_PROJECT_ID, TRADING_SUMMARY_META_KEY } from '@/lib/logic/trading';
+import type { TradingSummary } from '@/lib/types';
 import { GitBranch, Laptop, Link2, Folder, Radio } from 'lucide-react';
 import { getRepo } from '@/lib/repo';
 import { ProjectEditSheet } from '@/components/projects/project-edit-sheet';
@@ -32,7 +35,7 @@ export default async function ProjectDetailPage({
   const project = await repo.getProjectBySlug(slug);
   if (!project) notFound();
 
-  const [notes, deadlines, papers, projects, activityList, milestones, tasks] = await Promise.all([
+  const [notes, deadlines, papers, projects, activityList, milestones, tasks, tradingSummary] = await Promise.all([
     repo.listNotes(),
     repo.listDeadlines(),
     repo.listPapers(),
@@ -40,6 +43,7 @@ export default async function ProjectDetailPage({
     repo.listProjectActivity(),
     repo.listMilestones(),
     repo.listTasks(),
+    project.id === TRADING_PROJECT_ID ? repo.getMeta<TradingSummary>(TRADING_SUMMARY_META_KEY) : Promise.resolve(null),
   ]);
   const activity = activityList.find((a) => a.projectId === project.id);
 
@@ -106,6 +110,13 @@ export default async function ProjectDetailPage({
           </div>
         )}
       </div>
+
+      {tradingSummary && (
+        <section className="flex flex-col gap-2">
+          <h2 className="text-sm font-medium text-foreground/60">계좌</h2>
+          <AccountSummaryPanel summary={tradingSummary} today={todayKST()} now={new Date().toISOString()} />
+        </section>
+      )}
 
       <section className="flex flex-col gap-2">
         <h2 className="text-sm font-medium text-foreground/60">지금</h2>

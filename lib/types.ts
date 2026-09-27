@@ -250,3 +250,30 @@ export interface Db {
   heartbeatAt: string | null;
   meta: Record<string, unknown>; // generic key/value store (phase 2b: telegram digest idempotency)
 }
+
+/** Cloud-safe account summary from the local trading dashboard (collector -> ingest ->
+ * app_meta 'trading:summary'). No holdings, cash breakdowns or broker identifiers. */
+export interface TradingAccountSummary {
+  id: string;
+  label: string;
+  group: string | null;
+  currency: string | null;
+  totalValue: number | null; // in `currency`
+  cumReturnPct: number | null;
+  noData: boolean;
+  status: string | null;
+  dormantUntil: string | null; // 'YYYY-MM-DD'
+  lastRun: string | null;
+  nextDue: string | null;
+}
+
+export interface TradingSummary {
+  collectedAt: string;
+  totalKrw: number | null;
+  dayChangeKrw: number | null;
+  dayChangePct: number | null;
+  fxRate: number | null;
+  lastSyncOk: boolean | null;
+  points: Array<{ date: string; totalKrw: number }>;
+  accounts: TradingAccountSummary[];
+}
