@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { getRepo } from '@/lib/repo';
 import { groupProjects } from '@/lib/logic/projects';
 import { ProjectCard } from '@/components/project-card';
+import { quickLinks } from '@/lib/logic/quick-links';
 import { ProjectRow } from '@/components/projects/project-row';
 import { EmptyState } from '@/components/ui/empty-state';
 import type { Group } from '@/lib/types';
@@ -32,6 +33,7 @@ export default async function ProjectsPage({
   const activityByProject = new Map(activity.map((a) => [a.projectId, a]));
   const now = new Date().toISOString();
   const activeList = Object.values(grouped[active]).flat();
+  const links = quickLinks(projects);
 
   return (
     <div className="flex flex-col gap-5">
@@ -39,6 +41,24 @@ export default async function ProjectsPage({
         <h1 className="text-lg font-semibold">프로젝트</h1>
         <p className="text-xs text-foreground/40">개발 · 연구 · 개인</p>
       </div>
+
+      {/* 바로가기 for the phone (desktop has them in the sidebar) — PC-only ones say so. */}
+      {links.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 md:hidden">
+          {links.map((l) => (
+            <a
+              key={l.url}
+              href={l.url}
+              target="_blank"
+              rel="noreferrer"
+              className={`flex items-center gap-1 rounded-full border border-border px-2.5 py-1 text-xs ${l.pcOnly ? 'text-foreground/40' : 'text-foreground/70'}`}
+            >
+              {l.projectName} · {l.label}
+              {l.pcOnly && <span className="text-[10px]">(PC)</span>}
+            </a>
+          ))}
+        </div>
+      )}
 
       {/* 논문/리뷰 are reached from here on mobile — they aren't a bottom-nav tab (ux-advice.md §2). */}
       <div className="flex gap-1 rounded-[var(--r-sm)] border border-border p-0.5 text-sm md:hidden">

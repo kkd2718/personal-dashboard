@@ -89,6 +89,20 @@ export async function tradingStatus(baseUrl, today) {
     }
 
     for (const d of health?.daemons ?? []) {
+      // Deliberately paused until a start date (e.g. IB+VR until 10/1): not "silent for
+      // N weeks" — say when it starts instead.
+      if (d.dormant && d.dormant_until && d.dormant_until > today) {
+        items.push({
+          id: `trading:dormant:${d.label}`,
+          severity: 'info',
+          source: 'trading',
+          projectId: 'p-trading-system',
+          title: `${d.label} ${formatDateKo(d.dormant_until)} 시작 예정`,
+          detail: null,
+          href: baseUrl,
+        });
+        continue;
+      }
       const overdue = d.next_due != null && d.next_due < today;
       const stale = d.last_run != null && d.next_due != null && d.last_run < addDaysToDateStr(d.next_due, -3);
       const alreadyAlerted = (alerts?.alerts ?? []).some((a) => a.message.includes(d.label));

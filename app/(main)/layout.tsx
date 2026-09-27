@@ -6,6 +6,7 @@ import { authConfigured } from '@/lib/auth/require-user';
 import { getRepo } from '@/lib/repo';
 import { tagCounts } from '@/lib/logic/notes';
 import { buildPaletteIndex } from '@/lib/logic/palette-index';
+import { quickLinks } from '@/lib/logic/quick-links';
 
 export default async function MainLayout({ children }: { children: ReactNode }) {
   // Minimal data for the mobile capture FAB sheet, which needs to work from any route,
@@ -24,7 +25,7 @@ export default async function MainLayout({ children }: { children: ReactNode }) 
     <ToastProvider>
       <ShortcutsProvider indexEntries={indexEntries}>
         <div className="flex min-h-dvh md:flex-row">
-          <Sidebar authEnabled={authConfigured()} />
+          <Sidebar authEnabled={authConfigured()} links={quickLinks(projects)} />
           <div className="flex min-w-0 flex-1 flex-col pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
             <main className="mx-auto w-full max-w-[1680px] flex-1 px-4 py-5 lg:px-6 md:py-8">{children}</main>
           </div>

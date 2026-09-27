@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import {
   CalendarClock,
   Command,
+  ExternalLink,
   FolderKanban,
   Home,
   LayoutDashboard,
@@ -21,6 +22,7 @@ import { QuickCapture } from '@/components/quick-capture';
 import { Sheet } from '@/components/ui/sheet';
 import { useToast } from '@/components/ui/toast';
 import type { Project } from '@/lib/types';
+import type { QuickLink } from '@/lib/logic/quick-links';
 
 const NAV_ITEMS = [
   { href: '/', label: '홈', icon: Home },
@@ -44,7 +46,7 @@ function isActive(pathname: string, href: string): boolean {
   return pathname.startsWith(href);
 }
 
-export function Sidebar({ authEnabled = false }: { authEnabled?: boolean }) {
+export function Sidebar({ authEnabled = false, links = [] }: { authEnabled?: boolean; links?: QuickLink[] }) {
   const pathname = usePathname();
   return (
     <aside className="hidden w-56 shrink-0 flex-col border-r border-border bg-surface md:flex">
@@ -68,6 +70,27 @@ export function Sidebar({ authEnabled = false }: { authEnabled?: boolean }) {
             </Link>
           );
         })}
+        {links.length > 0 && (
+          <div className="mt-5 flex flex-col gap-0.5">
+            <h2 className="px-3 pb-1 text-[11px] font-medium text-foreground/40">바로가기</h2>
+            {links.map((l) => (
+              <a
+                key={l.url}
+                href={l.url}
+                target="_blank"
+                rel="noreferrer"
+                title={l.pcOnly ? `${l.url} — 이 PC에서만 열려요` : l.url}
+                className="flex items-center gap-2 rounded-[var(--r-sm)] px-3 py-1.5 text-xs text-foreground/70 hover:bg-foreground/5"
+              >
+                <ExternalLink size={13} className="shrink-0 text-foreground/40" />
+                <span className="min-w-0 truncate">
+                  {l.projectName} · {l.label}
+                </span>
+                {l.pcOnly && <span className="ml-auto shrink-0 text-[10px] text-foreground/35">PC</span>}
+              </a>
+            ))}
+          </div>
+        )}
       </nav>
       <div className="flex flex-col gap-2 border-t border-border px-3 py-3">
         <button
