@@ -1,7 +1,8 @@
 {
-  "updatedAt": "2026-09-28T12:10:00+09:00",
+  "updatedAt": "2026-09-28T15:10:00+09:00",
   "focus": "프로젝트별 체크리스트 연동 — 7개 중 5개 완료(trading·동네시세·Amgi·BrainCT·CXR2BC), 남은 곳 flow-sorter·CXR2frailty·DeepVital",
   "next": [
+    "케어노트 시술 여부 직접 편집: 방식(B 브라우저→localhost API 추천) 사용자 결정 대기",
     "flow-sorter 세션에서 체크리스트 재정비",
     "CXR2frailty·DeepVitalSignal 세션을 각 논문 폴더에서 열기",
     "동네시세·Amgi 프로젝트 CLAUDE.md에 cc-status 규칙 추가(각 세션)",
@@ -11,6 +12,14 @@
   ],
   "blockers": [],
   "done": [
+    {
+      "date": "2026-09-28",
+      "text": "구글 캘린더 마감 제목: 📌 일괄 → 분류별 이모지(📝🔍💰🎓🎤, 그 외 없음)"
+    },
+    {
+      "date": "2026-09-28",
+      "text": "앱 아이콘 교체(패널+체크) — favicon·애플·매니페스트 PNG"
+    },
     {
       "date": "2026-09-28",
       "text": "동네시세·Amgi·BrainCT·CXR2BC 체크리스트 대시보드 반영 확인"
@@ -62,6 +71,24 @@
       "status": "done",
       "section": "대시보드",
       "owner": "agent"
+    },
+    {
+      "text": "앱 아이콘 디자인·favicon/PWA 아이콘 교체",
+      "status": "done",
+      "section": "대시보드",
+      "owner": "agent"
+    },
+    {
+      "text": "캘린더 마감 분류별 이모지",
+      "status": "done",
+      "section": "대시보드",
+      "owner": "agent"
+    },
+    {
+      "text": "케어노트 시술 여부 대시보드 편집 방식 결정(A/B/C)",
+      "status": "blocked",
+      "section": "대시보드",
+      "owner": "me"
     },
     {
       "text": "trading-system 체크리스트 재정비",
