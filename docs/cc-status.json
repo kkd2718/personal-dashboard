@@ -1,16 +1,19 @@
 {
-  "updatedAt": "2026-09-28T15:55:00+09:00",
-  "focus": "프로젝트별 체크리스트 연동 — 7개 중 5개 완료(trading·동네시세·Amgi·BrainCT·CXR2BC), 남은 곳 flow-sorter·CXR2frailty·DeepVital",
+  "updatedAt": "2026-09-28T16:40:00+09:00",
+  "focus": "프로젝트 체크리스트 연동 마무리(남은 곳 CXR2frailty·DeepVital) + 케어노트 기록 편집 연동",
   "next": [
-    "케어노트 세션: 토큰 인증 기록 API(/api/ws/v1) 배포 → 요약 받으면 대시보드 편집 화면 구현",
-    "flow-sorter 세션에서 체크리스트 재정비",
+    "케어노트 M24 배포 확인 → 대시보드 캘린더 시술 기록 편집 화면",
+    "동네시세 체크리스트 완료 항목 복원 확인(현재 0/39)",
     "CXR2frailty·DeepVitalSignal 세션을 각 논문 폴더에서 열기",
-    "동네시세·Amgi 프로젝트 CLAUDE.md에 cc-status 규칙 추가(각 세션)",
     "10/1 IB+VR 시작 후 계좌 줄 확인",
     "Amgi 수집 누락 재발 여부 관찰(매시간 수집)"
   ],
   "blockers": [],
   "done": [
+    {
+      "date": "2026-09-28",
+      "text": "flow-sorter 체크리스트(7/40)·Amgi 완료 항목 복원(36/50) 반영 확인, 대시보드 큐 갱신"
+    },
     {
       "date": "2026-09-28",
       "text": "Amgi 노트 막대를 progress.json#all(385/475)로 교체, 기록 규칙에 \"끝난 항목은 done 으로 남기기\" 명시"
@@ -46,10 +49,6 @@
     {
       "date": "2026-09-27",
       "text": "Brain CT F/U 10/19 미팅 주간 목표"
-    },
-    {
-      "date": "2026-09-27",
-      "text": "Amgi 코드/노트 진행률 분리"
     }
   ],
   "checklist": [
@@ -133,10 +132,9 @@
     },
     {
       "text": "flow-sorter 체크리스트 재정비(해당 세션)",
-      "status": "todo",
+      "status": "done",
       "section": "프로젝트 연동",
-      "owner": "me",
-      "due": "2026-09-29"
+      "owner": "me"
     },
     {
       "text": "CXR2frailty·DeepVitalSignal 세션을 논문 폴더에서 열기 → 체크리스트",
@@ -147,10 +145,9 @@
     },
     {
       "text": "동네시세·Amgi CLAUDE.md에 cc-status 규칙 추가(각 세션)",
-      "status": "todo",
+      "status": "done",
       "section": "프로젝트 연동",
-      "owner": "me",
-      "due": "2026-09-29"
+      "owner": "me"
     },
     {
       "text": "Amgi 노트 막대를 progress.json#all 합산으로 교체",
@@ -185,6 +182,12 @@
     },
     {
       "text": "Amgi 체크리스트에 완료 항목 유지(현재 0/16, Amgi 세션)",
+      "status": "done",
+      "section": "프로젝트 연동",
+      "owner": "me"
+    },
+    {
+      "text": "동네시세 체크리스트 완료 항목 복원(현재 0/39, 동네시세 세션)",
       "status": "todo",
       "section": "프로젝트 연동",
       "owner": "me",
