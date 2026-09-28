@@ -60,18 +60,29 @@ async function runWin(cmd, args) {
 const WSL_MAX_CONCURRENT = 2;
 let wslActive = 0;
 const wslWaiters = [];
+// Set after a call times out twice in a row: WSL itself is hung (seen 2026-09-28,
+// `wsl.exe -e echo` > 20s), so the rest of this run fails fast instead of queueing
+// ~40 calls x 16s behind it.
+let wslDown = false;
 
 async function runWsl(args) {
+  if (wslDown) throw new Error('WSL unresponsive — skipped');
   if (wslActive >= WSL_MAX_CONCURRENT) await new Promise((resolve) => wslWaiters.push(resolve));
   wslActive += 1;
   try {
+    if (wslDown) throw new Error('WSL unresponsive — skipped');
     try {
       return await execFileAsync('wsl.exe', args, { timeout: WSL_TIMEOUT_MS });
     } catch (e) {
       // The VM stalls for a few seconds while the Windows-side git calls peak;
       // a timed-out call almost always succeeds on an immediate retry.
       if (!e.killed) throw e;
-      return await execFileAsync('wsl.exe', args, { timeout: WSL_TIMEOUT_MS });
+      try {
+        return await execFileAsync('wsl.exe', args, { timeout: WSL_TIMEOUT_MS });
+      } catch (e2) {
+        if (e2.killed) wslDown = true;
+        throw e2;
+      }
     }
   } finally {
     wslActive -= 1;
@@ -267,6 +278,10 @@ async function collectProjectActivity(project) {
     collectBacklogMetrics(projectPath, wsl, project.backlogGlobs).catch(() => ({ metrics: {}, openItems: {} })),
     collectCcStatus(projectPath, wsl).catch(() => null),
   ]);
+
+  // WSL hung mid-run: report nothing for this project so ingest (upsert-only) keeps
+  // its last good row instead of overwriting it with empty metrics.
+  if (wsl && wslDown) throw new Error('WSL unresponsive');
 
   // checklist -> a 체크리스트 progress bar too, unless the project already names its
   // own bar '체크리스트' via backlogGlobs (never overwrite a project's own choice).
