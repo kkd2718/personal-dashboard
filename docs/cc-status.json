@@ -1,8 +1,8 @@
 {
-  "updatedAt": "2026-09-28T15:10:00+09:00",
+  "updatedAt": "2026-09-28T15:40:00+09:00",
   "focus": "프로젝트별 체크리스트 연동 — 7개 중 5개 완료(trading·동네시세·Amgi·BrainCT·CXR2BC), 남은 곳 flow-sorter·CXR2frailty·DeepVital",
   "next": [
-    "케어노트 시술 여부 직접 편집: 방식(B 브라우저→localhost API 추천) 사용자 결정 대기",
+    "케어노트 세션: 토큰 인증 기록 API(/api/ws/v1) 배포 → 요약 받으면 대시보드 편집 화면 구현",
     "flow-sorter 세션에서 체크리스트 재정비",
     "CXR2frailty·DeepVitalSignal 세션을 각 논문 폴더에서 열기",
     "동네시세·Amgi 프로젝트 CLAUDE.md에 cc-status 규칙 추가(각 세션)",
@@ -85,10 +85,22 @@
       "owner": "agent"
     },
     {
-      "text": "케어노트 시술 여부 대시보드 편집 방식 결정(A/B/C)",
-      "status": "blocked",
-      "section": "대시보드",
+      "text": "케어노트 호스팅 앱에 토큰 인증 기록 API 추가(케어노트 세션)",
+      "status": "doing",
+      "section": "케어노트 연동",
       "owner": "me"
+    },
+    {
+      "text": "대시보드 캘린더에서 내 시술 기록 조회·추가·수정·삭제",
+      "status": "blocked",
+      "section": "케어노트 연동",
+      "owner": "agent"
+    },
+    {
+      "text": "케어노트 링크 토큰을 DB 링크에서 서버 환경변수로 이동",
+      "status": "todo",
+      "section": "케어노트 연동",
+      "owner": "agent"
     },
     {
       "text": "trading-system 체크리스트 재정비",
