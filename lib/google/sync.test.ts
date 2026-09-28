@@ -180,9 +180,18 @@ describe('deadlinesForCalendar', () => {
 
   it('lists open deadlines and accepted reviews, sorted by date', () => {
     expect(deadlinesForCalendar([dl({})], [rv({})], '2026-09-27')).toEqual([
-      { key: 'review:r1', title: '📌 Fictional Journal FJ-2026-0001 리뷰 마감', date: '2026-10-05' },
-      { key: 'deadline:d1', title: '📌 Fictional 리비전 제출', date: '2026-10-17' },
+      { key: 'review:r1', title: '🔍 Fictional Journal FJ-2026-0001 리뷰 마감', date: '2026-10-05' },
+      { key: 'deadline:d1', title: '📝 Fictional 리비전 제출', date: '2026-10-17' },
     ]);
+  });
+
+  it('prefixes by kind and leaves generic kinds without an emoji', () => {
+    const out = deadlinesForCalendar(
+      [dl({ id: 'i', kind: 'interview', title: '면접' }), dl({ id: 'p', kind: 'personal', title: '자소서 제출' })],
+      [],
+      '2026-09-27'
+    );
+    expect(out.map((d) => d.title)).toEqual(['🎤 면접', '자소서 제출']);
   });
 
   it('skips done/old deadlines, non-accepted reviews, and reviews that already have a deadline', () => {

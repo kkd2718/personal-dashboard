@@ -132,6 +132,21 @@ export interface CalendarDeadline {
   date: string; // 'YYYY-MM-DD' KST, all-day
 }
 
+// Title prefix per deadline kind, so calendar entries read at a glance. Kinds with no
+// distinct meaning (일정/개인/기타) get no emoji rather than a generic one.
+const KIND_EMOJI: Partial<Record<Deadline['kind'], string>> = {
+  paper: '📝',
+  review: '🔍',
+  grant: '💰',
+  thesis: '🎓',
+  interview: '🎤',
+};
+
+function withKindEmoji(kind: Deadline['kind'], title: string): string {
+  const emoji = KIND_EMOJI[kind];
+  return emoji ? `${emoji} ${title}` : title;
+}
+
 /** Open deadlines + accepted reviews' due dates (from a week ago on), for the Apps
  * Script to mirror into Google Calendar as all-day events. A review that already has
  * its own Deadline row (reviewId) isn't listed twice. */
@@ -142,12 +157,12 @@ export function deadlinesForCalendar(deadlines: Deadline[], reviews: ReviewJob[]
   for (const d of deadlines) {
     if (d.reviewId) reviewsWithDeadline.add(d.reviewId);
     if (d.done || d.dueDate < from) continue;
-    out.push({ key: `deadline:${d.id}`, title: `📌 ${d.title}`, date: d.dueDate });
+    out.push({ key: `deadline:${d.id}`, title: withKindEmoji(d.kind, d.title), date: d.dueDate });
   }
   for (const r of reviews) {
     if (r.status !== 'accepted' || !r.dueDate || r.dueDate < from || reviewsWithDeadline.has(r.id)) continue;
     const ms = r.manuscriptId ? ` ${r.manuscriptId}` : '';
-    out.push({ key: `review:${r.id}`, title: `📌 ${r.journal}${ms} 리뷰 마감`, date: r.dueDate });
+    out.push({ key: `review:${r.id}`, title: withKindEmoji('review', `${r.journal}${ms} 리뷰 마감`), date: r.dueDate });
   }
   return out.sort((a, b) => a.date.localeCompare(b.date));
 }
