@@ -142,7 +142,34 @@ async function newestJsonlMtime(dir) {
   }
 }
 
+// WSL files are readable from Windows under the \\wsl.localhost\<distro> share. Reading
+// them that way needs no wsl.exe spawn — spawning ~25 per run is what made WSL calls
+// time out (2026-09-28). Resolved once per run; null -> fall back to wsl.exe.
+let wslUncRoot = null;
+let wslUncHome = null;
+
+async function resolveWslUnc() {
+  try {
+    const { stdout } = await runWsl(['-e', 'sh', '-c', 'printf "%s|%s" "$WSL_DISTRO_NAME" "$HOME"']);
+    const [distro, home] = stdout.trim().split('|');
+    if (!distro || !home) return;
+    const root = '\\\\wsl.localhost\\' + distro;
+    const homeUnc = root + home.split('/').join(path.win32.sep);
+    await stat(homeUnc);
+    wslUncRoot = root;
+    wslUncHome = homeUnc;
+  } catch {
+    // no WSL, or the share isn't reachable — WSL reads keep using wsl.exe
+  }
+}
+
+/** Linux path -> Windows share path, or null when the share isn't available. */
+function wslToUnc(linuxPath) {
+  return wslUncRoot ? wslUncRoot + linuxPath.split('/').join(path.win32.sep) : null;
+}
+
 async function newestJsonlMtimeWsl(encodedDir) {
+  if (wslUncHome) return newestJsonlMtime(path.join(wslUncHome, '.claude', 'projects', encodedDir));
   try {
     const { stdout } = await runWsl([
       '-e',
@@ -181,6 +208,7 @@ function escapeRegExp(s) {
 
 /** Reads a backlogGlobs entry (exact file or a simple `dir/*.md` wildcard), relative to projectPath. */
 async function readBacklogGlob(projectPath, wsl, glob) {
+  if (wsl && wslUncRoot) return readBacklogGlob(wslToUnc(projectPath), false, glob);
   if (wsl) {
     try {
       const { stdout } = await runWsl(['-e', 'bash', '-lc', `cat "${projectPath}/${glob}" 2>/dev/null`]);
@@ -381,6 +409,7 @@ async function main() {
   }
 
   const today = todayKST();
+  await resolveWslUnc();
   const collected = await Promise.all(projects.map((p) => collectProjectActivity(p).catch(() => null)));
   const validCollected = collected.filter(Boolean);
   const validActivity = validCollected.map((c) => c.activity);
