@@ -292,3 +292,49 @@ and `careNoteConfigured()`, render `<CareHistoryPanel />` near the top, above th
 - `procedureStats` unit tests: no interval, within window, overdue, multiple persons.
 - `loadCareHistoryAction` range: today−339 … today+60 via `addDaysStr`/`todayKST` (KST).
 - typecheck, test, build pass. No commits.
+
+---
+
+# Addendum B (2026-09-29): CareNote-style month calendar on the project page
+
+Owner: the CareNote project page should **show the CareNote calendar itself**, so the Command
+Center is the only place they need to look. The first release changed the project link instead,
+and that was wrong. The link is restored to the CareNote app root and is not part of this plan.
+
+## B1. `CareHistoryPanel` gets a view toggle: `캘린더` (default) | `목록`
+
+- The header, person chips, procedure filter, `+ 시술 기록` and the per-procedure stats strip
+  stay shared above both views. Both views respect the filters.
+- `목록` is the existing month-grouped list, unchanged.
+- `캘린더` is a new `components/carenote/care-month-calendar.tsx`. Mirror CareNote's own calendar,
+  reading `aesthetics-tracker/components/calendar/{MonthGrid,DayCell,RecordChip,DayPanel}.tsx`
+  for reference only (read-only, never import across repos):
+  - Month navigation:
+    - `‹ 2026년 9월 ›` plus a `오늘` button;
+    - weeks start Monday;
+    - holidays and today styled like the dashboard calendar. Reuse the existing helpers in
+      `lib/logic/calendar.ts` / `dates.ts`; no new date math.
+  - Day cells, each at least 96px tall on desktop:
+    - up to 3 **record chips** with a person-colour left border or dot and the procedure name
+      (`truncate`), then `+N`;
+    - out-of-month days dimmed.
+  - Clicking a day selects it and shows a **day panel** below the grid (not a popover), which
+    reuses `CareDaySection` for that date. The panel lists the records, edits inline and adds a
+    record with that date.
+  - Mobile (<640px): cells shrink to dots in person colours, max 4, with the day number. Tapping
+    opens the same day panel. No horizontal scroll.
+- Data:
+  - Months inside the already-loaded history range (today−339 … today+60) use the loaded
+    records.
+  - Navigating outside that range fetches the month grid range with `loadCareMonthAction` and
+    merges by id into panel state, so edits stay consistent across views.
+  - Show a small loading line while fetching.
+- After create, update or delete, both views update from the same state. A record whose date
+  changed moves to its new cell.
+
+## B2. Done when
+
+- Pure helpers the grid needs go in `lib/logic/carenote.ts` with tests: chips for a day after
+  filtering, and "is month inside loaded range". Reuse the calendar week builders where they
+  exist.
+- typecheck, test, build pass. No commits.

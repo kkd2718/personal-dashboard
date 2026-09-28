@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { cleanParams, careErrorMessage, procedureStats, recordSummary, recordsByDate, suggestSeries } from './carenote';
+import {
+  cleanParams,
+  careErrorMessage,
+  dayRecordChips,
+  isMonthWithinRange,
+  procedureStats,
+  recordSummary,
+  recordsByDate,
+  suggestSeries,
+} from './carenote';
 import type { CareRecord, ParamSchema, ProcedureType } from '@/lib/carenote/types';
 
 const schema: ParamSchema = {
@@ -202,6 +211,42 @@ describe('procedureStats', () => {
   it('skips records whose procedure type is not in the given types list', () => {
     const stats = procedureStats([record({ procedureTypeId: 99 })], [type()], '2026-09-28');
     expect(stats).toEqual([]);
+  });
+});
+
+describe('dayRecordChips', () => {
+  it('shows all records with no overflow when at or under the cap', () => {
+    const records = [record({ id: 1 }), record({ id: 2 })];
+    expect(dayRecordChips(records)).toEqual({ shown: records, overflowCount: 0 });
+  });
+
+  it('caps at max and reports overflow', () => {
+    const records = [record({ id: 1 }), record({ id: 2 }), record({ id: 3 }), record({ id: 4 })];
+    const { shown, overflowCount } = dayRecordChips(records, 3);
+    expect(shown).toEqual(records.slice(0, 3));
+    expect(overflowCount).toBe(1);
+  });
+
+  it('handles empty input', () => {
+    expect(dayRecordChips([])).toEqual({ shown: [], overflowCount: 0 });
+  });
+});
+
+describe('isMonthWithinRange', () => {
+  it('is true when the whole month is inside the range', () => {
+    expect(isMonthWithinRange('2026-09-15', '2026-08-01', '2026-10-31')).toBe(true);
+  });
+
+  it('is true when the range boundary lands exactly on the month edges', () => {
+    expect(isMonthWithinRange('2026-09-01', '2026-09-01', '2026-09-30')).toBe(true);
+  });
+
+  it('is false when the month start is before the range', () => {
+    expect(isMonthWithinRange('2026-09-01', '2026-09-15', '2026-10-31')).toBe(false);
+  });
+
+  it('is false when the month end is after the range', () => {
+    expect(isMonthWithinRange('2026-09-30', '2026-08-01', '2026-09-15')).toBe(false);
   });
 });
 

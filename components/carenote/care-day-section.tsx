@@ -17,11 +17,25 @@ interface Props {
   loading: boolean;
   error: string | null;
   onChanged: (updatedRecords: CareRecord[]) => void;
+  /** Wider record set for series suggestion (PLAN_CARENOTE.md Addendum B) — the
+   * month calendar has every loaded record on hand and passes it here so
+   * suggestSeries can look past this single day. Falls back to `records` (the
+   * calendar DayPopover only ever loads one day's records at a time). */
+  historyRecords?: CareRecord[];
 }
 
 type EditState = 'closed' | 'new' | number;
 
-export function CareDaySection({ date, records, persons, procedureTypes, loading, error, onChanged }: Props) {
+export function CareDaySection({
+  date,
+  records,
+  persons,
+  procedureTypes,
+  loading,
+  error,
+  onChanged,
+  historyRecords,
+}: Props) {
   const [editing, setEditing] = useState<EditState>('closed');
 
   const personById = new Map(persons.map((p) => [p.id, p]));
@@ -97,7 +111,7 @@ export function CareDaySection({ date, records, persons, procedureTypes, loading
           date={date}
           persons={persons}
           procedureTypes={procedureTypes}
-          records={records}
+          records={historyRecords ?? records}
           onSaved={upsert}
           onDeleted={remove}
           onCancel={() => setEditing('closed')}
@@ -109,7 +123,7 @@ export function CareDaySection({ date, records, persons, procedureTypes, loading
           record={editingRecord}
           persons={persons}
           procedureTypes={procedureTypes}
-          records={records}
+          records={historyRecords ?? records}
           onSaved={upsert}
           onDeleted={remove}
           onCancel={() => setEditing('closed')}

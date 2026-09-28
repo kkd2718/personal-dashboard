@@ -1,7 +1,7 @@
 // Pure CareNote helpers (PLAN_CARENOTE.md §2, Addendum A) — framework-free so they
 // stay unit testable. HTTP lives in lib/carenote/client.ts.
 import type { CareApiError, CareRecord, ParamSchema, ParamValue, ProcedureType } from '@/lib/carenote/types';
-import { addDaysStr } from '@/lib/logic/dates';
+import { addDaysStr, addMonthsStr, startOfMonthStr } from '@/lib/logic/dates';
 
 /** Project id of the CareNote entry in this dashboard's own project list
  * (PLAN_CARENOTE.md Addendum A2) — used to gate the history panel on the project
@@ -175,6 +175,24 @@ export function procedureStats(records: CareRecord[], types: ProcedureType[], to
   });
 
   return stats;
+}
+
+/** Caps an already-filtered day's records to `max` chips for the month calendar grid
+ * (PLAN_CARENOTE.md Addendum B1/B2). Filtering itself (person/type) happens before
+ * this is called; this only decides what's shown vs the "+N" overflow count. */
+export function dayRecordChips(records: CareRecord[], max = 3): { shown: CareRecord[]; overflowCount: number } {
+  const shown = records.slice(0, max);
+  return { shown, overflowCount: Math.max(0, records.length - shown.length) };
+}
+
+/** True when `monthStart`'s whole calendar month already sits inside
+ * [rangeFrom, rangeTo] (both inclusive) — used by the month calendar to decide
+ * whether it can reuse already-loaded history records or must fetch the month via
+ * loadCareMonthAction (PLAN_CARENOTE.md Addendum B1/B2). */
+export function isMonthWithinRange(monthStart: string, rangeFrom: string, rangeTo: string): boolean {
+  const first = startOfMonthStr(monthStart);
+  const last = addDaysStr(addMonthsStr(first, 1), -1);
+  return first >= rangeFrom && last <= rangeTo;
 }
 
 /** Korean user-facing message per CareApiError.code (PLAN_CARENOTE.md §2). Branches

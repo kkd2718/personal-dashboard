@@ -6,11 +6,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { CareRecordEditor } from '@/components/carenote/care-record-editor';
+import { CareMonthCalendar } from '@/components/carenote/care-month-calendar';
 import { loadCareHistoryAction } from '@/app/actions/carenote';
 import { procedureStats, recordSummary } from '@/lib/logic/carenote';
-import { todayKST } from '@/lib/logic/dates';
+import { addDaysStr, todayKST } from '@/lib/logic/dates';
 import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
+import { SegmentedControl } from '@/components/ui/segmented-control';
 import type { CareRecord, Person, ProcedureType } from '@/lib/carenote/types';
 
 const WEEKDAY_KO = ['일', '월', '화', '수', '목', '금', '토'];
@@ -40,6 +42,12 @@ export function CareHistoryPanel() {
   const [typeFilter, setTypeFilter] = useState<number | null>(null);
   const [editing, setEditing] = useState<EditState>('closed');
   const [statsExpanded, setStatsExpanded] = useState(false);
+  const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
+
+  // Matches loadCareHistoryAction's own range exactly (PLAN_CARENOTE.md Addendum A2/B1)
+  // so the month calendar can tell "already loaded" from "needs a fetch".
+  const historyFrom = useMemo(() => addDaysStr(todayKST(), -339), []);
+  const historyTo = useMemo(() => addDaysStr(todayKST(), 60), []);
 
   function load() {
     setLoading(true);
@@ -135,10 +143,20 @@ export function CareHistoryPanel() {
         <h2 className="text-sm font-medium text-foreground/60">
           시술 기록 <span className="text-foreground/40">{records.length}</span>
         </h2>
-        <Button size="sm" variant="secondary" onClick={() => setEditing('new')}>
-          <Plus size={14} />
-          시술 기록
-        </Button>
+        <div className="flex items-center gap-2">
+          <SegmentedControl
+            options={[
+              { value: 'calendar', label: '캘린더' },
+              { value: 'list', label: '목록' },
+            ]}
+            value={viewMode}
+            onChange={setViewMode}
+          />
+          <Button size="sm" variant="secondary" onClick={() => setEditing('new')}>
+            <Plus size={14} />
+            시술 기록
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5">
@@ -218,10 +236,25 @@ export function CareHistoryPanel() {
         </div>
       )}
 
-      {groups.length === 0 && editing !== 'new' && <p className="text-xs text-foreground/40">기록 없음</p>}
+      {viewMode === 'calendar' && (
+        <CareMonthCalendar
+          displayRecords={filtered}
+          allRecords={records}
+          persons={persons}
+          procedureTypes={types}
+          historyFrom={historyFrom}
+          historyTo={historyTo}
+          onRecordsChange={setRecords}
+        />
+      )}
 
-      <ul className="flex flex-col gap-3">
-        {groups.map(([month, list]) => (
+      {viewMode === 'list' && groups.length === 0 && editing !== 'new' && (
+        <p className="text-xs text-foreground/40">기록 없음</p>
+      )}
+
+      {viewMode === 'list' && (
+        <ul className="flex flex-col gap-3">
+          {groups.map(([month, list]) => (
           <li key={month} className="flex flex-col gap-1">
             <p className="text-[11px] font-medium text-foreground/40">{monthLabel(month)}</p>
             <ul className="flex flex-col gap-1">
@@ -272,6 +305,7 @@ export function CareHistoryPanel() {
           </li>
         ))}
       </ul>
+      )}
     </section>
   );
 }
