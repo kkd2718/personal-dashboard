@@ -24,7 +24,7 @@ export function protocolBlock(root, stateText) {
     '이 프로젝트는 개인 커맨드센터 대시보드에 표시돼요. 의미 있는 작업 단위를 끝낼 때마다(그리고 세션을 마치기 전에)',
     `${root}/docs/cc-status.json 을 갱신하세요: {updatedAt, focus, next[], blockers[], done[{date,text}], checklist[{text,status(todo|doing|blocked|done),section?,owner?,due?}]}`,
     '- done 은 최신순 최대 10개, 각 항목 한 줄. next/blockers 는 최대 8개.',
-    '- checklist 는 이 프로젝트의 실제 작업 목록(코드·문서·운영 상태 기준으로 최신화)이며 대시보드 진행률로 쓰입니다. 항목을 끝내면 즉시 done 으로 바꾸세요.',
+    '- checklist 는 이 프로젝트의 실제 작업 목록(코드·문서·운영 상태 기준으로 최신화)이며 대시보드 진행률로 쓰입니다. 항목을 끝내면 즉시 done 으로 바꾸고, 끝난 항목은 지우지 말고 done 으로 남기세요(진행률 = done/전체).',
     '- owner: 사용자가 직접 해야 하는 일(판단·실험·외부 연락·수동 확인 등)은 "me", Claude가 처리할 수 있는 일은 "agent".',
     '- 비밀값·토큰·환자/개인 정보·계좌번호·보유 종목은 절대 쓰지 마세요. 요약만.',
     '- 기존 파일이 있으면 읽고 병합(덮어쓰기 전에 done 이력 유지). 커밋해도 됩니다.',

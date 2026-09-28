@@ -1,17 +1,20 @@
 {
-  "updatedAt": "2026-09-28T15:40:00+09:00",
+  "updatedAt": "2026-09-28T15:55:00+09:00",
   "focus": "프로젝트별 체크리스트 연동 — 7개 중 5개 완료(trading·동네시세·Amgi·BrainCT·CXR2BC), 남은 곳 flow-sorter·CXR2frailty·DeepVital",
   "next": [
     "케어노트 세션: 토큰 인증 기록 API(/api/ws/v1) 배포 → 요약 받으면 대시보드 편집 화면 구현",
     "flow-sorter 세션에서 체크리스트 재정비",
     "CXR2frailty·DeepVitalSignal 세션을 각 논문 폴더에서 열기",
     "동네시세·Amgi 프로젝트 CLAUDE.md에 cc-status 규칙 추가(각 세션)",
-    "Amgi progress.json#all 생기면 노트 막대 교체",
     "10/1 IB+VR 시작 후 계좌 줄 확인",
     "Amgi 수집 누락 재발 여부 관찰(매시간 수집)"
   ],
   "blockers": [],
   "done": [
+    {
+      "date": "2026-09-28",
+      "text": "Amgi 노트 막대를 progress.json#all(385/475)로 교체, 기록 규칙에 \"끝난 항목은 done 으로 남기기\" 명시"
+    },
     {
       "date": "2026-09-28",
       "text": "구글 캘린더 마감 제목: 📌 일괄 → 분류별 이모지(📝🔍💰🎓🎤, 그 외 없음)"
@@ -47,10 +50,6 @@
     {
       "date": "2026-09-27",
       "text": "Amgi 코드/노트 진행률 분리"
-    },
-    {
-      "date": "2026-09-27",
-      "text": "홈 계좌 요약 줄 + 바로가기 링크"
     }
   ],
   "checklist": [
@@ -155,10 +154,9 @@
     },
     {
       "text": "Amgi 노트 막대를 progress.json#all 합산으로 교체",
-      "status": "todo",
+      "status": "done",
       "section": "대시보드",
-      "owner": "agent",
-      "due": "2026-09-29"
+      "owner": "agent"
     },
     {
       "text": "Amgi 수집 누락 재발 여부 관찰",
@@ -184,6 +182,13 @@
       "status": "done",
       "section": "연동",
       "owner": "agent"
+    },
+    {
+      "text": "Amgi 체크리스트에 완료 항목 유지(현재 0/16, Amgi 세션)",
+      "status": "todo",
+      "section": "프로젝트 연동",
+      "owner": "me",
+      "due": "2026-09-29"
     }
   ]
 }
