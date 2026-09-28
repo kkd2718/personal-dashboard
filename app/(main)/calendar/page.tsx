@@ -4,6 +4,7 @@ import { DeadlineList } from '@/components/deadline-list';
 import { upcoming } from '@/lib/logic/upcoming';
 import { addDaysStr, todayKST } from '@/lib/logic/dates';
 import { CALENDAR_VISIBLE_META_KEY } from '@/lib/logic/calendar';
+import { careNoteConfigured } from '@/lib/carenote/client';
 
 // D-day depends on "today" in KST; never cache this page.
 export const dynamic = 'force-dynamic';
@@ -37,6 +38,7 @@ export default async function CalendarPage() {
           visibleCalendars={visibleCalendars}
           projects={projects}
           defaultView="month"
+          careNoteEnabled={careNoteConfigured()}
         />
         <div className="flex flex-col gap-4">
           <div className="rounded-[var(--r-md)] border border-border bg-surface p-3">

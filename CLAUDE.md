@@ -116,6 +116,11 @@ project's DB password isn't always available/known. Run scripts with
   `project:detail:<id>` (`lib/logic/project-detail.ts`). A Stop hook (`cc-inbox.mjs stop`) nudges
   once per session — via `{"decision":"block",...}` — when the session committed but never
   refreshed the file (`scripts/lib/cc-hook.mjs`, marker file in `os.tmpdir()`).
+- **CareNote** (`docs/PLAN_CARENOTE.md`): the calendar's day popover can view/add/edit/delete
+  procedure records from the hosted CareNote app (separate repo `aesthetics-tracker`) via its
+  token-authenticated JSON API (`lib/carenote/client.ts`, `CARENOTE_WS_TOKEN`). Nothing from
+  CareNote is persisted dashboard-side — fetched live per visible calendar range and held in
+  client state only; feature flag `careNoteEnabled = !!CARENOTE_WS_TOKEN`.
 
 ## Conventions
 - Opus plans (`docs/PLAN.md`), Sonnet implements. Don't redesign a plan's data model/signatures

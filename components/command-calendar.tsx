@@ -13,6 +13,7 @@ import {
   StickyNote,
   CalendarDays,
   Plus,
+  Syringe,
 } from 'lucide-react';
 import { calendarEvents, calendarVisibilityOptions, filterVisibleEvents, type CalendarPoint } from '@/lib/logic/calendar';
 import { tagCounts } from '@/lib/logic/notes';
@@ -22,14 +23,18 @@ import { createNoteAction } from '@/app/actions/notes';
 import { createTaskAction } from '@/app/actions/tasks';
 import { createDeadlineAction } from '@/app/actions/deadlines';
 import { setVisibleCalendarsAction } from '@/app/actions/calendar';
+import { loadCareMonthAction } from '@/app/actions/carenote';
+import { recordsByDate } from '@/lib/logic/carenote';
 import { NoteItem } from '@/components/note-item';
 import { MentionTextarea } from '@/components/mention-textarea';
+import { CareDaySection } from '@/components/carenote/care-day-section';
 import { parseCapture } from '@/lib/logic/capture';
 import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { DdayChip } from '@/components/dday-chip';
 import type { CalendarEvent, Deadline, DeadlineKind, Milestone, Note, Project, ReviewJob, Task } from '@/lib/types';
+import type { CareRecord, Person, ProcedureType } from '@/lib/carenote/types';
 
 const POINT_ICON: Record<CalendarPoint['kind'], typeof ClipboardCheck> = {
   task: ClipboardCheck,
@@ -176,12 +181,22 @@ function DayPopoverOverlay({
 }
 
 /** Day-cell popover content: add a memo/task/deadline, or edit an existing memo point. */
+interface CareSectionProps {
+  records: CareRecord[];
+  persons: Person[];
+  procedureTypes: ProcedureType[];
+  loading: boolean;
+  error: string | null;
+  onChanged: (updatedRecords: CareRecord[]) => void;
+}
+
 function DayPopover({
   date,
   points,
   notes,
   projects,
   milestones,
+  care,
   onClose,
 }: {
   date: string;
@@ -189,6 +204,7 @@ function DayPopover({
   notes: Note[];
   projects: Project[];
   milestones: Milestone[];
+  care?: CareSectionProps;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -301,6 +317,18 @@ function DayPopover({
             </li>
           ))}
         </ul>
+      )}
+
+      {care && (
+        <CareDaySection
+          date={date}
+          records={care.records}
+          persons={care.persons}
+          procedureTypes={care.procedureTypes}
+          loading={care.loading}
+          error={care.error}
+          onChanged={care.onChanged}
+        />
       )}
 
       <div className="mb-2 flex gap-1 rounded-lg border border-border p-0.5">
@@ -453,6 +481,9 @@ interface Props {
   projects: Project[];
   defaultView?: 'month' | 'week';
   compact?: boolean;
+  /** Set from careNoteConfigured() server-side — renders the 시술 section and day
+   * markers, fetched live per visible range (PLAN_CARENOTE.md §2). */
+  careNoteEnabled?: boolean;
 }
 
 export function CommandCalendar({
@@ -466,6 +497,7 @@ export function CommandCalendar({
   projects,
   defaultView = 'month',
   compact = false,
+  careNoteEnabled = false,
 }: Props) {
   const today = todayKST();
   const router = useRouter();
@@ -532,6 +564,41 @@ export function CommandCalendar({
 
   const weeks =
     view === 'week' ? events.weeks.filter((w) => w <= cursor && cursor <= addDaysStr(w, 6)) : events.weeks;
+
+  // CareNote (PLAN_CARENOTE.md §2): fetched live for the visible grid range only,
+  // on mount and whenever that range changes — never persisted dashboard-side.
+  const careRangeFrom = weeks[0];
+  const careRangeTo = addDaysStr(weeks[weeks.length - 1], 6);
+  const [careRecords, setCareRecords] = useState<CareRecord[]>([]);
+  const [carePersons, setCarePersons] = useState<Person[]>([]);
+  const [careTypes, setCareTypes] = useState<ProcedureType[]>([]);
+  const [careLoading, setCareLoading] = useState(false);
+  const [careError, setCareError] = useState<string | null>(null);
+  const careRequestRef = useRef(0);
+
+  useEffect(() => {
+    if (!careNoteEnabled) return;
+    const requestId = ++careRequestRef.current;
+    setCareLoading(true);
+    setCareError(null);
+    loadCareMonthAction(careRangeFrom, careRangeTo).then((result) => {
+      if (careRequestRef.current !== requestId) return; // stale response for an old range
+      setCareLoading(false);
+      if (!result.ok) {
+        setCareError(result.error);
+        return;
+      }
+      setCarePersons(result.data.persons);
+      setCareTypes(result.data.procedureTypes);
+      setCareRecords(result.data.records);
+    });
+  }, [careNoteEnabled, careRangeFrom, careRangeTo]);
+
+  const careByDate = useMemo(() => recordsByDate(careRecords), [careRecords]);
+
+  function handleCareChanged(date: string, updatedForDate: CareRecord[]) {
+    setCareRecords((prev) => [...prev.filter((r) => r.date !== date), ...updatedForDate]);
+  }
 
   const maxLane = events.ranges.reduce((m, r) => Math.max(m, r.lane), -1);
   const laneRows = maxLane + 1;
@@ -649,8 +716,17 @@ export function CommandCalendar({
                         selected === date ? 'ring-1 ring-accent' : ''
                       } ${compact ? 'min-h-11' : ''}`}
                     >
-                      <span className={isToday ? 'font-semibold text-accent' : isHoliday ? 'font-semibold text-danger' : ''}>
-                        {Number(date.slice(8, 10))}
+                      <span className="flex w-full items-center gap-1">
+                        <span className={isToday ? 'font-semibold text-accent' : isHoliday ? 'font-semibold text-danger' : ''}>
+                          {Number(date.slice(8, 10))}
+                        </span>
+                        {careNoteEnabled && (careByDate.get(date)?.length ?? 0) > 0 && (
+                          compact ? (
+                            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent" aria-hidden />
+                          ) : (
+                            <Syringe size={9} className="shrink-0 text-foreground/40" aria-label="시술 기록 있음" />
+                          )
+                        )}
                       </span>
                       {points.slice(0, 3).map((p) => {
                         const Icon = POINT_ICON[p.kind];
@@ -743,6 +819,18 @@ export function CommandCalendar({
             notes={notes}
             projects={projects}
             milestones={milestones}
+            care={
+              careNoteEnabled
+                ? {
+                    records: careByDate.get(selected) ?? [],
+                    persons: carePersons,
+                    procedureTypes: careTypes,
+                    loading: careLoading,
+                    error: careError,
+                    onChanged: (updated) => handleCareChanged(selected, updated),
+                  }
+                : undefined
+            }
             onClose={closeDay}
           />
         </DayPopoverOverlay>
