@@ -1,6 +1,12 @@
-// Pure CareNote helpers (PLAN_CARENOTE.md §2) — framework-free so they stay unit
-// testable. HTTP lives in lib/carenote/client.ts.
+// Pure CareNote helpers (PLAN_CARENOTE.md §2, Addendum A) — framework-free so they
+// stay unit testable. HTTP lives in lib/carenote/client.ts.
 import type { CareApiError, CareRecord, ParamSchema, ParamValue, ProcedureType } from '@/lib/carenote/types';
+import { addDaysStr } from '@/lib/logic/dates';
+
+/** Project id of the CareNote entry in this dashboard's own project list
+ * (PLAN_CARENOTE.md Addendum A2) — used to gate the history panel on the project
+ * detail page. */
+export const CARENOTE_PROJECT_ID = 'p-carenote';
 
 /** Drops undefined/''/NaN/empty arrays/empty region maps and any key not in the
  * schema (PLAN_CARENOTE.md §2 cleanParams — CareNote rejects unknown params keys). */
@@ -100,6 +106,75 @@ export function recordsByDate(records: CareRecord[]): Map<string, CareRecord[]> 
     else map.set(r.date, [r]);
   }
   return map;
+}
+
+/** Per-(person, procedureType) rollup for the history panel (PLAN_CARENOTE.md
+ * Addendum A2). `nextFrom`/`nextTo` are null when the type has no interval. */
+export interface ProcedureStat {
+  personId: number;
+  procedureTypeId: number;
+  typeName: string;
+  lastDate: string;
+  count: number;
+  nextFrom: string | null;
+  nextTo: string | null;
+  status: 'overdue' | 'available' | 'upcoming' | null;
+}
+
+/** Groups `records` by (personId, procedureTypeId), sorted overdue-first then by
+ * next-window start (PLAN_CARENOTE.md Addendum A2). Records for a type not present
+ * in `types` are skipped (can't be summarized without its schema/interval). */
+export function procedureStats(records: CareRecord[], types: ProcedureType[], today: string): ProcedureStat[] {
+  const typeById = new Map(types.map((t) => [t.id, t]));
+  const groups = new Map<string, CareRecord[]>();
+  for (const r of records) {
+    const key = `${r.personId}:${r.procedureTypeId}`;
+    const list = groups.get(key);
+    if (list) list.push(r);
+    else groups.set(key, [r]);
+  }
+
+  const stats: ProcedureStat[] = [];
+  for (const [key, list] of groups) {
+    const [personIdStr, typeIdStr] = key.split(':');
+    const type = typeById.get(Number(typeIdStr));
+    if (!type) continue;
+    const lastDate = list.reduce((max, r) => (r.date > max ? r.date : max), list[0].date);
+
+    let nextFrom: string | null = null;
+    let nextTo: string | null = null;
+    let status: ProcedureStat['status'] = null;
+    if (type.intervalMinDays != null && type.intervalMaxDays != null) {
+      nextFrom = addDaysStr(lastDate, type.intervalMinDays);
+      nextTo = addDaysStr(lastDate, type.intervalMaxDays);
+      if (today > nextTo) status = 'overdue';
+      else if (today >= nextFrom) status = 'available';
+      else status = 'upcoming';
+    }
+
+    stats.push({
+      personId: Number(personIdStr),
+      procedureTypeId: type.id,
+      typeName: type.name,
+      lastDate,
+      count: list.length,
+      nextFrom,
+      nextTo,
+      status,
+    });
+  }
+
+  stats.sort((a, b) => {
+    const aOverdue = a.status === 'overdue';
+    const bOverdue = b.status === 'overdue';
+    if (aOverdue !== bOverdue) return aOverdue ? -1 : 1;
+    if (a.nextFrom && b.nextFrom) return a.nextFrom < b.nextFrom ? -1 : a.nextFrom > b.nextFrom ? 1 : 0;
+    if (a.nextFrom) return -1;
+    if (b.nextFrom) return 1;
+    return a.lastDate < b.lastDate ? 1 : a.lastDate > b.lastDate ? -1 : 0;
+  });
+
+  return stats;
 }
 
 /** Korean user-facing message per CareApiError.code (PLAN_CARENOTE.md §2). Branches

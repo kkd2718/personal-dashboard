@@ -13,7 +13,6 @@ import {
   StickyNote,
   CalendarDays,
   Plus,
-  Syringe,
 } from 'lucide-react';
 import { calendarEvents, calendarVisibilityOptions, filterVisibleEvents, type CalendarPoint } from '@/lib/logic/calendar';
 import { tagCounts } from '@/lib/logic/notes';
@@ -595,6 +594,8 @@ export function CommandCalendar({
   }, [careNoteEnabled, careRangeFrom, careRangeTo]);
 
   const careByDate = useMemo(() => recordsByDate(careRecords), [careRecords]);
+  const carePersonById = useMemo(() => new Map(carePersons.map((p) => [p.id, p])), [carePersons]);
+  const careTypeById = useMemo(() => new Map(careTypes.map((t) => [t.id, t])), [careTypes]);
 
   function handleCareChanged(date: string, updatedForDate: CareRecord[]) {
     setCareRecords((prev) => [...prev.filter((r) => r.date !== date), ...updatedForDate]);
@@ -705,6 +706,12 @@ export function CommandCalendar({
                   const isToday = date === today;
                   const isHoliday = events.holidays.has(date);
                   const points = events.points[date] ?? [];
+                  const careForDay = careNoteEnabled ? (careByDate.get(date) ?? []) : [];
+                  // Care rows share the existing 3-row point cap (PLAN_CARENOTE.md
+                  // Addendum A1): care first, then other points, then +N.
+                  const careShown = compact ? [] : careForDay.slice(0, 3);
+                  const pointsShown = compact ? [] : points.slice(0, Math.max(0, 3 - careShown.length));
+                  const overflow = careForDay.length + points.length - careShown.length - pointsShown.length;
                   return (
                     <button
                       type="button"
@@ -720,15 +727,28 @@ export function CommandCalendar({
                         <span className={isToday ? 'font-semibold text-accent' : isHoliday ? 'font-semibold text-danger' : ''}>
                           {Number(date.slice(8, 10))}
                         </span>
-                        {careNoteEnabled && (careByDate.get(date)?.length ?? 0) > 0 && (
-                          compact ? (
-                            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent" aria-hidden />
-                          ) : (
-                            <Syringe size={9} className="shrink-0 text-foreground/40" aria-label="시술 기록 있음" />
-                          )
+                        {compact && careForDay.length > 0 && (
+                          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent" aria-hidden />
                         )}
                       </span>
-                      {points.slice(0, 3).map((p) => {
+                      {careShown.map((r) => {
+                        const person = carePersonById.get(r.personId);
+                        const typeName = careTypeById.get(r.procedureTypeId)?.name ?? '시술';
+                        return (
+                          <span
+                            key={`care-${r.id}`}
+                            className="flex w-full min-w-0 items-center gap-1 rounded-full px-1 text-[10px] text-foreground/60"
+                          >
+                            <span
+                              className="h-1.5 w-1.5 shrink-0 rounded-full"
+                              style={{ backgroundColor: person?.color ?? '#999' }}
+                              aria-hidden
+                            />
+                            <span className="min-w-0 truncate">{typeName}</span>
+                          </span>
+                        );
+                      })}
+                      {pointsShown.map((p) => {
                         const Icon = POINT_ICON[p.kind];
                         const isGoogle = p.kind === 'google';
                         // Deadlines/reviews render as a solid, urgency-tinted D-day chip;
@@ -758,9 +778,7 @@ export function CommandCalendar({
                           </span>
                         );
                       })}
-                      {points.length > 3 && (
-                        <span className="text-[10px] text-foreground/40">+{points.length - 3}</span>
-                      )}
+                      {overflow > 0 && <span className="text-[10px] text-foreground/40">+{overflow}</span>}
                     </button>
                   );
                 })}
@@ -777,7 +795,8 @@ export function CommandCalendar({
         <ul className="flex flex-col gap-2 md:hidden">
           {Array.from({ length: 7 }, (_, i) => addDaysStr(weeks[0], i)).map((date) => {
             const points = events.points[date] ?? [];
-            if (points.length === 0) return null;
+            const careForDay = careNoteEnabled ? (careByDate.get(date) ?? []) : [];
+            if (points.length === 0 && careForDay.length === 0) return null;
             const isToday = date === today;
             return (
               <li key={date} className="flex gap-2">
@@ -787,6 +806,20 @@ export function CommandCalendar({
                   {Number(date.slice(5, 7))}/{Number(date.slice(8, 10))}
                 </span>
                 <ul className="flex min-w-0 flex-1 flex-col gap-1">
+                  {careForDay.map((r) => {
+                    const person = carePersonById.get(r.personId);
+                    const typeName = careTypeById.get(r.procedureTypeId)?.name ?? '시술';
+                    return (
+                      <li key={`care-${r.id}`} className="flex min-w-0 items-center gap-1.5 text-sm">
+                        <span
+                          className="h-1.5 w-1.5 shrink-0 rounded-full"
+                          style={{ backgroundColor: person?.color ?? '#999' }}
+                          aria-hidden
+                        />
+                        <span className="min-w-0 truncate">{typeName}</span>
+                      </li>
+                    );
+                  })}
                   {points.map((p) => {
                     const Icon = POINT_ICON[p.kind];
                     const isDday = p.kind === 'deadline' || p.kind === 'review';
@@ -806,7 +839,7 @@ export function CommandCalendar({
             );
           })}
           {Array.from({ length: 7 }, (_, i) => addDaysStr(weeks[0], i)).every(
-            (d) => (events.points[d] ?? []).length === 0
+            (d) => (events.points[d] ?? []).length === 0 && (careByDate.get(d)?.length ?? 0) === 0
           ) && <p className="text-xs text-foreground/40">이번 주는 비어 있어요.</p>}
         </ul>
       )}

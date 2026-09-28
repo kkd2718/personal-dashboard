@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cleanParams, careErrorMessage, recordSummary, recordsByDate, suggestSeries } from './carenote';
+import { cleanParams, careErrorMessage, procedureStats, recordSummary, recordsByDate, suggestSeries } from './carenote';
 import type { CareRecord, ParamSchema, ProcedureType } from '@/lib/carenote/types';
 
 const schema: ParamSchema = {
@@ -157,6 +157,51 @@ describe('recordsByDate', () => {
     const map = recordsByDate(records);
     expect(map.get('2026-09-01')?.map((r) => r.id)).toEqual([1, 2]);
     expect(map.get('2026-09-02')?.map((r) => r.id)).toEqual([3]);
+  });
+});
+
+describe('procedureStats', () => {
+  it('has no status/window when the type has no interval', () => {
+    const t = type({ intervalMinDays: null, intervalMaxDays: null });
+    const stats = procedureStats([record({ date: '2026-09-01' })], [t], '2026-09-28');
+    expect(stats).toEqual([
+      { personId: 1, procedureTypeId: 1, typeName: '피코토닝', lastDate: '2026-09-01', count: 1, nextFrom: null, nextTo: null, status: null },
+    ]);
+  });
+
+  it('marks available when today is within [last+min, last+max]', () => {
+    const t = type({ intervalMinDays: 10, intervalMaxDays: 20 });
+    const stats = procedureStats([record({ date: '2026-09-01' })], [t], '2026-09-15');
+    expect(stats[0]).toMatchObject({ nextFrom: '2026-09-11', nextTo: '2026-09-21', status: 'available' });
+  });
+
+  it('marks overdue when today is past last+max', () => {
+    const t = type({ intervalMinDays: 10, intervalMaxDays: 20 });
+    const stats = procedureStats([record({ date: '2026-09-01' })], [t], '2026-09-25');
+    expect(stats[0]).toMatchObject({ status: 'overdue' });
+  });
+
+  it('marks upcoming when today is before last+min', () => {
+    const t = type({ intervalMinDays: 10, intervalMaxDays: 20 });
+    const stats = procedureStats([record({ date: '2026-09-01' })], [t], '2026-09-05');
+    expect(stats[0]).toMatchObject({ status: 'upcoming' });
+  });
+
+  it('groups multiple persons separately and sorts overdue first', () => {
+    const t = type({ id: 1, intervalMinDays: 10, intervalMaxDays: 20 });
+    const records = [
+      record({ id: 1, personId: 1, date: '2026-08-01' }), // overdue by 2026-09-28
+      record({ id: 2, personId: 2, date: '2026-09-20' }), // upcoming
+    ];
+    const stats = procedureStats(records, [t], '2026-09-28');
+    expect(stats).toHaveLength(2);
+    expect(stats[0]).toMatchObject({ personId: 1, status: 'overdue' });
+    expect(stats[1]).toMatchObject({ personId: 2, status: 'upcoming' });
+  });
+
+  it('skips records whose procedure type is not in the given types list', () => {
+    const stats = procedureStats([record({ procedureTypeId: 99 })], [type()], '2026-09-28');
+    expect(stats).toEqual([]);
   });
 });
 

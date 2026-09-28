@@ -1,6 +1,9 @@
 import { notFound } from 'next/navigation';
 import { AccountSummaryPanel } from '@/components/trading/account-summary';
 import { TRADING_PROJECT_ID, TRADING_SUMMARY_META_KEY } from '@/lib/logic/trading';
+import { CareHistoryPanel } from '@/components/carenote/care-history-panel';
+import { CARENOTE_PROJECT_ID } from '@/lib/logic/carenote';
+import { careNoteConfigured } from '@/lib/carenote/client';
 import type { TradingSummary } from '@/lib/types';
 import { GitBranch, Laptop, Link2, Folder, Radio } from 'lucide-react';
 import { getRepo } from '@/lib/repo';
@@ -121,6 +124,8 @@ export default async function ProjectDetailPage({
           <AccountSummaryPanel summary={tradingSummary} today={todayKST()} now={new Date().toISOString()} />
         </section>
       )}
+
+      {project.id === CARENOTE_PROJECT_ID && careNoteConfigured() && <CareHistoryPanel />}
 
       <ProjectStatusCard detail={projectDetail} now={now} />
 

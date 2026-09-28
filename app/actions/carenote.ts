@@ -6,7 +6,7 @@
 // own state after a mutation.
 import { z } from 'zod';
 import { requireUser } from '@/lib/auth/require-user';
-import { addDaysStr } from '@/lib/logic/dates';
+import { addDaysStr, todayKST } from '@/lib/logic/dates';
 import {
   CareNoteError,
   createCareRecord,
@@ -58,6 +58,24 @@ export async function loadCareMonthAction(
     if (err instanceof z.ZodError) {
       return { ok: false, error: '입력값을 확인하세요', code: 'bad_request' };
     }
+    return toResult(err);
+  }
+}
+
+// Addendum A2: a single wider call for the project history panel, kept separate from
+// loadCareMonthAction's 62-day clamp. today-339..today+60 is exactly the API's
+// 400-day inclusive maximum (PLAN_CARENOTE.md §1).
+export async function loadCareHistoryAction(): Promise<
+  ActionResult<Awaited<ReturnType<typeof getCareMeta>> & { records: Awaited<ReturnType<typeof listCareRecords>> }>
+> {
+  await requireUser();
+  try {
+    const today = todayKST();
+    const from = addDaysStr(today, -339);
+    const to = addDaysStr(today, 60);
+    const [{ persons, procedureTypes }, records] = await Promise.all([getCareMeta(), listCareRecords(from, to)]);
+    return { ok: true, data: { persons, procedureTypes, records } };
+  } catch (err) {
     return toResult(err);
   }
 }

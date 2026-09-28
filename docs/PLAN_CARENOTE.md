@@ -225,3 +225,70 @@ other CommandCalendar usage and pass the flag there too.
   workspace link `/w/<token>`; revoked when the link is reissued) and `CARENOTE_API_BASE`.
 - CLAUDE.md gets a short "CareNote" bullet under Machine APIs / Post-3 polish.
 - No commits. The main session verifies against the live API and deploys.
+
+---
+
+# Addendum A (2026-09-28): make existing history visible
+
+Owner feedback after the first release: "시술 해왔던 기록이랑 같이 보고 편집하려고 한 건데". The
+data already loads (verified in prod: 31 records for a 6-week range), but two things make it look
+as if only new records exist:
+- the day marker is a faint 9px icon;
+- there is no place to browse past records.
+
+## A1. Calendar cells show the records themselves
+
+In `components/command-calendar.tsx` (non-compact):
+- Render each record like the other points: a small row, `truncate`, the person-colour dot
+  (inline style, as already done), and the procedure name.
+  - Share the existing 3-row point cap: care rows come first, then the other points, then
+    `+N`.
+  - Map type ids to names through `careTypes`.
+- Week view gets the same rows.
+- Compact mode keeps a dot.
+- Remove the faint `Syringe` marker.
+
+## A2. History panel on the CareNote project page
+
+Follow the trading pattern in `app/(main)/projects/[slug]/page.tsx`: when
+`project.id === CARENOTE_PROJECT_ID` (`'p-carenote'`, exported from `lib/logic/carenote.ts`)
+and `careNoteConfigured()`, render `<CareHistoryPanel />` near the top, above the status card.
+
+`components/carenote/care-history-panel.tsx` (client):
+- Load with a new server action `loadCareHistoryAction()`:
+  - fetches `/records` for today−339 … today+60 (a single call, exactly the 400-day limit)
+    plus meta;
+  - allow this range as its own action; keep `loadCareMonthAction`'s 62-day clamp unchanged.
+- Header:
+  - `시술 기록` plus a count;
+  - person filter chips (hidden when there is one active person);
+  - procedure filter (select with 전체, then the types that actually appear);
+  - the `+ 시술 기록` button.
+- **Recent-first list** grouped by month (`2026년 9월`). Each row shows:
+  - the date (`9/14 (일)`);
+  - the person dot;
+  - `recordSummary`;
+  - cost when set.
+  - Clicking a row expands `CareRecordEditor` inline in edit mode; `+` opens it in create
+    mode with today's date.
+  - After save or delete, update local state.
+- **Per-procedure summary** strip above the list (pure helper
+  `procedureStats(records, types, today)` in `lib/logic/carenote.ts`, with tests).
+  - For each (person, type) pair seen, show the type name, the last date, the count in range,
+    and the next due window when `intervalMinDays`/`intervalMaxDays` are set: `다음 10/12~10/26`.
+    - Mark it `지남` when today > last + max.
+    - Mark it `가능` when today is within [last+min, last+max].
+  - Sort: overdue first, then by next-window start.
+  - Show at most 8, with a `더보기` toggle.
+- States:
+  - loading skeleton, 2–3 lines;
+  - the `careErrorMessage` error line with a 다시 시도 button;
+  - empty.
+- Mobile-safe: `min-w-0`, `truncate`, the list inside the page flow (no nested scroll).
+- The CareNote link row in the project's links stays as it is.
+
+## A3. Tests / done when
+
+- `procedureStats` unit tests: no interval, within window, overdue, multiple persons.
+- `loadCareHistoryAction` range: today−339 … today+60 via `addDaysStr`/`todayKST` (KST).
+- typecheck, test, build pass. No commits.
