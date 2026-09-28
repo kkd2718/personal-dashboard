@@ -9,8 +9,10 @@ import { Sheet } from '@/components/ui/sheet';
 import { Chip } from '@/components/ui/chip';
 import { DdayChip } from '@/components/dday-chip';
 import { PaperSubmissions } from '@/components/paper-submissions';
+import { ProjectStatusCard } from '@/components/projects/project-status-card';
+import { checklistSummary } from '@/lib/logic/project-detail';
 import { dday, todayKST } from '@/lib/logic/dates';
-import type { Deadline, Paper, PaperStage, Project } from '@/lib/types';
+import type { Deadline, Paper, PaperStage, Project, ProjectDetail } from '@/lib/types';
 
 const STAGE_LABEL: Record<PaperStage, string> = {
   idea: '아이디어',
@@ -112,12 +114,14 @@ export function PaperDetail({
   paper,
   project,
   deadlines,
+  detail,
   open,
   onClose,
 }: {
   paper: Paper;
   project: Project | undefined;
   deadlines: Deadline[];
+  detail?: ProjectDetail | null;
   open: boolean;
   onClose: () => void;
 }) {
@@ -127,6 +131,7 @@ export function PaperDetail({
   const [manuscriptId, setManuscriptId] = useState(paper.manuscriptId ?? '');
   const [targetJournalsText, setTargetJournalsText] = useState(paper.targetJournals.join(', '));
   const [pending, startTransition] = useTransition();
+  const hasChecklist = checklistSummary(detail?.status ?? null, today) != null;
 
   function saveField(patch: Partial<Paper>) {
     startTransition(async () => {
@@ -171,6 +176,19 @@ export function PaperDetail({
           )}
         </div>
 
+        {project && (
+          <section className="flex min-w-0 flex-col gap-2">
+            <h2 className="text-xs font-medium text-foreground/60">현황</h2>
+            {detail ? (
+              <ProjectStatusCard detail={detail} now={new Date().toISOString()} hideTitle />
+            ) : (
+              <p className="min-w-0 break-words text-xs text-foreground/40">
+                이 논문 프로젝트의 Claude 세션이 docs/cc-status.json 을 쓰면 체크리스트가 여기 표시돼요
+              </p>
+            )}
+          </section>
+        )}
+
         <label className="flex flex-col gap-1 text-xs text-foreground/60">
           저널
           <input
@@ -203,10 +221,12 @@ export function PaperDetail({
           />
         </label>
 
-        <div className="flex flex-col gap-1">
-          <span className="text-xs text-foreground/60">다음 액션</span>
-          <NextActionField paper={paper} />
-        </div>
+        {!hasChecklist && (
+          <div className="flex flex-col gap-1">
+            <span className="text-xs text-foreground/60">다음 액션</span>
+            <NextActionField paper={paper} />
+          </div>
+        )}
 
         <div className="flex flex-col gap-1.5">
           <span className="text-xs text-foreground/60">투고 이력</span>

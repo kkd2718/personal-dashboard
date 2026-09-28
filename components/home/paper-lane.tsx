@@ -5,8 +5,9 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Chip } from '@/components/ui/chip';
 import { DdayChip } from '@/components/dday-chip';
 import { paperCardLine, paperLaneGroups } from '@/lib/logic/papers';
+import { checklistLine, checklistSummary } from '@/lib/logic/project-detail';
 import { dday, todayKST } from '@/lib/logic/dates';
-import type { Deadline, Paper, ReviewJob } from '@/lib/types';
+import type { Deadline, Paper, ProjectDetail, ReviewJob } from '@/lib/types';
 
 /** Home 논문 lane (PLAN_HOME2.md §Lanes 2): stage-grouped compact rows, an open-
  * review section below, and a top amber row for pending review-mail candidates. */
@@ -15,11 +16,13 @@ export function PaperLane({
   deadlines,
   reviews,
   reviewCandidateCount,
+  details = {},
 }: {
   papers: Paper[];
   deadlines: Deadline[];
   reviews: ReviewJob[];
   reviewCandidateCount: number;
+  details?: Record<string, ProjectDetail>;
 }) {
   const today = todayKST();
   const groups = paperLaneGroups(papers, today);
@@ -55,11 +58,13 @@ export function PaperLane({
         <div className="flex flex-col gap-1.5">
           {groups.map((g) =>
             g.papers.map((p) => {
-              const line = paperCardLine(p, deadlines.filter((d) => d.paperId === p.id), today);
+              const detail = p.projectId ? details[p.projectId] : undefined;
+              const summary = checklistSummary(detail?.status ?? null, today);
+              const line = paperCardLine(p, deadlines.filter((d) => d.paperId === p.id), today, summary ? checklistLine(summary) : null);
               return (
                 <Link
                   key={p.id}
-                  href="/papers"
+                  href={`/papers?paper=${p.id}`}
                   className="flex items-center gap-2 rounded-lg border border-border p-2 text-xs hover:bg-foreground/5"
                 >
                   <Chip className="shrink-0">{g.label}</Chip>

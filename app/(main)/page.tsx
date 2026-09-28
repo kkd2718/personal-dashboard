@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { TRADING_PROJECT_ID, TRADING_SUMMARY_META_KEY } from '@/lib/logic/trading';
 import { AccountStrip } from '@/components/trading/account-strip';
-import type { TradingSummary } from '@/lib/types';
+import type { ProjectDetail, TradingSummary } from '@/lib/types';
 import { getRepo } from '@/lib/repo';
 import { getStatusPanelData } from '@/lib/status';
 import { QuickCapture } from '@/components/quick-capture';
@@ -16,6 +16,7 @@ import { StatusWarnChip } from '@/components/home/status-warn-chip';
 import { tagCounts } from '@/lib/logic/notes';
 import { checklist, checklistItemCount } from '@/lib/logic/checklist';
 import { buildQueueLaneCards, deadlineCounts, headerCountLabel, nextDeadlineAfterWeek } from '@/lib/logic/home';
+import { projectDetailMetaKey } from '@/lib/logic/project-detail';
 import { addDaysStr, startOfIsoWeek, todayKST } from '@/lib/logic/dates';
 import { CALENDAR_VISIBLE_META_KEY, filterVisibleEvents, todayCalendarEvents } from '@/lib/logic/calendar';
 
@@ -67,6 +68,21 @@ export default async function HomePage({
     repo.getMeta<string[]>(CALENDAR_VISIBLE_META_KEY),
     repo.getMeta<TradingSummary>(TRADING_SUMMARY_META_KEY),
   ]);
+  // One Promise.all of getMeta calls for the distinct project ids behind the queue
+  // lane's active projects or a paper (§4: home lanes prefer the checklist line).
+  const detailProjectIds = [
+    ...new Set([
+      ...projects.filter((p) => p.status === 'active').map((p) => p.id),
+      ...papers.map((p) => p.projectId).filter((id): id is string => !!id),
+    ]),
+  ];
+  const detailList = await Promise.all(detailProjectIds.map((id) => repo.getMeta<ProjectDetail>(projectDetailMetaKey(id))));
+  const details: Record<string, ProjectDetail> = {};
+  detailProjectIds.forEach((id, i) => {
+    const d = detailList[i];
+    if (d) details[id] = d;
+  });
+
   const status = await getStatusPanelData(repo, projects);
   const activeProjects = projects.filter((p) => p.status === 'active');
   const activeMilestoneIds = milestones.filter((m) => m.status === 'active').map((m) => m.id);
@@ -80,7 +96,7 @@ export default async function HomePage({
 
   // Lane tab badge counts (HomeLanes' mobile tab bar) — cheap to recompute inside
   // each lane too, but the tab bar needs them before those lanes render.
-  const queueCount = buildQueueLaneCards(projects, milestones, tasks, activityList, papers).length;
+  const queueCount = buildQueueLaneCards(projects, milestones, tasks, activityList, papers, details, today).length;
   const openReviewCount = reviews.filter((r) => (r.status === 'invited' || r.status === 'accepted') && r.dueDate).length;
   const meChecklist = checklist(tasks, deadlines, reviews, today, new Set(activeMilestoneIds)).me;
   const openNoteCount = notes.filter((n) => n.status === 'inbox' || n.status === 'filed').length;
@@ -146,9 +162,24 @@ export default async function HomePage({
           todo: checklistItemCount(meChecklist),
           memo: openNoteCount,
         }}
-        queue={<QueueLane projects={projects} milestones={milestones} tasks={tasks} activityList={activityList} papers={papers} />}
+        queue={
+          <QueueLane
+            projects={projects}
+            milestones={milestones}
+            tasks={tasks}
+            activityList={activityList}
+            papers={papers}
+            details={details}
+          />
+        }
         papers={
-          <PaperLane papers={papers} deadlines={deadlines} reviews={reviews} reviewCandidateCount={reviewCandidates.length} />
+          <PaperLane
+            papers={papers}
+            deadlines={deadlines}
+            reviews={reviews}
+            reviewCandidateCount={reviewCandidates.length}
+            details={details}
+          />
         }
         todo={
           <LaneCard title="할 일">

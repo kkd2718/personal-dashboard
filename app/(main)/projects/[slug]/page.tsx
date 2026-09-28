@@ -19,7 +19,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { relTime, dday, todayKST } from '@/lib/logic/dates';
 import { tagCounts } from '@/lib/logic/notes';
 import { projectProgress } from '@/lib/logic/progress';
-import { projectDetailMetaKey } from '@/lib/logic/project-detail';
+import { checklistSummary, projectDetailMetaKey } from '@/lib/logic/project-detail';
 import type { LinkRef, ProjectDetail } from '@/lib/types';
 
 // D-day depends on "today" in KST; never cache this page.
@@ -62,6 +62,7 @@ export default async function ProjectDetailPage({
   const progress = projectProgress(project.id, linkedTasks);
   const agentCount = linkedTasks.filter((t) => t.assignee === 'agent').length;
   const meCount = linkedTasks.filter((t) => t.assignee === 'me').length;
+  const hasChecklist = checklistSummary(projectDetail?.status ?? null, today) != null;
 
   const activityParts: string[] = [];
   if (activity?.lastCommitAt) {
@@ -125,9 +126,11 @@ export default async function ProjectDetailPage({
 
       <section className="flex flex-col gap-2">
         <h2 className="text-sm font-medium text-foreground/60">지금</h2>
-        <div className="rounded-xl border border-border bg-surface p-3">
-          <NextActionEditor projectId={project.id} nextAction={project.nextAction} />
-        </div>
+        {!hasChecklist && (
+          <div className="rounded-xl border border-border bg-surface p-3">
+            <NextActionEditor projectId={project.id} nextAction={project.nextAction} />
+          </div>
+        )}
         <QueueStrip projectId={project.id} milestones={linkedMilestones} tasks={linkedTasks} />
       </section>
 

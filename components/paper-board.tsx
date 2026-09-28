@@ -18,9 +18,17 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-
 import { CSS } from '@dnd-kit/utilities';
 import { movePaperAction } from '@/app/actions/papers';
 import { paperCardLine } from '@/lib/logic/papers';
+import { checklistLine, checklistSummary } from '@/lib/logic/project-detail';
 import { todayKST } from '@/lib/logic/dates';
 import { PaperDetail } from '@/components/papers/paper-detail';
-import type { Deadline, Paper, PaperStage, Project } from '@/lib/types';
+import type { Deadline, Paper, PaperStage, Project, ProjectDetail } from '@/lib/types';
+
+/** Card line: the project's checklist summary when it has one, else the stage-specific line. */
+function cardLine(paper: Paper, deadlines: Deadline[], today: string, details: Record<string, ProjectDetail>): string | null {
+  const detail = paper.projectId ? details[paper.projectId] : undefined;
+  const summary = checklistSummary(detail?.status ?? null, today);
+  return paperCardLine(paper, deadlines, today, summary ? checklistLine(summary) : null);
+}
 
 const STAGES: { key: PaperStage; label: string }[] = [
   { key: 'idea', label: '아이디어' },
@@ -51,19 +59,21 @@ function Card({
   paper,
   deadlines,
   today,
+  details,
   onSelect,
   onKeyboardMove,
 }: {
   paper: Paper;
   deadlines: Deadline[];
   today: string;
+  details: Record<string, ProjectDetail>;
   onSelect: () => void;
   onKeyboardMove: (dir: -1 | 1) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: paper.id,
   });
-  const line = paperCardLine(paper, deadlines, today);
+  const line = cardLine(paper, deadlines, today, details);
   return (
     <div
       ref={setNodeRef}
@@ -100,6 +110,7 @@ function Column({
   papers,
   deadlines,
   today,
+  details,
   onSelect,
   onKeyboardMove,
 }: {
@@ -108,6 +119,7 @@ function Column({
   papers: Paper[];
   deadlines: Deadline[];
   today: string;
+  details: Record<string, ProjectDetail>;
   onSelect: (p: Paper) => void;
   onKeyboardMove: (p: Paper, dir: -1 | 1) => void;
 }) {
@@ -125,6 +137,7 @@ function Column({
               paper={p}
               deadlines={deadlines.filter((d) => d.paperId === p.id)}
               today={today}
+              details={details}
               onSelect={() => onSelect(p)}
               onKeyboardMove={(dir) => onKeyboardMove(p, dir)}
             />
@@ -153,16 +166,22 @@ export function PaperBoard({
   initialPapers,
   deadlines = [],
   projects = [],
+  details = {},
+  initialSelectedId,
 }: {
   initialPapers: Paper[];
   deadlines?: Deadline[];
   projects?: Project[];
+  details?: Record<string, ProjectDetail>;
+  initialSelectedId?: string;
 }) {
   const router = useRouter();
   const [papers, setPapers] = useState(initialPapers);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [dragOverStage, setDragOverStage] = useState<PaperStage | null>(null);
-  const [selected, setSelected] = useState<Paper | null>(null);
+  const [selected, setSelected] = useState<Paper | null>(
+    () => initialPapers.find((p) => p.id === initialSelectedId) ?? null
+  );
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const columns = useMemo(() => byStage(papers), [papers]);
   const today = todayKST();
@@ -230,7 +249,7 @@ export function PaperBoard({
             </h3>
             <div className="flex flex-col gap-1.5">
               {columns[key].map((p) => {
-                const line = paperCardLine(p, deadlines.filter((d) => d.paperId === p.id), today);
+                const line = cardLine(p, deadlines.filter((d) => d.paperId === p.id), today, details);
                 return (
                   <button
                     key={p.id}
@@ -265,6 +284,7 @@ export function PaperBoard({
               papers={columns[key]}
               deadlines={deadlines}
               today={today}
+              details={details}
               onSelect={setSelected}
               onKeyboardMove={keyboardMove}
             />
@@ -276,6 +296,7 @@ export function PaperBoard({
               paper={activePaper}
               deadlines={deadlines.filter((d) => d.paperId === activePaper.id)}
               today={today}
+              details={details}
               onSelect={() => {}}
               onKeyboardMove={() => {}}
             />
@@ -298,6 +319,7 @@ export function PaperBoard({
           paper={papers.find((p) => p.id === selected.id) ?? selected}
           project={projects.find((pr) => pr.id === selected.projectId)}
           deadlines={deadlines.filter((d) => d.paperId === selected.id && !d.done)}
+          detail={selected.projectId ? details[selected.projectId] : undefined}
           open={selected != null}
           onClose={() => setSelected(null)}
         />

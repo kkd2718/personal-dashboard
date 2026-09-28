@@ -9,8 +9,18 @@ function doneLabel(d: { date: string | null; text: string }): string {
 }
 
 /** "현황" card: a project's own Claude session's docs/cc-status.json, plus the
- * automatically-collected open backlog item titles by label. Server component. */
-export function ProjectStatusCard({ detail, now }: { detail: ProjectDetail | null; now: string }) {
+ * automatically-collected open backlog item titles by label. No server-only imports,
+ * so it can also render inside a client component (e.g. the paper detail sheet). */
+export function ProjectStatusCard({
+  detail,
+  now,
+  hideTitle = false,
+}: {
+  detail: ProjectDetail | null;
+  now: string;
+  /** Drop the own "현황" heading when the caller already renders one. */
+  hideTitle?: boolean;
+}) {
   const status = detail?.status ?? null;
   const openItems = detail?.openItems ?? {};
   const ageLabel = statusAgeLabel(status, now);
@@ -18,7 +28,7 @@ export function ProjectStatusCard({ detail, now }: { detail: ProjectDetail | nul
 
   return (
     <section className="flex flex-col gap-2">
-      <h2 className="text-sm font-medium text-foreground/60">현황</h2>
+      {!hideTitle && <h2 className="text-sm font-medium text-foreground/60">현황</h2>}
       <div className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-3 text-sm">
         {status ? (
           <div className="flex min-w-0 flex-col gap-2">

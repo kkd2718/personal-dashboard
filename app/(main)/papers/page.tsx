@@ -2,9 +2,12 @@ import { getRepo } from '@/lib/repo';
 import { PaperBoard } from '@/components/paper-board';
 import { ReviewList } from '@/components/review-list';
 import { NewPaperSheet } from '@/components/papers/new-paper-sheet';
+import { projectDetailMetaKey } from '@/lib/logic/project-detail';
+import type { ProjectDetail } from '@/lib/types';
 
 interface SearchParams {
   tab?: string;
+  paper?: string;
 }
 
 // Review tab shows D-day chips depending on "today" in KST; never cache this page.
@@ -15,7 +18,7 @@ export default async function PapersPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
-  const { tab } = await searchParams;
+  const { tab, paper } = await searchParams;
   const active = tab === 'review' ? 'review' : 'papers';
   const repo = getRepo();
   const [papers, reviews, candidates, deadlines, projects] = await Promise.all([
@@ -25,6 +28,13 @@ export default async function PapersPage({
     repo.listDeadlines(),
     repo.listProjects(),
   ]);
+  const projectIds = [...new Set(papers.map((p) => p.projectId).filter((id): id is string => !!id))];
+  const detailList = await Promise.all(projectIds.map((id) => repo.getMeta<ProjectDetail>(projectDetailMetaKey(id))));
+  const details: Record<string, ProjectDetail> = {};
+  projectIds.forEach((id, i) => {
+    const d = detailList[i];
+    if (d) details[id] = d;
+  });
 
   return (
     <div className="flex flex-col gap-5">
@@ -53,7 +63,13 @@ export default async function PapersPage({
       </div>
 
       {active === 'papers' ? (
-        <PaperBoard initialPapers={papers} deadlines={deadlines} projects={projects} />
+        <PaperBoard
+          initialPapers={papers}
+          deadlines={deadlines}
+          projects={projects}
+          details={details}
+          initialSelectedId={paper}
+        />
       ) : (
         <ReviewList reviews={reviews} candidates={candidates} papers={papers} />
       )}

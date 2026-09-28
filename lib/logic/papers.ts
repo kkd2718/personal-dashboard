@@ -92,11 +92,15 @@ export function paperLaneGroups(papers: Paper[], today?: string): PaperLaneGroup
 }
 
 /** Stage-specific third line for a paper card (ux-advice.md §5.5). Pure, so the
- * board component just renders whatever this returns. */
-export function paperCardLine(paper: Paper, deadlines: Deadline[], today: string): string | null {
+ * board component just renders whatever this returns.
+ * `checklist`, when given, is the linked project's checklist summary line
+ * (lib/logic/project-detail.ts `checklistLine`) — it replaces `nextAction` in the
+ * writing-stage line, the only stage that currently shows `nextAction`. */
+export function paperCardLine(paper: Paper, deadlines: Deadline[], today: string, checklist?: string | null): string | null {
   switch (paper.stage) {
     case 'writing': {
       const target = paper.targetJournals[0];
+      if (checklist) return target ? `▸ ${checklist} · 목표 ${target}` : `▸ ${checklist}`;
       if (paper.nextAction) return target ? `▸ ${paper.nextAction} · 목표 ${target}` : `▸ ${paper.nextAction}`;
       return target ? `목표 ${target}` : null;
     }

@@ -1,6 +1,7 @@
-import type { Deadline, Group, Milestone, Paper, PaperStage, Project, ProjectActivity, Task } from '@/lib/types';
-import { dday, endOfIsoWeek, relTime } from '@/lib/logic/dates';
+import type { Deadline, Group, Milestone, Paper, PaperStage, Project, ProjectActivity, ProjectDetail, Task } from '@/lib/types';
+import { dday, endOfIsoWeek, relTime, todayKST } from '@/lib/logic/dates';
 import { backlogProgress, labeledBars, milestoneProgress, type LabeledProgress, type Progress } from '@/lib/logic/progress';
+import { checklistLine, checklistSummary } from '@/lib/logic/project-detail';
 
 export interface DeadlineCounts {
   overdue: number;
@@ -100,7 +101,8 @@ export type QueueLaneCard =
   | { kind: 'queue'; project: Project; milestone: Milestone; progress: Progress; nextTaskTitle: string | null; agentOpenCount: number }
   | { kind: 'backlog'; project: Project; backlog: Progress }
   | { kind: 'bars'; project: Project; bars: LabeledProgress[] }
-  | { kind: 'nextAction'; project: Project; nextAction: string };
+  | { kind: 'nextAction'; project: Project; nextAction: string }
+  | { kind: 'checklist'; project: Project; line: string };
 
 const GROUP_ORDER: Group[] = ['app', 'research', 'personal'];
 
@@ -117,7 +119,9 @@ export function buildQueueLaneCards(
   milestones: Milestone[],
   tasks: Task[],
   activityList: ProjectActivity[],
-  papers: Paper[] = []
+  papers: Paper[] = [],
+  details: Record<string, ProjectDetail> = {},
+  today: string = todayKST()
 ): QueueLaneCard[] {
   // A research project whose work is a paper already has its row (and next action)
   // in the 논문 lane — a bare next-action card here would just duplicate it.
@@ -162,8 +166,13 @@ export function buildQueueLaneCards(
       continue;
     }
 
-    if (project.nextAction && !projectsWithPaper.has(project.id)) {
-      cards.push({ kind: 'nextAction', project, nextAction: project.nextAction });
+    if (!projectsWithPaper.has(project.id)) {
+      const summary = checklistSummary(details[project.id]?.status ?? null, today);
+      if (summary) {
+        cards.push({ kind: 'checklist', project, line: checklistLine(summary) });
+      } else if (project.nextAction) {
+        cards.push({ kind: 'nextAction', project, nextAction: project.nextAction });
+      }
     }
   }
   return cards;

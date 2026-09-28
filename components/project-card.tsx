@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Folder, GitBranch, Laptop, Link2, Pin, Radio } from 'lucide-react';
-import type { Milestone, Project, ProjectActivity, Task } from '@/lib/types';
+import type { Milestone, Project, ProjectActivity, ProjectDetail, Task } from '@/lib/types';
 import { dday, relTime, todayKST } from '@/lib/logic/dates';
 import {
   backlogLabel,
@@ -12,6 +12,7 @@ import {
   shouldShowBacklogBar,
 } from '@/lib/logic/progress';
 import { staleness } from '@/lib/logic/staleness';
+import { checklistLine, checklistSummary } from '@/lib/logic/project-detail';
 import { projectColorClasses } from '@/lib/project-colors';
 
 const STATUS_LABEL: Record<Project['status'], string> = {
@@ -45,6 +46,7 @@ export function ProjectCard({
   tasks = [],
   milestones = [],
   now,
+  details = {},
 }: {
   project: Project;
   activity?: ProjectActivity;
@@ -52,8 +54,10 @@ export function ProjectCard({
   milestones?: Milestone[];
   /** ISO timestamp for "n시간 전" — passed by the (server) caller so this stays a pure render. */
   now?: string;
+  details?: Record<string, ProjectDetail>;
 }) {
   const today = todayKST();
+  const summary = checklistSummary(details[project.id]?.status ?? null, today);
   const commitDaysAgo =
     activity?.lastCommitAt != null ? dday(today, activity.lastCommitAt.slice(0, 10)) : null;
   const sessionRelTime =
@@ -89,10 +93,14 @@ export function ProjectCard({
           큐: <span className="text-foreground/70">{activeQueue.title}</span>
         </p>
       )}
-      {project.nextAction && (
-        <p className="text-xs text-foreground/50">
-          다음: <span className="text-foreground/70">{project.nextAction}</span>
-        </p>
+      {summary ? (
+        <p className="min-w-0 truncate text-xs text-foreground/50">{checklistLine(summary)}</p>
+      ) : (
+        project.nextAction && (
+          <p className="text-xs text-foreground/50">
+            다음: <span className="text-foreground/70">{project.nextAction}</span>
+          </p>
+        )
       )}
       {progress.total > 0 &&
         (progress.total >= 3 ? (

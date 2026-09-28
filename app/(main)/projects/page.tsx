@@ -5,7 +5,8 @@ import { ProjectCard } from '@/components/project-card';
 import { quickLinks } from '@/lib/logic/quick-links';
 import { ProjectRow } from '@/components/projects/project-row';
 import { EmptyState } from '@/components/ui/empty-state';
-import type { Group } from '@/lib/types';
+import { projectDetailMetaKey } from '@/lib/logic/project-detail';
+import type { Group, ProjectDetail } from '@/lib/types';
 
 const GROUP_LABEL: Record<Group, string> = { app: '앱', research: '연구', personal: '개인' };
 const GROUPS: Group[] = ['app', 'research', 'personal'];
@@ -34,6 +35,13 @@ export default async function ProjectsPage({
   const now = new Date().toISOString();
   const activeList = Object.values(grouped[active]).flat();
   const links = quickLinks(projects);
+
+  const detailList = await Promise.all(activeList.map((p) => repo.getMeta<ProjectDetail>(projectDetailMetaKey(p.id))));
+  const details: Record<string, ProjectDetail> = {};
+  activeList.forEach((p, i) => {
+    const d = detailList[i];
+    if (d) details[p.id] = d;
+  });
 
   return (
     <div className="flex flex-col gap-5">
@@ -107,6 +115,7 @@ export default async function ProjectsPage({
                     tasks={tasks}
                     milestones={milestones}
                     now={now}
+                    details={details}
                   />
                 ))}
               </section>
@@ -127,6 +136,7 @@ export default async function ProjectsPage({
                       tasks={tasks}
                       milestones={milestones}
                       now={now}
+                      details={details}
                     />
                   ))}
                 </div>

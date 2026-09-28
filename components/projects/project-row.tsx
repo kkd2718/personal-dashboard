@@ -1,8 +1,9 @@
 import Link from 'next/link';
 import { Folder, GitBranch, Laptop, Link2, Pin, Radio } from 'lucide-react';
-import type { Milestone, Project, ProjectActivity, Task } from '@/lib/types';
-import { relTime } from '@/lib/logic/dates';
+import type { Milestone, Project, ProjectActivity, ProjectDetail, Task } from '@/lib/types';
+import { relTime, todayKST } from '@/lib/logic/dates';
 import { progressLabel, projectProgress } from '@/lib/logic/progress';
+import { checklistLine, checklistSummary } from '@/lib/logic/project-detail';
 import { Chip } from '@/components/ui/chip';
 import { projectColorClasses } from '@/lib/project-colors';
 
@@ -48,18 +49,27 @@ export function ProjectRow({
   tasks = [],
   milestones = [],
   now,
+  details = {},
 }: {
   project: Project;
   activity?: ProjectActivity;
   tasks?: Task[];
   milestones?: Milestone[];
   now: string;
+  details?: Record<string, ProjectDetail>;
 }) {
   const colors = projectColorClasses(project.color);
   const progress = projectProgress(project.id, tasks);
   const activeQueue = milestones.find((m) => m.projectId === project.id && m.status === 'active');
   const sentence = activitySentence(activity, now, project.status === 'done' || project.status === 'archived');
-  const secondary = activeQueue ? `큐: ${activeQueue.title}` : project.nextAction ? `다음: ${project.nextAction}` : null;
+  const summary = checklistSummary(details[project.id]?.status ?? null, todayKST());
+  const secondary = activeQueue
+    ? `큐: ${activeQueue.title}`
+    : summary
+      ? checklistLine(summary)
+      : project.nextAction
+        ? `다음: ${project.nextAction}`
+        : null;
 
   return (
     <div className="group flex min-h-9 items-center gap-3 rounded-[var(--r-md)] border border-border bg-surface px-3 py-2 text-sm hover:bg-foreground/[0.03]">

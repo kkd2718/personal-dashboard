@@ -112,6 +112,12 @@ describe('paperCardLine', () => {
     expect(paperCardLine(paper({ stage: 'writing', nextAction: null }), [], today)).toBeNull();
   });
 
+  it('writing: a checklist line overrides nextAction, still appending the target journal', () => {
+    const p = paper({ stage: 'writing', nextAction: '1차 평가지표 정리', targetJournals: ['FJA'] });
+    expect(paperCardLine(p, [], today, '진행 중: 초안 작성')).toBe('▸ 진행 중: 초안 작성 · 목표 FJA');
+    expect(paperCardLine(paper({ stage: 'writing', nextAction: null }), [], today, '남은 2/3')).toBe('▸ 남은 2/3');
+  });
+
   it('under_review: days since the latest submission', () => {
     const p = paper({
       stage: 'under_review',
