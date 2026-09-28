@@ -54,8 +54,29 @@ async function runWin(cmd, args) {
   return execFileAsync(cmd, args, { timeout: WIN_TIMEOUT_MS });
 }
 
+// Every project fans out several wsl.exe calls at once (git, session stat, backlog
+// files); dozens in parallel made each one hit WSL_TIMEOUT_MS (2026-09-28: Amgi came
+// back with no bars). Cap concurrency so each call gets the VM to itself.
+const WSL_MAX_CONCURRENT = 2;
+let wslActive = 0;
+const wslWaiters = [];
+
 async function runWsl(args) {
-  return execFileAsync('wsl.exe', args, { timeout: WSL_TIMEOUT_MS });
+  if (wslActive >= WSL_MAX_CONCURRENT) await new Promise((resolve) => wslWaiters.push(resolve));
+  wslActive += 1;
+  try {
+    try {
+      return await execFileAsync('wsl.exe', args, { timeout: WSL_TIMEOUT_MS });
+    } catch (e) {
+      // The VM stalls for a few seconds while the Windows-side git calls peak;
+      // a timed-out call almost always succeeds on an immediate retry.
+      if (!e.killed) throw e;
+      return await execFileAsync('wsl.exe', args, { timeout: WSL_TIMEOUT_MS });
+    }
+  } finally {
+    wslActive -= 1;
+    wslWaiters.shift()?.();
+  }
 }
 
 /** Resolves a Project.paths entry to an existing Windows directory, or null. */
