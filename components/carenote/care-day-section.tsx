@@ -4,12 +4,10 @@
 // here lives in the parent's in-memory month state — nothing is persisted
 // dashboard-side.
 import { useState } from 'react';
-import { ExternalLink, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { CareRecordEditor } from '@/components/carenote/care-record-editor';
 import { recordSummary } from '@/lib/logic/carenote';
 import type { CareRecord, Person, ProcedureType } from '@/lib/carenote/types';
-
-const CARENOTE_CALENDAR_URL = 'https://care-note-app.vercel.app/calendar';
 
 interface Props {
   date: string;
@@ -48,15 +46,6 @@ export function CareDaySection({ date, records, persons, procedureTypes, loading
       <div className="flex items-center justify-between">
         <p className="flex items-center gap-1 text-[11px] font-medium text-foreground/50">
           시술
-          <a
-            href={CARENOTE_CALENDAR_URL}
-            target="_blank"
-            rel="noreferrer"
-            aria-label="케어노트에서 열기"
-            className="text-foreground/30 hover:text-foreground/60"
-          >
-            <ExternalLink size={11} />
-          </a>
         </p>
         {editing === 'closed' && (
           <button
