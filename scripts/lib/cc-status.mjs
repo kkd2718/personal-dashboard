@@ -18,31 +18,51 @@ function cleanStringArray(arr, maxItems, maxLen) {
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+// Project sessions don't always follow the schema to the letter (e.g. trading-system
+// wrote `title` + `blocked` + `due`), so accept the common variants rather than
+// silently dropping a whole checklist.
+function itemText(o) {
+  for (const k of ['text', 'title', 'item', 'name']) if (typeof o[k] === 'string') return o[k];
+  return null;
+}
+
 function cleanDone(arr) {
   if (!Array.isArray(arr)) return [];
   return arr
-    .filter((d) => d && typeof d === 'object' && typeof d.text === 'string')
+    .filter((d) => d && typeof d === 'object' && itemText(d) !== null)
     .map((d) => ({
       date: typeof d.date === 'string' && DATE_RE.test(d.date) ? d.date : null,
-      text: trimTo(d.text, 200),
+      text: trimTo(itemText(d), 200),
     }))
     .filter((d) => d.text.length > 0)
     .slice(0, 10);
 }
 
-const CHECKLIST_STATUSES = new Set(['todo', 'doing', 'done']);
+const STATUS_ALIASES = {
+  todo: 'todo',
+  open: 'todo',
+  pending: 'todo',
+  doing: 'doing',
+  in_progress: 'doing',
+  wip: 'doing',
+  blocked: 'blocked',
+  waiting: 'blocked',
+  done: 'done',
+  completed: 'done',
+};
 
-/** Drops items with an invalid status; owner defaults to 'agent' for anything
- * else/missing. Section is optional (max 40 chars). Caps at 60 items. */
+/** Drops items with an unknown status; owner defaults to 'agent' for anything
+ * else/missing. Section (max 40 chars) and due (YYYY-MM-DD) are optional. Caps at 60 items. */
 function cleanChecklist(arr) {
   if (!Array.isArray(arr)) return [];
   return arr
-    .filter((c) => c && typeof c === 'object' && typeof c.text === 'string' && CHECKLIST_STATUSES.has(c.status))
+    .filter((c) => c && typeof c === 'object' && itemText(c) !== null && typeof c.status === 'string' && STATUS_ALIASES[c.status.toLowerCase()])
     .map((c) => ({
-      text: trimTo(c.text, 200),
-      status: c.status,
+      text: trimTo(itemText(c), 200),
+      status: STATUS_ALIASES[c.status.toLowerCase()],
       section: typeof c.section === 'string' ? trimTo(c.section, 40) || null : null,
       owner: c.owner === 'me' ? 'me' : 'agent',
+      due: typeof c.due === 'string' && DATE_RE.test(c.due) ? c.due : null,
     }))
     .filter((c) => c.text.length > 0)
     .slice(0, 60);

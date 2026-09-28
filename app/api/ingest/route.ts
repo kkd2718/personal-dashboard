@@ -36,9 +36,10 @@ const projectActivitySchema = z.object({
 
 const ccChecklistItemSchema = z.object({
   text: z.string().max(200),
-  status: z.enum(['todo', 'doing', 'done']),
+  status: z.enum(['todo', 'doing', 'blocked', 'done']),
   section: z.string().max(40).nullable(),
   owner: z.enum(['me', 'agent']),
+  due: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
 });
 
 const ccStatusSchema = z.object({

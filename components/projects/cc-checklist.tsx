@@ -23,7 +23,7 @@ function groupBySection(items: CcChecklistItem[]): { section: string | null; ite
     }
     bySection.get(item.section)!.push(item);
   }
-  const rank = { doing: 0, todo: 1, done: 2 };
+  const rank = { doing: 0, blocked: 1, todo: 2, done: 3 };
   return order.map((section) => ({
     section,
     items: [...bySection.get(section)!].sort((a, b) => rank[a.status] - rank[b.status]),
@@ -31,7 +31,7 @@ function groupBySection(items: CcChecklistItem[]): { section: string | null; ite
 }
 
 /** Checklist block of the "현황" card: a 전체/내 할 일/에이전트 view switcher over a
- * project's docs/cc-status.json checklist, grouped by section (doing, then todo;
+ * project's docs/cc-status.json checklist, grouped by section (doing, blocked, then todo;
  * done items collapsed). Client component so the switcher can hold local state. */
 export function CcChecklist({ items }: { items: CcChecklistItem[] }) {
   const [view, setView] = useState<View>('all');
@@ -71,7 +71,25 @@ export function CcChecklist({ items }: { items: CcChecklistItem[] }) {
           <ul className="flex flex-col gap-0.5">
             {sectionItems.map((c, i) => (
               <li key={i} className="flex min-w-0 items-start gap-1.5 break-words">
-                <span className={c.status === 'doing' ? 'text-blue-600 dark:text-blue-400' : 'text-foreground/70'}>{c.text}</span>
+                <span
+                  className={
+                    c.status === 'doing'
+                      ? 'text-blue-600 dark:text-blue-400'
+                      : c.status === 'blocked'
+                        ? 'text-amber-700 dark:text-amber-300'
+                        : 'text-foreground/70'
+                  }
+                >
+                  {c.text}
+                </span>
+                {c.status === 'blocked' && (
+                  <span className="shrink-0 rounded bg-amber-500/15 px-1 text-[10px] text-amber-700 dark:text-amber-300">막힘</span>
+                )}
+                {c.due && (
+                  <span className="tnum shrink-0 text-[11px] text-foreground/40">
+                    ~{Number(c.due.slice(5, 7))}/{Number(c.due.slice(8, 10))}
+                  </span>
+                )}
                 {view === 'all' && c.owner === 'me' && (
                   <span className="shrink-0 rounded bg-foreground/10 px-1 text-[10px] text-foreground/60">나</span>
                 )}

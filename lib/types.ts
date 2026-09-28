@@ -270,7 +270,7 @@ export interface TradingAccountSummary {
   nextDue: string | null;
 }
 
-export type CcChecklistStatus = 'todo' | 'doing' | 'done';
+export type CcChecklistStatus = 'todo' | 'doing' | 'blocked' | 'done';
 export type CcChecklistOwner = 'me' | 'agent';
 
 export interface CcChecklistItem {
@@ -278,6 +278,8 @@ export interface CcChecklistItem {
   status: CcChecklistStatus;
   section: string | null;
   owner: CcChecklistOwner;
+  /** 'YYYY-MM-DD'; absent in details stored before 2026-09-28. */
+  due?: string | null;
 }
 
 /** docs/cc-status.json, written by a managed project's own Claude session (Post-3 polish). */

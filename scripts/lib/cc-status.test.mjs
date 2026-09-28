@@ -65,10 +65,28 @@ describe('parseCcStatus', () => {
       ],
     });
     expect(parseCcStatus(text).checklist).toEqual([
-      { text: '코드 정리', status: 'doing', section: '코드', owner: 'me' },
-      { text: '문서 갱신', status: 'todo', section: null, owner: 'agent' },
-      { text: '나쁜 owner', status: 'done', section: null, owner: 'agent' },
+      { text: '코드 정리', status: 'doing', section: '코드', owner: 'me', due: null },
+      { text: '문서 갱신', status: 'todo', section: null, owner: 'agent', due: null },
+      { text: '나쁜 owner', status: 'done', section: null, owner: 'agent', due: null },
     ]);
+  });
+
+  it('accepts common schema variants: title for text, blocked/in_progress statuses, due dates', () => {
+    const text = JSON.stringify({
+      checklist: [
+        { title: 'IB+VR 시작', status: 'todo', due: '2026-10-01', owner: 'me' },
+        { title: '프로브 승인', status: 'blocked' },
+        { name: '리팩터', status: 'IN_PROGRESS', due: '10/2' },
+      ],
+      done: [{ title: '끝난 일', date: '2026-09-27' }],
+    });
+    const parsed = parseCcStatus(text);
+    expect(parsed.checklist).toEqual([
+      { text: 'IB+VR 시작', status: 'todo', section: null, owner: 'me', due: '2026-10-01' },
+      { text: '프로브 승인', status: 'blocked', section: null, owner: 'agent', due: null },
+      { text: '리팩터', status: 'doing', section: null, owner: 'agent', due: null },
+    ]);
+    expect(parsed.done).toEqual([{ date: '2026-09-27', text: '끝난 일' }]);
   });
 
   it('caps checklist at 60 items, text at 200 chars, section at 40', () => {
