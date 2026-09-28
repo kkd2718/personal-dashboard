@@ -1,12 +1,20 @@
 {
-  "updatedAt": "2026-09-28T11:40:00+09:00",
-  "focus": "프로젝트별 체크리스트·현황(docs/cc-status.json) 연동 배포",
+  "updatedAt": "2026-09-28T12:10:00+09:00",
+  "focus": "프로젝트별 체크리스트 연동 — 7개 중 5개 완료(trading·동네시세·Amgi·BrainCT·CXR2BC), 남은 곳 flow-sorter·CXR2frailty·DeepVital",
   "next": [
-    "각 프로젝트 세션이 체크리스트 재정비 결과를 쓰면 상세 화면 확인",
-    "10/1 IB+VR 시작 후 계좌 줄 확인"
+    "flow-sorter 세션에서 체크리스트 재정비",
+    "CXR2frailty·DeepVitalSignal 세션을 각 논문 폴더에서 열기",
+    "동네시세·Amgi 프로젝트 CLAUDE.md에 cc-status 규칙 추가(각 세션)",
+    "Amgi progress.json#all 생기면 노트 막대 교체",
+    "10/1 IB+VR 시작 후 계좌 줄 확인",
+    "Amgi 수집 누락 재발 여부 관찰(매시간 수집)"
   ],
   "blockers": [],
   "done": [
+    {
+      "date": "2026-09-28",
+      "text": "동네시세·Amgi·BrainCT·CXR2BC 체크리스트 대시보드 반영 확인"
+    },
     {
       "date": "2026-09-28",
       "text": "수집기 WSL 동시 호출 제한 + 재시도 (Amgi 수집 누락 수정)"
@@ -38,34 +46,93 @@
   ],
   "checklist": [
     {
-      "text": "프로젝트 현황 카드·체크리스트 배포",
+      "text": "프로젝트 현황 카드·체크리스트(전체/내 할 일/에이전트) 배포",
+      "status": "done",
+      "section": "대시보드",
+      "owner": "agent"
+    },
+    {
+      "text": "체크리스트 파서: title·blocked·due 변형 허용",
+      "status": "done",
+      "section": "대시보드",
+      "owner": "agent"
+    },
+    {
+      "text": "수집기 WSL 동시 호출 제한 + 재시도",
+      "status": "done",
+      "section": "대시보드",
+      "owner": "agent"
+    },
+    {
+      "text": "trading-system 체크리스트 재정비",
+      "status": "done",
+      "section": "프로젝트 연동",
+      "owner": "me"
+    },
+    {
+      "text": "동네시세 체크리스트 재정비(불일치 34건)",
+      "status": "done",
+      "section": "프로젝트 연동",
+      "owner": "me"
+    },
+    {
+      "text": "Amgi 체크리스트 재정비(불일치 9건)",
+      "status": "done",
+      "section": "프로젝트 연동",
+      "owner": "me"
+    },
+    {
+      "text": "BrainCT_FU 체크리스트 신규",
+      "status": "done",
+      "section": "프로젝트 연동",
+      "owner": "me"
+    },
+    {
+      "text": "CXR2BodyComposition 체크리스트",
+      "status": "done",
+      "section": "프로젝트 연동",
+      "owner": "me"
+    },
+    {
+      "text": "flow-sorter 체크리스트 재정비(해당 세션)",
+      "status": "todo",
+      "section": "프로젝트 연동",
+      "owner": "me",
+      "due": "2026-09-29"
+    },
+    {
+      "text": "CXR2frailty·DeepVitalSignal 세션을 논문 폴더에서 열기 → 체크리스트",
+      "status": "todo",
+      "section": "프로젝트 연동",
+      "owner": "me",
+      "due": "2026-09-29"
+    },
+    {
+      "text": "동네시세·Amgi CLAUDE.md에 cc-status 규칙 추가(각 세션)",
+      "status": "todo",
+      "section": "프로젝트 연동",
+      "owner": "me",
+      "due": "2026-09-29"
+    },
+    {
+      "text": "Amgi 노트 막대를 progress.json#all 합산으로 교체",
+      "status": "todo",
+      "section": "대시보드",
+      "owner": "agent",
+      "due": "2026-09-29"
+    },
+    {
+      "text": "Amgi 수집 누락 재발 여부 관찰",
       "status": "doing",
       "section": "대시보드",
       "owner": "agent"
     },
     {
-      "text": "5개 프로젝트 체크리스트 재정비 결과 반영 확인",
-      "status": "todo",
-      "section": "대시보드",
-      "owner": "agent"
-    },
-    {
-      "text": "각 프로젝트에서 Claude 세션 한 번씩 열기 (재정비 할 일 전달)",
-      "status": "todo",
-      "section": "연동",
-      "owner": "me"
-    },
-    {
       "text": "IB+VR 10/1 시작 후 계좌 줄 확인",
       "status": "todo",
       "section": "계좌",
-      "owner": "agent"
-    },
-    {
-      "text": "flow-sorter 스킬로그 복원 (해당 세션)",
-      "status": "todo",
-      "section": "연동",
-      "owner": "me"
+      "owner": "agent",
+      "due": "2026-10-02"
     },
     {
       "text": "Google 동기화 · 리뷰/리비전 알림",
@@ -77,12 +144,6 @@
       "text": "텔레그램 봇 · 아침 요약",
       "status": "done",
       "section": "연동",
-      "owner": "agent"
-    },
-    {
-      "text": "홈 4레인 · 계좌 줄 · 바로가기",
-      "status": "done",
-      "section": "대시보드",
       "owner": "agent"
     }
   ]
