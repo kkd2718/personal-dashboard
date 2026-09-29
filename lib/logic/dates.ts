@@ -34,6 +34,16 @@ export function endOfIsoWeek(dateStr: string): string {
   return addDaysStr(startOfIsoWeek(dateStr), 6);
 }
 
+/** Sunday of the Sunday-first week (일~토) containing dateStr. */
+export function startOfSundayWeek(dateStr: string): string {
+  return addDaysStr(dateStr, -toUtcDate(dateStr).getUTCDay());
+}
+
+/** Saturday of the Sunday-first week (일~토) containing dateStr. */
+export function endOfSundayWeek(dateStr: string): string {
+  return addDaysStr(startOfSundayWeek(dateStr), 6);
+}
+
 /** Add (or subtract) calendar months, clamped to the target month's length. */
 export function addMonthsStr(dateStr: string, n: number): string {
   const [y, m, d] = dateStr.split('-').map(Number);

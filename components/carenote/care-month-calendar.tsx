@@ -10,11 +10,11 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { CareDaySection } from '@/components/carenote/care-day-section';
 import { loadCareMonthAction } from '@/app/actions/carenote';
 import { dayRecordChips, isMonthWithinRange, recordsByDate } from '@/lib/logic/carenote';
-import { addDaysStr, addMonthsStr, endOfIsoWeek, startOfIsoWeek, startOfMonthStr, todayKST } from '@/lib/logic/dates';
+import { addDaysStr, addMonthsStr, endOfSundayWeek, startOfSundayWeek, startOfMonthStr, todayKST } from '@/lib/logic/dates';
 import { Button } from '@/components/ui/button';
 import type { CareRecord, Person, ProcedureType } from '@/lib/carenote/types';
 
-const WEEKDAY_KO = ['월', '화', '수', '목', '금', '토', '일'];
+const WEEKDAY_KO = ['일', '월', '화', '수', '목', '금', '토'];
 
 interface Props {
   /** Already filtered by the panel's person/type chips — drives the grid chips. */
@@ -49,8 +49,8 @@ export function CareMonthCalendar({
   const requestRef = useRef(0);
 
   const monthLastDay = addDaysStr(addMonthsStr(cursor, 1), -1);
-  const gridStart = startOfIsoWeek(cursor);
-  const gridEnd = endOfIsoWeek(monthLastDay);
+  const gridStart = startOfSundayWeek(cursor);
+  const gridEnd = endOfSundayWeek(monthLastDay);
   const days = useMemo(() => {
     const out: string[] = [];
     for (let d = gridStart; d <= gridEnd; d = addDaysStr(d, 1)) out.push(d);
@@ -118,8 +118,10 @@ export function CareMonthCalendar({
       {error && <p className="text-xs text-danger">{error}</p>}
 
       <div className="grid grid-cols-7 text-center text-[11px] text-foreground/40">
-        {WEEKDAY_KO.map((w) => (
-          <div key={w}>{w}</div>
+        {WEEKDAY_KO.map((w, i) => (
+          <div key={w} className={i === 0 ? 'text-danger/70' : undefined}>
+            {w}
+          </div>
         ))}
       </div>
 

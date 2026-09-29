@@ -1,4 +1,7 @@
 import Link from 'next/link';
+import { Syringe } from 'lucide-react';
+import { careNoteConfigured } from '@/lib/carenote/client';
+import { CARENOTE_PROJECT_ID } from '@/lib/logic/carenote';
 import { TRADING_PROJECT_ID, TRADING_SUMMARY_META_KEY } from '@/lib/logic/trading';
 import { AccountStrip } from '@/components/trading/account-strip';
 import type { ProjectDetail, TradingSummary } from '@/lib/types';
@@ -101,6 +104,9 @@ export default async function HomePage({
   const meChecklist = checklist(tasks, deadlines, reviews, today, new Set(activeMilestoneIds)).me;
   const openNoteCount = notes.filter((n) => n.status === 'inbox' || n.status === 'filed').length;
 
+  // Shortcut to the CareNote project page (calendar + history), only when the API is wired.
+  const careNoteSlug = careNoteConfigured() ? projects.find((p) => p.id === CARENOTE_PROJECT_ID)?.slug : undefined;
+
   return (
     <div className="flex min-w-0 flex-col gap-4">
       <div className="flex items-start justify-between gap-2">
@@ -109,6 +115,15 @@ export default async function HomePage({
           <span className="truncate text-sm text-foreground/50">{headerCountLabel(counts, nextDeadline ? { title: nextDeadline.title, dueDate: nextDeadline.dueDate, today } : undefined)}</span>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          {careNoteSlug && (
+            <Link
+              href={`/projects/${careNoteSlug}`}
+              className="flex items-center gap-1.5 rounded-full border border-border px-3 py-1 text-xs text-foreground/70 hover:bg-foreground/5"
+            >
+              <Syringe size={12} />
+              시술 기록
+            </Link>
+          )}
           {reviewCandidates.length > 0 && (
             <Link
               href="/papers?tab=review"

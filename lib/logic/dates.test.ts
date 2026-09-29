@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { absoluteDateLabel, dday, ddayLabel, kstDateTime, relTime, urgency } from './dates';
+import { absoluteDateLabel, dday, ddayLabel, endOfSundayWeek, kstDateTime, relTime, startOfSundayWeek, urgency } from './dates';
 
 describe('dday', () => {
   it('computes forward, same-day, and backward diffs', () => {
@@ -83,5 +83,15 @@ describe('relTime', () => {
 
   it('supports future instants', () => {
     expect(relTime('2026-09-30T12:00:00.000Z', now)).toBe('4일 후');
+  });
+});
+
+describe('Sunday-first week', () => {
+  it('starts on Sunday and ends on Saturday', () => {
+    expect(startOfSundayWeek('2026-09-29')).toBe('2026-09-27'); // Tue -> Sun
+    expect(startOfSundayWeek('2026-09-27')).toBe('2026-09-27'); // Sun stays
+    expect(endOfSundayWeek('2026-09-27')).toBe('2026-10-03');
+    expect(startOfSundayWeek('2026-11-01')).toBe('2026-11-01');
+    expect(endOfSundayWeek('2026-10-31')).toBe('2026-10-31'); // Sat stays
   });
 });
