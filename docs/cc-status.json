@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-29T15:30:00+09:00",
+  "updatedAt": "2026-09-29T16:10:00+09:00",
   "focus": "프로젝트 체크리스트 연동 마무리(남은 곳 CXR2frailty·DeepVital)",
   "next": [
     "DeepVitalSignal 세션 열기 → 체크리스트",
@@ -10,7 +10,7 @@
   "done": [
     {
       "date": "2026-09-29",
-      "text": "근무표(구글 시트) → 대시보드 캘린더·홈·텔레그램: 본인 줄만 동기화 (Apps Script 붙여넣기 대기)"
+      "text": "근무표(구글 시트) → 대시보드 캘린더·홈·텔레그램, 첫 동기화 91일(8/3–11/1)"
     },
     {
       "date": "2026-09-29",
@@ -204,10 +204,9 @@
     },
     {
       "text": "근무표 Apps Script 새 코드 붙여넣기 + WORK_SHEET_ID·WORK_NAME 설정 + 권한 승인",
-      "status": "todo",
+      "status": "done",
       "section": "연동",
-      "owner": "me",
-      "due": "2026-09-30"
+      "owner": "me"
     }
   ]
 }
