@@ -1,5 +1,5 @@
 import type { Note, NoteStatus } from '@/lib/types';
-import { addDaysStr, startOfIsoWeek } from '@/lib/logic/dates';
+import { addDaysStr, startOfSundayWeek } from '@/lib/logic/dates';
 
 export interface NoteFilter {
   projectId?: string | null;
@@ -51,7 +51,7 @@ export function groupNotesByDate(notes: Note[], today: string): NoteGroup[] {
   const rest = notes.filter((n) => !n.pinned);
 
   const yesterday = addDaysStr(today, -1);
-  const weekStart = startOfIsoWeek(today);
+  const weekStart = startOfSundayWeek(today);
   const buckets: Record<string, Note[]> = { 오늘: [], 어제: [], '이번 주': [], 이전: [] };
   for (const n of rest) {
     const day = n.createdAt.slice(0, 10);

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { checklist, checklistItemCount } from './checklist';
 import type { Deadline, ReviewJob, Task } from '@/lib/types';
 
-const today = '2026-09-25'; // Friday; ISO week Mon 09-21..Sun 09-27
+const today = '2026-09-25'; // Friday; Sunday-start week Sun 09-20..Sat 09-26
 
 function task(overrides: Partial<Task>): Task {
   return {
@@ -34,13 +34,13 @@ describe('checklist', () => {
     expect(c.me.today).toHaveLength(1);
   });
 
-  it('buckets a task due Sunday of this week as thisWeek', () => {
-    const c = checklist([task({ dueDate: '2026-09-27' })], [], [], today);
+  it('buckets a task due Saturday of this week as thisWeek', () => {
+    const c = checklist([task({ dueDate: '2026-09-26' })], [], [], today);
     expect(c.me.thisWeek).toHaveLength(1);
   });
 
-  it('excludes a task due next Monday', () => {
-    const c = checklist([task({ dueDate: '2026-09-28' })], [], [], today);
+  it('excludes a task due next Sunday', () => {
+    const c = checklist([task({ dueDate: '2026-09-27' })], [], [], today);
     expect(c.me.overdue).toHaveLength(0);
     expect(c.me.today).toHaveLength(0);
     expect(c.me.thisWeek).toHaveLength(0);
@@ -69,7 +69,7 @@ describe('checklist', () => {
       title: null,
       status: 'accepted',
       invitedAt: null,
-      dueDate: '2026-09-28', // in 3 days but past this ISO week's Sunday
+      dueDate: '2026-09-27', // in 2 days but past this week's Saturday
       link: null,
       note: null,
       updatedAt: today,
@@ -77,7 +77,7 @@ describe('checklist', () => {
     const c = checklist([], [], [review], today);
     expect(c.me.thisWeek).toHaveLength(0);
 
-    const withinWeek = { ...review, dueDate: '2026-09-27' };
+    const withinWeek = { ...review, dueDate: '2026-09-26' };
     const c2 = checklist([], [], [withinWeek], today);
     expect(c2.me.thisWeek).toHaveLength(1);
   });

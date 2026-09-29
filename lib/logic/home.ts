@@ -1,17 +1,17 @@
 import type { Deadline, Group, Milestone, Paper, PaperStage, Project, ProjectActivity, ProjectDetail, Task } from '@/lib/types';
-import { dday, endOfIsoWeek, relTime, todayKST } from '@/lib/logic/dates';
+import { dday, endOfSundayWeek, relTime, todayKST } from '@/lib/logic/dates';
 import { backlogProgress, labeledBars, milestoneProgress, type LabeledProgress, type Progress } from '@/lib/logic/progress';
 import { checklistLine, checklistSummary } from '@/lib/logic/project-detail';
 
 export interface DeadlineCounts {
   overdue: number;
   today: number;
-  thisWeek: number; // due in (today, endOfIsoWeek(today)]
+  thisWeek: number; // due in (today, endOfSundayWeek(today)]
 }
 
 /** Open (non-done) deadline counts for the home header sentence (ux-advice.md §5.1). */
 export function deadlineCounts(deadlines: Deadline[], today: string): DeadlineCounts {
-  const weekEnd = endOfIsoWeek(today);
+  const weekEnd = endOfSundayWeek(today);
   const counts: DeadlineCounts = { overdue: 0, today: 0, thisWeek: 0 };
   for (const d of deadlines) {
     if (d.done) continue;
@@ -42,7 +42,7 @@ export function headerCountLabel(counts: DeadlineCounts, next?: { title: string;
 
 /** Earliest open deadline after this week (for headerCountLabel's fallback). */
 export function nextDeadlineAfterWeek(deadlines: Deadline[], today: string): Deadline | null {
-  const weekEnd = endOfIsoWeek(today);
+  const weekEnd = endOfSundayWeek(today);
   return (
     deadlines
       .filter((d) => !d.done && d.dueDate > weekEnd)

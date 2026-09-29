@@ -20,7 +20,7 @@ import { tagCounts } from '@/lib/logic/notes';
 import { checklist, checklistItemCount } from '@/lib/logic/checklist';
 import { buildQueueLaneCards, deadlineCounts, headerCountLabel, nextDeadlineAfterWeek } from '@/lib/logic/home';
 import { projectDetailMetaKey } from '@/lib/logic/project-detail';
-import { addDaysStr, startOfIsoWeek, todayKST } from '@/lib/logic/dates';
+import { addDaysStr, startOfSundayWeek, todayKST } from '@/lib/logic/dates';
 import { CALENDAR_VISIBLE_META_KEY, filterVisibleEvents, todayCalendarEvents } from '@/lib/logic/calendar';
 
 // D-day / status probes depend on "now"; never cache this page.
@@ -151,7 +151,7 @@ export default async function HomePage({
 
       <WeekStrip
         compact
-        initialWeekStart={startOfIsoWeek(today)}
+        initialWeekStart={startOfSundayWeek(today)}
         milestones={milestones}
         deadlines={deadlines}
         reviews={reviews}

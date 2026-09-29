@@ -1,5 +1,5 @@
 import type { Deadline, DeadlineKind, ReviewJob, Task } from '@/lib/types';
-import { endOfIsoWeek } from '@/lib/logic/dates';
+import { endOfSundayWeek } from '@/lib/logic/dates';
 
 const NEXT_LIMIT = 8;
 
@@ -65,7 +65,7 @@ export function checklist(
 }
 
 /**
- * thisWeek = due in (today, endOfIsoWeek(today)] (Monday-start ISO week, Sunday end), KST.
+ * thisWeek = due in (today, endOfSundayWeek(today)] (Sunday-start week, Saturday end), KST.
  * doing = status 'doing' with no due date. Done tasks are excluded except ones
  * completed today, which are appended (struck-through) at the bottom of `today`.
  * next = undated todo tasks whose milestone is in activeMilestoneIds (task order kept).
@@ -77,7 +77,7 @@ function bucketTasks(
   today: string,
   activeMilestoneIds: ReadonlySet<string>
 ): Checklist {
-  const weekEnd = endOfIsoWeek(today);
+  const weekEnd = endOfSundayWeek(today);
   const overdue: ChecklistItem[] = [];
   const todayList: ChecklistItem[] = [];
   const doneToday: ChecklistItem[] = [];

@@ -669,7 +669,7 @@ export function CommandCalendar({
 
       <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-auto">
       <div className="grid grid-cols-7 text-center text-[11px] text-foreground/40">
-        {['월', '화', '수', '목', '금', '토', '일'].map((w) => (
+        {['일', '월', '화', '수', '목', '금', '토'].map((w) => (
           <div key={w}>{w}</div>
         ))}
       </div>

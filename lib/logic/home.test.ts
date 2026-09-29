@@ -10,7 +10,7 @@ import {
 } from './home';
 import type { Deadline, Milestone, Paper, Project, ProjectActivity, Task } from '@/lib/types';
 
-const today = '2026-09-26'; // Saturday; ISO week ends Sunday 2026-09-27
+const today = '2026-09-26'; // Saturday
 
 function deadline(overrides: Partial<Deadline>): Deadline {
   return {
@@ -31,14 +31,15 @@ function deadline(overrides: Partial<Deadline>): Deadline {
 
 describe('deadlineCounts', () => {
   it('buckets overdue/today/thisWeek and skips done', () => {
+    const thu = '2026-09-24'; // Sunday-start week Sun 09-20..Sat 09-26
     const deadlines = [
       deadline({ dueDate: '2026-09-20' }), // overdue
-      deadline({ dueDate: today }), // today
-      deadline({ dueDate: '2026-09-27' }), // this week (Sunday, week end)
-      deadline({ dueDate: '2026-10-05' }), // beyond this week
+      deadline({ dueDate: thu }), // today
+      deadline({ dueDate: '2026-09-26' }), // this week (Saturday, week end)
+      deadline({ dueDate: '2026-09-27' }), // next week (Sunday)
       deadline({ dueDate: '2026-09-20', done: true }), // ignored
     ];
-    expect(deadlineCounts(deadlines, today)).toEqual({ overdue: 1, today: 1, thisWeek: 1 });
+    expect(deadlineCounts(deadlines, thu)).toEqual({ overdue: 1, today: 1, thisWeek: 1 });
   });
 });
 

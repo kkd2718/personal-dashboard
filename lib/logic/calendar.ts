@@ -1,5 +1,5 @@
 import type { CalendarEvent, Deadline, Milestone, Note, ReviewJob, Task } from '@/lib/types';
-import { addDaysStr, endOfIsoWeek, startOfIsoWeek } from '@/lib/logic/dates';
+import { addDaysStr, endOfSundayWeek, startOfSundayWeek } from '@/lib/logic/dates';
 
 /** app_meta key for the persisted per-calendar visibility set (Addendum A §3). */
 export const CALENDAR_VISIBLE_META_KEY = 'calendar:visible';
@@ -57,7 +57,7 @@ export function filterVisibleEvents(events: CalendarEvent[], visible: string[] |
 export interface RangeSeg {
   milestoneId: string;
   weekIndex: number;
-  colStart: number; // 1..7, Monday=1 .. Sunday=7
+  colStart: number; // 1..7, Sunday=1 .. Saturday=7
   colEnd: number; // 1..7
   isStart: boolean; // segment contains the milestone's actual start date
   isEnd: boolean; // segment contains the milestone's actual end date
@@ -73,7 +73,7 @@ export interface CalendarPoint {
 }
 
 export interface CalendarEvents {
-  weeks: string[]; // Monday date ('YYYY-MM-DD') of each grid week row
+  weeks: string[]; // Sunday date ('YYYY-MM-DD') of each grid week row
   ranges: RangeSeg[];
   points: Record<string, CalendarPoint[]>;
   holidays: Set<string>; // dates with a holiday-calendar google event (red date number)
@@ -106,7 +106,7 @@ function assignLanes(milestones: Milestone[]): Map<string, number> {
 /**
  * Builds the month-grid range bars and day points for the calendar.
  * `monthStart` is any 'YYYY-MM-DD' date in the target month (first day recommended).
- * Weeks start Monday; the grid covers full Mon-Sun rows from the week containing
+ * Weeks start Sunday; the grid covers full Sun-Sat rows from the week containing
  * the 1st through the week containing the last day of the month.
  */
 export function calendarEvents(
@@ -120,8 +120,8 @@ export function calendarEvents(
     googleEvents?: CalendarEvent[];
   }
 ): CalendarEvents {
-  const gridStart = startOfIsoWeek(monthStart);
-  const gridEnd = endOfIsoWeek(monthLastDay(monthStart));
+  const gridStart = startOfSundayWeek(monthStart);
+  const gridEnd = endOfSundayWeek(monthLastDay(monthStart));
 
   const weeks: string[] = [];
   for (let w = gridStart; w <= gridEnd; w = addDaysStr(w, 7)) weeks.push(w);

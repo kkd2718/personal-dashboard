@@ -40,7 +40,7 @@ function milestone(overrides: Partial<Milestone>): Milestone {
 }
 
 describe('calendarEvents', () => {
-  it('splits a milestone spanning weeks into per-week-row segments (Monday-start grid)', () => {
+  it('splits a milestone spanning weeks into per-week-row segments (Sunday-start grid)', () => {
     const m = milestone({ startDate: '2026-09-24', endDate: '2026-10-07' });
     const result = calendarEvents('2026-09-01', {
       milestones: [m],
@@ -49,19 +49,19 @@ describe('calendarEvents', () => {
       reviews: [],
     });
 
-    // grid weeks: 08-31, 09-07, 09-14, 09-21, 09-28 (last day of Sept -> endOfIsoWeek(09-30) = 10-04)
-    expect(result.weeks).toEqual(['2026-08-31', '2026-09-07', '2026-09-14', '2026-09-21', '2026-09-28']);
+    // grid weeks: 08-30, 09-06, 09-13, 09-20, 09-27 (last day of Sept -> endOfSundayWeek(09-30) = 10-03)
+    expect(result.weeks).toEqual(['2026-08-30', '2026-09-06', '2026-09-13', '2026-09-20', '2026-09-27']);
 
     const segs = result.ranges.filter((r) => r.milestoneId === 'm1');
-    // week of 09-21 (index 3): 09-24 is Thursday -> col 4, runs to Sunday col 7, isStart
+    // week of 09-20 (index 3): 09-24 is Thursday -> col 5, runs to Saturday col 7, isStart
     expect(segs).toContainEqual(
-      expect.objectContaining({ weekIndex: 3, colStart: 4, colEnd: 7, isStart: true, isEnd: false })
+      expect.objectContaining({ weekIndex: 3, colStart: 5, colEnd: 7, isStart: true, isEnd: false })
     );
-    // week of 09-28 (index 4): full week, cols 1..7
+    // week of 09-27 (index 4): full week, cols 1..7
     expect(segs).toContainEqual(
       expect.objectContaining({ weekIndex: 4, colStart: 1, colEnd: 7, isStart: false, isEnd: false })
     );
-    // week of 10-05 is not in the grid -> no segment for it
+    // week of 10-04 is not in the grid -> no segment for it
     expect(segs.some((s) => s.weekIndex === 5)).toBe(false);
     expect(segs).toHaveLength(2);
   });

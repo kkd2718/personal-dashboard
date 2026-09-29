@@ -9,7 +9,7 @@ import { addDaysStr, todayKST } from '@/lib/logic/dates';
 import { projectColorClasses } from '@/lib/project-colors';
 import type { CalendarEvent, Deadline, Milestone, Note, Project, ReviewJob } from '@/lib/types';
 
-const DAY_LABELS = ['월', '화', '수', '목', '금', '토', '일'];
+const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
 const MAX_AGENDA_LINES = 4;
 
 function fmtRange(weekStart: string): string {
