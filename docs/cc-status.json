@@ -1,14 +1,17 @@
 {
-  "updatedAt": "2026-09-29T11:10:00+09:00",
+  "updatedAt": "2026-09-29T14:00:00+09:00",
   "focus": "프로젝트 체크리스트 연동 마무리(남은 곳 CXR2frailty·DeepVital)",
   "next": [
-    "동네시세 체크리스트 완료 항목 복원 확인(현재 0/39)",
-    "CXR2frailty·DeepVitalSignal 세션을 각 논문 폴더에서 열기",
+    "DeepVitalSignal 세션 열기 → 체크리스트",
     "10/1 IB+VR 시작 후 계좌 줄 확인",
     "Amgi 수집 누락 재발 여부 관찰(매시간 수집)"
   ],
   "blockers": [],
   "done": [
+    {
+      "date": "2026-09-29",
+      "text": "CXR2BC 답변서·수정본 공저자 전달 체크리스트 완료, 체크리스트 한도 120"
+    },
     {
       "date": "2026-09-29",
       "text": "모든 캘린더·주간 표시·\"이번 주\" 집계를 일요일 시작으로"
@@ -44,10 +47,6 @@
     {
       "date": "2026-09-28",
       "text": "구글 캘린더 마감 제목: 📌 일괄 → 분류별 이모지(📝🔍💰🎓🎤, 그 외 없음)"
-    },
-    {
-      "date": "2026-09-28",
-      "text": "앱 아이콘 교체(패널+체크) — favicon·애플·매니페스트 PNG"
     }
   ],
   "checklist": [
@@ -136,7 +135,7 @@
       "owner": "me"
     },
     {
-      "text": "CXR2frailty·DeepVitalSignal 세션을 논문 폴더에서 열기 → 체크리스트",
+      "text": "DeepVitalSignal 세션을 논문 폴더에서 열기 → 체크리스트 (CXR2frailty 완료)",
       "status": "todo",
       "section": "프로젝트 연동",
       "owner": "me",
@@ -186,11 +185,10 @@
       "owner": "me"
     },
     {
-      "text": "동네시세 체크리스트 완료 항목 복원(현재 0/39, 동네시세 세션)",
-      "status": "todo",
+      "text": "동네시세 체크리스트 완료 항목 복원(25/60)",
+      "status": "done",
       "section": "프로젝트 연동",
-      "owner": "me",
-      "due": "2026-09-29"
+      "owner": "me"
     },
     {
       "text": "케어노트 시술 기록 패널·캘린더 표시",
