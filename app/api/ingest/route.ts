@@ -48,7 +48,7 @@ const ccStatusSchema = z.object({
   next: z.array(z.string().max(200)).max(8),
   blockers: z.array(z.string().max(200)).max(8),
   done: z.array(z.object({ date: z.string().nullable(), text: z.string().max(200) })).max(10),
-  checklist: z.array(ccChecklistItemSchema).max(60),
+  checklist: z.array(ccChecklistItemSchema).max(120),
 });
 
 const projectDetailSchema = z.object({

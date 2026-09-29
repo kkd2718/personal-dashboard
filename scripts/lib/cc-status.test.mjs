@@ -89,10 +89,10 @@ describe('parseCcStatus', () => {
     expect(parsed.done).toEqual([{ date: '2026-09-27', text: '끝난 일' }]);
   });
 
-  it('caps checklist at 60 items, text at 200 chars, section at 40', () => {
-    const many = Array.from({ length: 70 }, (_, i) => ({ text: `item ${i} ${'x'.repeat(250)}`, status: 'todo', section: 'y'.repeat(50) }));
+  it('caps checklist at 120 items, text at 200 chars, section at 40', () => {
+    const many = Array.from({ length: 130 }, (_, i) => ({ text: `item ${i} ${'x'.repeat(250)}`, status: 'todo', section: 'y'.repeat(50) }));
     const parsed = parseCcStatus(JSON.stringify({ checklist: many }));
-    expect(parsed.checklist).toHaveLength(60);
+    expect(parsed.checklist).toHaveLength(120);
     expect(parsed.checklist[0].text.length).toBe(200);
     expect(parsed.checklist[0].section.length).toBe(40);
   });

@@ -52,7 +52,7 @@ const STATUS_ALIASES = {
 };
 
 /** Drops items with an unknown status; owner defaults to 'agent' for anything
- * else/missing. Section (max 40 chars) and due (YYYY-MM-DD) are optional. Caps at 60 items. */
+ * else/missing. Section (max 40 chars) and due (YYYY-MM-DD) are optional. Caps at 120 items. */
 function cleanChecklist(arr) {
   if (!Array.isArray(arr)) return [];
   return arr
@@ -65,7 +65,7 @@ function cleanChecklist(arr) {
       due: typeof c.due === 'string' && DATE_RE.test(c.due) ? c.due : null,
     }))
     .filter((c) => c.text.length > 0)
-    .slice(0, 60);
+    .slice(0, 120);
 }
 
 /**
