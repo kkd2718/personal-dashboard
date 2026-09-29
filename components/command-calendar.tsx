@@ -626,7 +626,7 @@ export function CommandCalendar({
   }
 
   return (
-    <div className="flex h-full flex-col gap-2 rounded-[var(--r-lg)] border border-border bg-surface p-3">
+    <div className="flex h-full min-w-0 flex-col gap-2 rounded-[var(--r-lg)] border border-border bg-surface p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-1">
           <button

@@ -29,7 +29,7 @@ export default async function CalendarPage() {
   return (
     <div className="flex flex-col gap-5">
       <h1 className="text-lg font-semibold">캘린더</h1>
-      <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         <CommandCalendar
           milestones={milestones}
           tasks={tasks}
