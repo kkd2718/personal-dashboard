@@ -24,6 +24,7 @@ import { createDeadlineAction } from '@/app/actions/deadlines';
 import { setVisibleCalendarsAction } from '@/app/actions/calendar';
 import { loadCareMonthAction } from '@/app/actions/carenote';
 import { recordsByDate } from '@/lib/logic/carenote';
+import { shiftsByDate, type ParsedShift, type WorkShift } from '@/lib/logic/work';
 import { NoteItem } from '@/components/note-item';
 import { MentionTextarea } from '@/components/mention-textarea';
 import { CareDaySection } from '@/components/carenote/care-day-section';
@@ -196,9 +197,11 @@ function DayPopover({
   projects,
   milestones,
   care,
+  shift,
   onClose,
 }: {
   date: string;
+  shift?: ParsedShift;
   points: CalendarPoint[];
   notes: Note[];
   projects: Project[];
@@ -288,6 +291,13 @@ function DayPopover({
   return (
     <>
       <p className="mb-2 font-semibold">{date}</p>
+
+      {shift && (
+        <p className="mb-2 text-foreground/70">
+          <span className="mr-1.5 text-[11px] font-medium text-foreground/50">근무</span>
+          {shift.label}
+        </p>
+      )}
 
       {googlePoints.length > 0 && (
         <div className="mb-2">
@@ -483,6 +493,8 @@ interface Props {
   /** Set from careNoteConfigured() server-side — renders the 시술 section and day
    * markers, fetched live per visible range (PLAN_CARENOTE.md §2). */
   careNoteEnabled?: boolean;
+  /** Owner's own clinic shifts (app_meta 'work:shifts'); empty = nothing shown. */
+  workShifts?: WorkShift[];
 }
 
 export function CommandCalendar({
@@ -497,8 +509,10 @@ export function CommandCalendar({
   defaultView = 'month',
   compact = false,
   careNoteEnabled = false,
+  workShifts = [],
 }: Props) {
   const today = todayKST();
+  const shiftMap = useMemo(() => shiftsByDate(workShifts), [workShifts]);
   const router = useRouter();
   const [calendarPending, startCalendarTransition] = useTransition();
   const calendarOptions = useMemo(() => calendarVisibilityOptions(googleEvents), [googleEvents]);
@@ -707,6 +721,8 @@ export function CommandCalendar({
                   const isHoliday = events.holidays.has(date);
                   const points = events.points[date] ?? [];
                   const careForDay = careNoteEnabled ? (careByDate.get(date) ?? []) : [];
+                  const shift = shiftMap.get(date);
+                  const showShift = !compact && shift && shift.kind !== 'off';
                   // Care rows share the existing 3-row point cap (PLAN_CARENOTE.md
                   // Addendum A1): care first, then other points, then +N.
                   const careShown = compact ? [] : careForDay.slice(0, 3);
@@ -731,6 +747,14 @@ export function CommandCalendar({
                           <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent" aria-hidden />
                         )}
                       </span>
+                      {showShift && (
+                        <span
+                          title={shift.label}
+                          className="w-full min-w-0 truncate rounded-full bg-accent-soft px-1 text-[10px] text-accent"
+                        >
+                          💼 {shift.short}
+                        </span>
+                      )}
                       {careShown.map((r) => {
                         const person = carePersonById.get(r.personId);
                         const typeName = careTypeById.get(r.procedureTypeId)?.name ?? '시술';
@@ -848,6 +872,7 @@ export function CommandCalendar({
         <DayPopoverOverlay anchorRect={anchorRect} triggerEl={triggerEl} onClose={closeDay}>
           <DayPopover
             date={selected}
+            shift={shiftMap.get(selected)}
             points={events.points[selected] ?? []}
             notes={notes}
             projects={projects}

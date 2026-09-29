@@ -19,6 +19,7 @@ import { StatusWarnChip } from '@/components/home/status-warn-chip';
 import { tagCounts } from '@/lib/logic/notes';
 import { checklist, checklistItemCount } from '@/lib/logic/checklist';
 import { buildQueueLaneCards, deadlineCounts, headerCountLabel, nextDeadlineAfterWeek } from '@/lib/logic/home';
+import { WORK_SHIFTS_META_KEY, type WorkShiftsMeta } from '@/lib/logic/work';
 import { projectDetailMetaKey } from '@/lib/logic/project-detail';
 import { addDaysStr, startOfSundayWeek, todayKST } from '@/lib/logic/dates';
 import { CALENDAR_VISIBLE_META_KEY, filterVisibleEvents, todayCalendarEvents } from '@/lib/logic/calendar';
@@ -57,6 +58,7 @@ export default async function HomePage({
     calendarEvents,
     visibleCalendars,
     tradingSummary,
+    workMeta,
   ] = await Promise.all([
     repo.listProjects(),
     repo.listTasks(),
@@ -70,6 +72,7 @@ export default async function HomePage({
     repo.listCalendarEvents(addDaysStr(todayKST(), -60), addDaysStr(todayKST(), 180)),
     repo.getMeta<string[]>(CALENDAR_VISIBLE_META_KEY),
     repo.getMeta<TradingSummary>(TRADING_SUMMARY_META_KEY),
+    repo.getMeta<WorkShiftsMeta>(WORK_SHIFTS_META_KEY),
   ]);
   // One Promise.all of getMeta calls for the distinct project ids behind the queue
   // lane's active projects or a paper (§4: home lanes prefer the checklist line).
@@ -158,6 +161,7 @@ export default async function HomePage({
         notes={notes}
         googleEvents={visibleEvents}
         projects={projects}
+        workShifts={workMeta?.shifts ?? []}
       />
 
       {tradingProject && (

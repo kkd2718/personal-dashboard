@@ -4,6 +4,7 @@ import { DeadlineList } from '@/components/deadline-list';
 import { upcoming } from '@/lib/logic/upcoming';
 import { addDaysStr, todayKST } from '@/lib/logic/dates';
 import { CALENDAR_VISIBLE_META_KEY } from '@/lib/logic/calendar';
+import { WORK_SHIFTS_META_KEY, type WorkShiftsMeta } from '@/lib/logic/work';
 import { careNoteConfigured } from '@/lib/carenote/client';
 
 // D-day depends on "today" in KST; never cache this page.
@@ -12,7 +13,7 @@ export const dynamic = 'force-dynamic';
 export default async function CalendarPage() {
   const repo = getRepo();
   const today = todayKST();
-  const [projects, tasks, milestones, deadlines, reviews, notes, calendarEvents, visibleCalendars] = await Promise.all([
+  const [projects, tasks, milestones, deadlines, reviews, notes, calendarEvents, visibleCalendars, workMeta] = await Promise.all([
     repo.listProjects(),
     repo.listTasks(),
     repo.listMilestones(),
@@ -21,6 +22,7 @@ export default async function CalendarPage() {
     repo.listNotes(),
     repo.listCalendarEvents(addDaysStr(today, -60), addDaysStr(today, 180)),
     repo.getMeta<string[]>(CALENDAR_VISIBLE_META_KEY),
+    repo.getMeta<WorkShiftsMeta>(WORK_SHIFTS_META_KEY),
   ]);
   const agenda = upcoming(deadlines, reviews, today, 30);
 
@@ -39,6 +41,7 @@ export default async function CalendarPage() {
           projects={projects}
           defaultView="month"
           careNoteEnabled={careNoteConfigured()}
+          workShifts={workMeta?.shifts ?? []}
         />
         <div className="flex flex-col gap-4">
           <div className="rounded-[var(--r-md)] border border-border bg-surface p-3">

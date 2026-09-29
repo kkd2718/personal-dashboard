@@ -20,6 +20,11 @@
  *   WRITE_DEADLINES 'true' on ONE account only: mirror the dashboard's due dates
  *                  (paper revisions, accepted reviews, other deadlines) into this
  *                  account's default calendar as all-day events tagged [CC:...]
+ *   WORK_SHEET_ID  (optional, opt-in) id of the clinic's shared shift sheet. Unset = no
+ *                  work sync and no `work` key in the payload.
+ *   WORK_NAME      the name cell of YOUR row in that sheet. Only that row is read; only
+ *                  {date, code} pairs are sent (never the name or other rows).
+ *   WORK_MONTHS_BACK months before the current one to read (default 1)
  */
 
 var DEFAULT_GMAIL_QUERY =
@@ -85,6 +90,7 @@ function sync() {
   var events = collectEvents_(calendarIds, from, to);
   var mails = collectMails_();
   var trashedMessageIds = collectTrashedIds_();
+  var work = collectWorkShifts_();
 
   var payload = {
     account: props.account,
@@ -96,6 +102,7 @@ function sync() {
     mails: mails,
     trashedMessageIds: trashedMessageIds,
   };
+  if (work !== null) payload.work = work;
 
   var response = UrlFetchApp.fetch(props.ccUrl.replace(/\/$/, '') + '/api/google/sync', {
     method: 'post',
@@ -112,7 +119,80 @@ function sync() {
   }
   // Log status only — never the token or the payload body.
   Logger.log('sync() -> HTTP ' + code + ', events=' + events.length + ', mails=' + mails.length +
-    ', trashed=' + trashedMessageIds.length + ', deadlines=' + written);
+    ', trashed=' + trashedMessageIds.length + ', deadlines=' + written +
+    (work !== null ? ', work=' + work.shifts.length : ''));
+}
+
+var WORK_TAB_RE = /^(\d{2})\.(\d{1,2})$/;
+var WORK_DATE_RE = /^\d{1,2}\/\d{1,2}$/;
+
+function pad2_(n) {
+  return (n < 10 ? '0' : '') + n;
+}
+
+/** Reads only the owner's row (name cell === WORK_NAME) from the shared shift sheet's
+ * `YY.MM` tabs. Returns {from, to, shifts:[{date, code}]} or null (unset / error /
+ * no tab in range). Never logs names or cell values. */
+function collectWorkShifts_() {
+  var sheetId = getProp_('WORK_SHEET_ID', null);
+  var name = getProp_('WORK_NAME', null);
+  if (!sheetId || !name) return null;
+  try {
+    var back = parseInt(getProp_('WORK_MONTHS_BACK', '1'), 10);
+    if (isNaN(back) || back < 0) back = 1;
+    var nowKey = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM').split('-');
+    var minKey = Number(nowKey[0]) * 12 + Number(nowKey[1]) - 1 - back;
+    var tabs = [];
+    var sheets = SpreadsheetApp.openById(sheetId).getSheets();
+    for (var i = 0; i < sheets.length; i++) {
+      var m = WORK_TAB_RE.exec(sheets[i].getName());
+      if (!m) continue;
+      var year = 2000 + Number(m[1]);
+      var month = Number(m[2]);
+      if (year * 12 + month - 1 < minKey) continue;
+      tabs.push({ sheet: sheets[i], year: year, month: month });
+    }
+    if (tabs.length === 0) return null;
+    tabs.sort(function (a, b) { return (a.year * 12 + a.month) - (b.year * 12 + b.month); });
+
+    var byDate = {};
+    for (var t = 0; t < tabs.length; t++) {
+      var rows = tabs[t].sheet.getDataRange().getDisplayValues();
+      var dateRow = null;
+      for (var r = 0; r < rows.length; r++) {
+        var row = rows[r];
+        var hits = 0;
+        for (var c = 0; c < row.length; c++) if (WORK_DATE_RE.test(String(row[c]).trim())) hits++;
+        if (hits >= 5) { dateRow = row; continue; }
+        if (!dateRow || String(row[0]).trim() !== name) continue;
+        for (var col = 0; col < dateRow.length && col < row.length; col++) {
+          var cell = String(dateRow[col]).trim();
+          var code = String(row[col]).trim().slice(0, 30);
+          if (!WORK_DATE_RE.test(cell) || !code) continue;
+          var parts = cell.split('/');
+          var dMonth = Number(parts[0]);
+          var y = tabs[t].year;
+          if (tabs[t].month === 12 && dMonth === 1) y++;
+          else if (tabs[t].month === 1 && dMonth === 12) y--;
+          byDate[y + '-' + pad2_(dMonth) + '-' + pad2_(Number(parts[1]))] = code; // later tab wins
+        }
+      }
+    }
+    var shifts = [];
+    for (var d in byDate) shifts.push({ date: d, code: byDate[d] });
+    shifts.sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+    var first = tabs[0];
+    var last = tabs[tabs.length - 1];
+    var lastDay = new Date(Date.UTC(last.year, last.month, 0)).getUTCDate();
+    return {
+      from: first.year + '-' + pad2_(first.month) + '-01',
+      to: last.year + '-' + pad2_(last.month) + '-' + pad2_(lastDay),
+      shifts: shifts,
+    };
+  } catch (e) {
+    Logger.log('work: error ' + e.name);
+    return null;
+  }
 }
 
 var CC_MARKER_RE = /\[CC:([^\]]+)\]/;

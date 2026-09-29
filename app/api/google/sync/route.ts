@@ -15,6 +15,7 @@ import { sendMessage, telegramConfig } from '@/lib/telegram/client';
 import { escapeHtml } from '@/lib/telegram/format';
 import { todayKST } from '@/lib/logic/dates';
 import { findMatchingPaper } from '@/lib/logic/review-candidates';
+import { WORK_SHIFTS_META_KEY, mergeShifts, type WorkShift, type WorkShiftsMeta } from '@/lib/logic/work';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,6 +59,14 @@ const bodySchema = z.object({
   mails: z.array(mailSchema).max(200).optional(),
   // Message ids of recent review-ish mail now in Gmail trash (declined invitations).
   trashedMessageIds: z.array(z.string().min(1)).max(1000).optional(),
+  // Owner's own shifts only (docs/PLAN_WORK_SCHEDULE.md); absent = no change.
+  work: z
+    .object({
+      from: dateSchema,
+      to: dateSchema,
+      shifts: z.array(z.object({ date: dateSchema, code: z.string().min(1).max(30) })).max(500),
+    })
+    .optional(),
 });
 
 /** For the Google Apps Script installed per account (integrations/google/Code.gs).
@@ -89,7 +98,8 @@ export async function POST(request: Request) {
 
   const repo = getRepo();
   const now = new Date().toISOString();
-  const { account, calendar, mails, trashedMessageIds } = parsed.data;
+  const { account, calendar, mails, trashedMessageIds, work } = parsed.data;
+  if (work) await saveWorkShifts(repo, work, now);
 
   let eventCount = 0;
   if (calendar) {
@@ -150,6 +160,18 @@ export async function POST(request: Request) {
     candidates: { new: newCandidates.length, total: totalCandidates },
     deadlines: deadlinesForCalendar(deadlines, reviews, todayKST()),
   });
+}
+
+/** Merges the owner's shifts into app_meta 'work:shifts' and records the sync time. */
+async function saveWorkShifts(
+  repo: ReturnType<typeof getRepo>,
+  work: { from: string; to: string; shifts: WorkShift[] },
+  now: string
+) {
+  const existing = await repo.getMeta<WorkShiftsMeta>(WORK_SHIFTS_META_KEY);
+  const merged = mergeShifts(existing, work, todayKST(), now);
+  await repo.setMeta(WORK_SHIFTS_META_KEY, merged);
+  await repo.setMeta('integration:work', { at: now, detail: `${merged.shifts.length}일` });
 }
 
 /** A stored candidate whose due date wasn't found the first time (e.g. before the

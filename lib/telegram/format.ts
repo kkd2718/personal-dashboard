@@ -7,6 +7,7 @@ import type { UpcomingItem } from '@/lib/logic/upcoming';
 import { dueReminders, reviewReminders } from '@/lib/logic/upcoming';
 import { ddayLabel } from '@/lib/logic/dates';
 import { todayCalendarEvents } from '@/lib/logic/calendar';
+import { parseShift, type WorkShift } from '@/lib/logic/work';
 
 const WEEKDAY_KO = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -51,6 +52,14 @@ function isAlertable(item: StatusItem): boolean {
   return item.severity === 'critical' || item.severity === 'warn';
 }
 
+/** Today's shift line: '💼 근무 13층 1조 10:00–20:00', '🌿 오늘 휴무', or null. */
+export function workLine(shift: WorkShift | null | undefined, today: string): string | null {
+  if (!shift) return null;
+  const p = parseShift(shift.code, today);
+  if (p.kind === 'off') return '🌿 오늘 휴무';
+  return `💼 근무 ${escapeHtml(p.label)}`;
+}
+
 const MAX_LINES = 30;
 
 /** Caps `lines` to at most 30, replacing overflow with `…외 n건`. */
@@ -68,12 +77,15 @@ export interface TodayInput {
   todayEvents?: CalendarEvent[]; // events overlapping today (holidays filtered out here)
   statusItems: StatusItem[];
   cloudUrl?: string | null;
+  workShift?: WorkShift | null; // today's own shift, if synced
 }
 
 /** `/today` message: 지연/오늘/7일 내 마감/오늘 일정/오늘 메모/상태, each section omitted when empty. */
 export function formatToday(input: TodayInput): string {
   const sections: string[][] = [];
 
+  const shiftLine = workLine(input.workShift, input.today);
+  if (shiftLine) sections.push([shiftLine]);
   if (input.checklist.overdue.length > 0) {
     sections.push(['🔴 지연', ...input.checklist.overdue.map(taskLine)]);
   }
@@ -116,6 +128,7 @@ export interface DigestInput {
   todayEvents?: CalendarEvent[];
   statusItems: StatusItem[];
   cloudUrl?: string | null;
+  workShift?: WorkShift | null; // today's own shift, if synced
 }
 
 function headerDate(dateStr: string): string {
@@ -140,6 +153,8 @@ export function formatDigest(input: DigestInput): string | null {
   }
 
   const sections: string[][] = [[`☀️ ${headerDate(input.today)} 브리핑`]];
+  const shiftLine = workLine(input.workShift, input.today);
+  if (shiftLine) sections[0].push(shiftLine);
   if (reminders.length > 0) sections.push(['📅 마감 리마인더', ...reminders.map(upcomingLine)]);
   if (hasOverdue) sections.push(['🔴 지연', ...input.checklist.overdue.map(taskLine)]);
   if (hasToday) sections.push(['📌 오늘', ...input.checklist.today.map(taskLine)]);

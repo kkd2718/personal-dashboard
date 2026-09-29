@@ -5,6 +5,7 @@ import { TRADING_SUMMARY_META_KEY, tradingOneLine } from '@/lib/logic/trading';
 import type { StatusItem } from '@/lib/status/types';
 import { checklist } from '@/lib/logic/checklist';
 import { CALENDAR_VISIBLE_META_KEY, filterVisibleEvents } from '@/lib/logic/calendar';
+import { WORK_SHIFTS_META_KEY, type WorkShiftsMeta } from '@/lib/logic/work';
 import { formatDigest } from '@/lib/telegram/format';
 import type { SendResult } from '@/lib/telegram/client';
 
@@ -38,7 +39,7 @@ export async function runDigest(
     if (lastSent === today) return 'skipped-already';
   }
 
-  const [tasks, deadlines, reviews, snapshot, rawTodayEvents, visibleCalendars, trading] = await Promise.all([
+  const [tasks, deadlines, reviews, snapshot, rawTodayEvents, visibleCalendars, trading, work] = await Promise.all([
     repo.listTasks(),
     repo.listDeadlines(),
     repo.listReviews(),
@@ -46,6 +47,7 @@ export async function runDigest(
     repo.listCalendarEvents(today, today),
     repo.getMeta<string[]>(CALENDAR_VISIBLE_META_KEY),
     repo.getMeta<TradingSummary>(TRADING_SUMMARY_META_KEY),
+    repo.getMeta<WorkShiftsMeta>(WORK_SHIFTS_META_KEY),
   ]);
   const me = checklist(tasks, deadlines, reviews, today).me;
   const message = formatDigest({
@@ -56,6 +58,7 @@ export async function runDigest(
     todayEvents: filterVisibleEvents(rawTodayEvents, visibleCalendars),
     statusItems: snapshot?.items ?? [],
     cloudUrl,
+    workShift: work?.shifts.find((s) => s.date === today) ?? null,
   });
   if (!message) return 'skipped-empty';
   // Account summary line, only when the collector refreshed it within ~a day (the PC

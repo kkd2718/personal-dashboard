@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-29T14:00:00+09:00",
+  "updatedAt": "2026-09-29T15:30:00+09:00",
   "focus": "프로젝트 체크리스트 연동 마무리(남은 곳 CXR2frailty·DeepVital)",
   "next": [
     "DeepVitalSignal 세션 열기 → 체크리스트",
@@ -8,6 +8,10 @@
   ],
   "blockers": [],
   "done": [
+    {
+      "date": "2026-09-29",
+      "text": "근무표(구글 시트) → 대시보드 캘린더·홈·텔레그램: 본인 줄만 동기화 (Apps Script 붙여넣기 대기)"
+    },
     {
       "date": "2026-09-29",
       "text": "CXR2BC 답변서·수정본 공저자 전달 체크리스트 완료, 체크리스트 한도 120"
@@ -43,10 +47,6 @@
     {
       "date": "2026-09-28",
       "text": "Amgi 노트 막대를 progress.json#all(385/475)로 교체, 기록 규칙에 \"끝난 항목은 done 으로 남기기\" 명시"
-    },
-    {
-      "date": "2026-09-28",
-      "text": "구글 캘린더 마감 제목: 📌 일괄 → 분류별 이모지(📝🔍💰🎓🎤, 그 외 없음)"
     }
   ],
   "checklist": [
@@ -201,6 +201,13 @@
       "status": "done",
       "section": "케어노트 연동",
       "owner": "agent"
+    },
+    {
+      "text": "근무표 Apps Script 새 코드 붙여넣기 + WORK_SHEET_ID·WORK_NAME 설정 + 권한 승인",
+      "status": "todo",
+      "section": "연동",
+      "owner": "me",
+      "due": "2026-09-30"
     }
   ]
 }

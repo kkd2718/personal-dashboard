@@ -8,7 +8,7 @@ import { LogoutButton } from '@/components/settings/logout-button';
 import { authConfigured } from '@/lib/auth/require-user';
 import { googleAccountsFromMeta, integrationRowInfo, type IntegrationMeta } from '@/lib/logic/integrations';
 import { CALENDAR_VISIBLE_META_KEY } from '@/lib/logic/calendar';
-import { addDaysStr, todayKST } from '@/lib/logic/dates';
+import { addDaysStr, relTime, todayKST } from '@/lib/logic/dates';
 
 // Timestamps compared against "now" server-side; never cache this page.
 export const dynamic = 'force-dynamic';
@@ -22,13 +22,14 @@ export default async function SettingsPage() {
   const today = todayKST();
   const now = new Date().toISOString();
 
-  const [collector, telegram, obsidian, googleMetaRaw, visibleCalendars, googleEvents] = await Promise.all([
+  const [collector, telegram, obsidian, googleMetaRaw, visibleCalendars, googleEvents, work] = await Promise.all([
     repo.getMeta<IntegrationMeta>('integration:collector'),
     repo.getMeta<IntegrationMeta>('integration:telegram'),
     repo.getMeta<IntegrationMeta>('integration:obsidian'),
     repo.listMetaByPrefix('integration:google:'),
     repo.getMeta<string[]>(CALENDAR_VISIBLE_META_KEY),
     repo.listCalendarEvents(addDaysStr(today, -30), addDaysStr(today, 60)),
+    repo.getMeta<IntegrationMeta>('integration:work'),
   ]);
   const googleAccounts = googleAccountsFromMeta(googleMetaRaw);
 
@@ -52,6 +53,13 @@ export default async function SettingsPage() {
               Object.entries(googleAccounts).map(([account, meta]) => (
                 <IntegrationRow key={account} name={`Google (${account})`} {...integrationRowInfo('google', meta, now)} />
               ))
+            )}
+            {work && (
+              <IntegrationRow
+                name="근무표"
+                health={integrationRowInfo('google', work, now).health}
+                sentence={`근무표 최근 동기화 ${relTime(work.at, now)}${work.detail ? ` · ${work.detail}` : ''}`}
+              />
             )}
           </ul>
         </Card>

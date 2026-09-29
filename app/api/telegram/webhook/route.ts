@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { constantTimeEqual } from '@/lib/auth/bearer';
 import { telegramConfig, sendMessage } from '@/lib/telegram/client';
+import { WORK_SHIFTS_META_KEY, type WorkShiftsMeta } from '@/lib/logic/work';
 import { formatCaptureReply, formatToday, formatUpcomingList, parseUpdate, route } from '@/lib/telegram/format';
 import { createNoteFromText } from '@/lib/create-note';
 import { getRepo } from '@/lib/repo';
@@ -77,7 +78,7 @@ async function handle(text: string): Promise<void> {
 async function buildToday(): Promise<string> {
   const repo = getRepo();
   const today = todayKST();
-  const [tasks, deadlines, reviews, notes, snapshot, rawTodayEvents, visibleCalendars] = await Promise.all([
+  const [tasks, deadlines, reviews, notes, snapshot, rawTodayEvents, visibleCalendars, work] = await Promise.all([
     repo.listTasks(),
     repo.listDeadlines(),
     repo.listReviews(),
@@ -85,6 +86,7 @@ async function buildToday(): Promise<string> {
     repo.getStatusSnapshot(),
     repo.listCalendarEvents(today, today),
     repo.getMeta<string[]>(CALENDAR_VISIBLE_META_KEY),
+    repo.getMeta<WorkShiftsMeta>(WORK_SHIFTS_META_KEY),
   ]);
   const me = checklist(tasks, deadlines, reviews, today).me;
   const dayMemos = notes.filter((n) => n.date === today && n.status !== 'archived');
@@ -96,6 +98,7 @@ async function buildToday(): Promise<string> {
     todayEvents: filterVisibleEvents(rawTodayEvents, visibleCalendars),
     statusItems: snapshot?.items ?? [],
     cloudUrl: process.env.CLOUD_URL ?? null,
+    workShift: work?.shifts.find((s) => s.date === today) ?? null,
   });
 }
 

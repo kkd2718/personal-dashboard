@@ -7,6 +7,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { calendarEvents } from '@/lib/logic/calendar';
 import { addDaysStr, todayKST } from '@/lib/logic/dates';
 import { projectColorClasses } from '@/lib/project-colors';
+import { shiftsByDate, type WorkShift } from '@/lib/logic/work';
 import type { CalendarEvent, Deadline, Milestone, Note, Project, ReviewJob } from '@/lib/types';
 
 const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
@@ -34,7 +35,10 @@ export function WeekStrip({
   projects,
   headerAction,
   compact = false,
+  workShifts = [],
 }: {
+  /** Owner's own clinic shifts (app_meta 'work:shifts'); empty = nothing shown. */
+  workShifts?: WorkShift[];
   initialWeekStart: string;
   milestones: Milestone[];
   deadlines: Deadline[];
@@ -49,6 +53,7 @@ export function WeekStrip({
 }) {
   const [weekStart, setWeekStart] = useState(initialWeekStart);
   const today = todayKST();
+  const shiftMap = useMemo(() => shiftsByDate(workShifts), [workShifts]);
   const projectById = useMemo(() => new Map(projects.map((p) => [p.id, p])), [projects]);
   const milestoneById = useMemo(() => new Map(milestones.map((m) => [m.id, m])), [milestones]);
 
@@ -82,15 +87,22 @@ export function WeekStrip({
             // hover lists the titles.
             const dayPoints = (points[date] ?? []).filter((p) => p.kind !== 'task');
             const urgent = dayPoints.some((p) => p.kind === 'deadline' || p.kind === 'review');
+            const shift = shiftMap.get(date);
+            const shownShift = shift && shift.kind !== 'off' ? shift : undefined;
+            const tip = [
+              ...(shownShift ? [`근무 ${shownShift.label}`] : []),
+              ...dayPoints.map((p) => (p.startTime ? `${p.startTime} ${p.title}` : p.title)),
+            ].join('\n');
             return (
               <Link
                 key={date}
                 href="/calendar"
-                title={dayPoints.map((p) => (p.startTime ? `${p.startTime} ${p.title}` : p.title)).join('\n') || undefined}
+                title={tip || undefined}
                 className={`tnum relative rounded px-1 pt-0.5 pb-1.5 ${date === today ? 'bg-accent-soft font-medium text-accent' : 'text-foreground/50 hover:bg-foreground/5'}`}
               >
                 {DAY_LABELS[i]}
                 {Number(date.slice(8, 10))}
+                {shownShift && <span className="ml-0.5 max-w-10 truncate align-bottom text-[10px]">💼{shownShift.short}</span>}
                 {dayPoints.length > 0 && (
                   <span
                     aria-hidden
@@ -151,16 +163,21 @@ export function WeekStrip({
       <div className="grid grid-cols-7 gap-1 text-center text-xs">
         {days.map((date, i) => {
           const isToday = date === today;
+          const shift = shiftMap.get(date);
           return (
             <Link
               key={date}
               href="/calendar"
+              title={shift ? `근무 ${shift.label}` : undefined}
               className={`flex flex-col items-center gap-0.5 rounded-lg py-1.5 ${
                 isToday ? 'bg-accent-soft text-accent' : 'text-foreground/60 hover:bg-foreground/5'
               }`}
             >
               <span className="text-[10px]">{DAY_LABELS[i]}</span>
               <span className="tnum font-medium">{Number(date.slice(8, 10))}</span>
+              {shift && shift.kind !== 'off' && (
+                <span className="max-w-full truncate text-[10px] leading-3">💼 {shift.short}</span>
+              )}
             </Link>
           );
         })}
