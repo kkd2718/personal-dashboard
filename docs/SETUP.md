@@ -56,7 +56,7 @@ npm run db:import         # 실제 이전 (.data/db.json이 있으면 그걸, �
    배포 환경에는 필요 없음 (마이그레이션은 로컬에서 실행).
 3. `LOCAL_PROBES=0`도 추가 — 배포 환경(Vercel)에는 PC의 트레이딩 대시보드/git 저장소가
    없으므로 로컬 프로브 대신 `/api/ingest`로 들어온 마지막 스냅샷을 보여줍니다.
-4. 배포 후 `vercel.json`의 cron이 자동 등록됩니다 (매일 09:00 KST, `/api/cron/daily`).
+4. 배포 후 `vercel.json`의 cron이 자동 등록됩니다 (매일 07시대 KST — UTC 22:00, 무료 플랜은 그 1시간 안 아무 때나 실행, `/api/cron/daily`).
 5. 주의: Supabase를 설정했는데 `APP_PASSWORD`/`SESSION_SECRET`을 빼먹고 배포하면
    앱이 열린 채로 서비스되지 않도록 500 에러로 막습니다 — 둘 다 반드시 등록하세요.
 
@@ -104,7 +104,7 @@ Windows 작업 스케줄러에 `CommandCenterCollector` 작업을 등록합니�
 
 ## 8. 텔레그램 봇 (phase 2b)
 
-메모 캡처(`@프로젝트 #태그` 지원), `/today`, `/deadlines`, 매일 09:00 브리핑, 긴급
+메모 캡처(`@프로젝트 #태그` 지원), `/today`, `/deadlines`, 매일 아침(07시대) 브리핑, 긴급
 상태 즉시 알림을 제공하는 개인용 비공개 봇입니다.
 
 1. BotFather에서 봇을 만들고 토큰을 `.env.local`의 `TELEGRAM_BOT_TOKEN`에 넣습니다.

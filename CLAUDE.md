@@ -93,7 +93,7 @@ project's DB password isn't always available/known. Run scripts with
   projects (e.g. Amgi); SessionStart hook (`scripts/cc-inbox.mjs` + `/api/agent-inbox`) delivers a
   project's open agent tasks and "sent" memos into its Claude session.
 - **2b (done)**: Telegram bot — memo capture (`@프로젝트 #태그`) shared with `/api/capture`,
-  `/today` + `/deadlines`, daily 09:00 digest (`app_meta` table for once-per-day idempotency),
+  `/today` + `/deadlines`, daily 07:00–08:00 KST digest (Vercel cron `0 22 * * *` UTC; Hobby fires anywhere in that hour) (`app_meta` table for once-per-day idempotency),
   immediate alerts on newly-critical status (`lib/logic/status-diff.ts`). `scripts/telegram-setup.mjs`
   discovers the chat id, generates the webhook secret, registers the webhook + commands.
 - **3 (done)**: Google Apps Script per account (`integrations/google/Code.gs` → `POST /api/google/sync`,

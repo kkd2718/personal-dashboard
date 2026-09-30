@@ -137,7 +137,7 @@ function headerDate(dateStr: string): string {
   return `${m}/${d}(${wd})`;
 }
 
-/** Daily 09:00 digest: reminders (D-7/3/1 deadlines + reviews), then 지연/오늘, then
+/** Daily morning (07:00–08:00 KST) digest: reminders (D-7/3/1 deadlines + reviews), then 지연/오늘, then
  * critical/warn status. `null` when there's nothing to report — no message sent. */
 export function formatDigest(input: DigestInput): string | null {
   const reminders = [...dueReminders(input.deadlines, input.today), ...reviewReminders(input.reviews, input.today)].sort(
