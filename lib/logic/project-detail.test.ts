@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checklistLine, checklistSummary, isStatusStale, projectDetailMetaKey, statusAgeLabel } from './project-detail';
+import { checklistLine, checklistSummary, isStatusStale, meChecklistDue, projectDetailMetaKey, statusAgeLabel } from './project-detail';
 import type { CcChecklistItem, CcStatus } from '@/lib/types';
 
 const status = (updatedAt: string | null): CcStatus => ({ updatedAt, focus: null, next: [], blockers: [], done: [], checklist: [] });
@@ -111,5 +111,34 @@ describe('checklistLine', () => {
     ).toBe('다음 마감 10/5 제출');
     expect(checklistLine({ doing: [], meOpen: 0, open: 2, total: 3, blocked: 0, nextDue: null })).toBe('남은 2/3');
     expect(checklistLine({ doing: [], meOpen: 2, open: 2, total: 3, blocked: 0, nextDue: null })).toBe('남은 2/3 · 내 할 일 2');
+  });
+});
+
+describe('meChecklistDue', () => {
+  const st = (checklist: CcStatus['checklist']): CcStatus =>
+    ({ updatedAt: '2026-09-30T08:00:00+09:00', focus: null, next: [], blockers: [], done: [], checklist }) as CcStatus;
+
+  it('buckets my open dated items into overdue/today/tomorrow and strips the repo suffix', () => {
+    const out = meChecklistDue(
+      [
+        {
+          projectName: 'trading-system (kis)',
+          status: st([
+            item({ text: 'RP 해지', status: 'todo', owner: 'me', due: '2026-09-30' }),
+            item({ text: 'IB+VR 시작', status: 'todo', owner: 'me', due: '2026-10-01' }),
+            item({ text: '예탁금 문의', status: 'blocked', owner: 'me', due: '2026-09-28' }),
+            item({ text: '오래된 일', status: 'todo', owner: 'me', due: '2026-08-01' }),
+            item({ text: '에이전트 일', status: 'todo', owner: 'agent', due: '2026-09-30' }),
+            item({ text: '끝난 일', status: 'done', owner: 'me', due: '2026-09-30' }),
+            item({ text: '기한 없음', status: 'todo', owner: 'me' }),
+          ]),
+        },
+        { projectName: 'Empty', status: null },
+      ],
+      '2026-09-30'
+    );
+    expect(out.today).toEqual([{ project: 'trading-system', text: 'RP 해지', due: '2026-09-30', blocked: false }]);
+    expect(out.tomorrow.map((i) => i.text)).toEqual(['IB+VR 시작']);
+    expect(out.overdue).toEqual([{ project: 'trading-system', text: '예탁금 문의', due: '2026-09-28', blocked: true }]);
   });
 });

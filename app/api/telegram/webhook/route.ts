@@ -3,6 +3,7 @@ import { constantTimeEqual } from '@/lib/auth/bearer';
 import { telegramConfig, sendMessage } from '@/lib/telegram/client';
 import { WORK_SHIFTS_META_KEY, type WorkShiftsMeta } from '@/lib/logic/work';
 import { formatCaptureReply, formatToday, formatUpcomingList, parseUpdate, route } from '@/lib/telegram/format';
+import { loadProjectDue } from '@/lib/telegram/digest';
 import { createNoteFromText } from '@/lib/create-note';
 import { getRepo } from '@/lib/repo';
 import { checklist } from '@/lib/logic/checklist';
@@ -78,7 +79,7 @@ async function handle(text: string): Promise<void> {
 async function buildToday(): Promise<string> {
   const repo = getRepo();
   const today = todayKST();
-  const [tasks, deadlines, reviews, notes, snapshot, rawTodayEvents, visibleCalendars, work] = await Promise.all([
+  const [tasks, deadlines, reviews, notes, snapshot, rawTodayEvents, visibleCalendars, work, projectDue] = await Promise.all([
     repo.listTasks(),
     repo.listDeadlines(),
     repo.listReviews(),
@@ -87,6 +88,7 @@ async function buildToday(): Promise<string> {
     repo.listCalendarEvents(today, today),
     repo.getMeta<string[]>(CALENDAR_VISIBLE_META_KEY),
     repo.getMeta<WorkShiftsMeta>(WORK_SHIFTS_META_KEY),
+    loadProjectDue(repo, today),
   ]);
   const me = checklist(tasks, deadlines, reviews, today).me;
   const dayMemos = notes.filter((n) => n.date === today && n.status !== 'archived');
@@ -99,6 +101,7 @@ async function buildToday(): Promise<string> {
     statusItems: snapshot?.items ?? [],
     cloudUrl: process.env.CLOUD_URL ?? null,
     workShift: work?.shifts.find((s) => s.date === today) ?? null,
+    projectDue,
   });
 }
 

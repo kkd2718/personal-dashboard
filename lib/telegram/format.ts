@@ -8,6 +8,7 @@ import { dueReminders, reviewReminders } from '@/lib/logic/upcoming';
 import { ddayLabel } from '@/lib/logic/dates';
 import { todayCalendarEvents } from '@/lib/logic/calendar';
 import { parseShift, type WorkShift } from '@/lib/logic/work';
+import type { DueChecklist, DueChecklistItem } from '@/lib/logic/project-detail';
 
 const WEEKDAY_KO = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -26,6 +27,14 @@ export function formatCaptureReply(note: Note, projectName: string | null): stri
 
 function taskLine(item: ChecklistItem): string {
   return `- ${escapeHtml(item.title)}`;
+}
+
+/** Project checklist item: '- [trading-system] RP 해지', with (~9/28) when overdue, (막힘) when blocked. */
+function projectItemLine(item: DueChecklistItem, today: string): string {
+  const [, m, d] = item.due.split('-').map(Number);
+  const late = item.due < today ? ` (~${m}/${d})` : '';
+  const blocked = item.blocked ? ' (막힘)' : '';
+  return `- [${escapeHtml(item.project)}] ${escapeHtml(item.text)}${late}${blocked}`;
 }
 
 function upcomingLine(item: UpcomingItem): string {
@@ -61,6 +70,7 @@ export function workLine(shift: WorkShift | null | undefined, today: string): st
 }
 
 const MAX_LINES = 30;
+const EMPTY_DUE: DueChecklist = { overdue: [], today: [], tomorrow: [] };
 
 /** Caps `lines` to at most 30, replacing overflow with `…외 n건`. */
 function capLines(lines: string[]): string[] {
@@ -78,6 +88,7 @@ export interface TodayInput {
   statusItems: StatusItem[];
   cloudUrl?: string | null;
   workShift?: WorkShift | null; // today's own shift, if synced
+  projectDue?: DueChecklist; // my dated items from each project's docs/cc-status.json
 }
 
 /** `/today` message: 지연/오늘/7일 내 마감/오늘 일정/오늘 메모/상태, each section omitted when empty. */
@@ -86,11 +97,15 @@ export function formatToday(input: TodayInput): string {
 
   const shiftLine = workLine(input.workShift, input.today);
   if (shiftLine) sections.push([shiftLine]);
-  if (input.checklist.overdue.length > 0) {
-    sections.push(['🔴 지연', ...input.checklist.overdue.map(taskLine)]);
+  const pd = input.projectDue ?? EMPTY_DUE;
+  if (input.checklist.overdue.length > 0 || pd.overdue.length > 0) {
+    sections.push(['🔴 지연', ...input.checklist.overdue.map(taskLine), ...pd.overdue.map((i) => projectItemLine(i, input.today))]);
   }
-  if (input.checklist.today.length > 0) {
-    sections.push(['📌 오늘', ...input.checklist.today.map(taskLine)]);
+  if (input.checklist.today.length > 0 || pd.today.length > 0) {
+    sections.push(['📌 오늘', ...input.checklist.today.map(taskLine), ...pd.today.map((i) => projectItemLine(i, input.today))]);
+  }
+  if (pd.tomorrow.length > 0) {
+    sections.push(['🔜 내일', ...pd.tomorrow.map((i) => projectItemLine(i, input.today))]);
   }
   if (input.upcoming.length > 0) {
     sections.push(['⏳ 7일 내 마감', ...input.upcoming.map(upcomingLine)]);
@@ -129,6 +144,7 @@ export interface DigestInput {
   statusItems: StatusItem[];
   cloudUrl?: string | null;
   workShift?: WorkShift | null; // today's own shift, if synced
+  projectDue?: DueChecklist; // my dated items from each project's docs/cc-status.json
 }
 
 function headerDate(dateStr: string): string {
@@ -144,11 +160,21 @@ export function formatDigest(input: DigestInput): string | null {
     (a, b) => a.dday - b.dday
   );
   const statusItems = input.statusItems.filter(isAlertable);
-  const hasOverdue = input.checklist.overdue.length > 0;
-  const hasToday = input.checklist.today.length > 0;
+  const pd = input.projectDue ?? EMPTY_DUE;
+  const hasOverdue = input.checklist.overdue.length > 0 || pd.overdue.length > 0;
+  const hasToday = input.checklist.today.length > 0 || pd.today.length > 0;
+  const hasTomorrow = pd.tomorrow.length > 0;
   const todayEvents = todayCalendarEvents(input.todayEvents ?? []);
+  const projectLine = (i: DueChecklistItem) => projectItemLine(i, input.today);
 
-  if (reminders.length === 0 && !hasOverdue && !hasToday && statusItems.length === 0 && todayEvents.length === 0) {
+  if (
+    reminders.length === 0 &&
+    !hasOverdue &&
+    !hasToday &&
+    !hasTomorrow &&
+    statusItems.length === 0 &&
+    todayEvents.length === 0
+  ) {
     return null;
   }
 
@@ -156,9 +182,10 @@ export function formatDigest(input: DigestInput): string | null {
   const shiftLine = workLine(input.workShift, input.today);
   if (shiftLine) sections[0].push(shiftLine);
   if (reminders.length > 0) sections.push(['📅 마감 리마인더', ...reminders.map(upcomingLine)]);
-  if (hasOverdue) sections.push(['🔴 지연', ...input.checklist.overdue.map(taskLine)]);
-  if (hasToday) sections.push(['📌 오늘', ...input.checklist.today.map(taskLine)]);
+  if (hasToday) sections.push(['📌 오늘', ...input.checklist.today.map(taskLine), ...pd.today.map(projectLine)]);
   if (todayEvents.length > 0) sections.push(['🗓 오늘 일정', ...todayEvents.map(eventLine)]);
+  if (hasTomorrow) sections.push(['🔜 내일 (미리)', ...pd.tomorrow.map(projectLine)]);
+  if (hasOverdue) sections.push(['🔴 지연', ...input.checklist.overdue.map(taskLine), ...pd.overdue.map(projectLine)]);
   if (statusItems.length > 0) sections.push(['⚠️ 상태', ...statusItems.map(statusLine)]);
 
   const lines = capLines(sections.flat());

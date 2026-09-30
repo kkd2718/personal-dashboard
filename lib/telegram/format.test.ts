@@ -324,3 +324,23 @@ describe('route', () => {
     expect(route('/frobnicate')).toEqual({ kind: 'command', name: 'unknown', arg: '' });
   });
 });
+
+describe('formatDigest — project checklist items', () => {
+  it('lists my project items due today, tomorrow and overdue, and counts them as content', () => {
+    const result = formatDigest({
+      today: '2026-09-30',
+      deadlines: [],
+      reviews: [],
+      checklist: { overdue: [], today: [], thisWeek: [], doing: [], next: [] },
+      statusItems: [],
+      projectDue: {
+        today: [{ project: 'trading', text: 'RP 해지', due: '2026-09-30', blocked: false }],
+        tomorrow: [{ project: 'trading', text: 'IB+VR 시작', due: '2026-10-01', blocked: false }],
+        overdue: [{ project: 'Amgi', text: '콘솔 확인', due: '2026-09-28', blocked: true }],
+      },
+    });
+    expect(result).toContain('📌 오늘\n- [trading] RP 해지');
+    expect(result).toContain('🔜 내일 (미리)\n- [trading] IB+VR 시작');
+    expect(result).toContain('- [Amgi] 콘솔 확인 (~9/28) (막힘)');
+  });
+});

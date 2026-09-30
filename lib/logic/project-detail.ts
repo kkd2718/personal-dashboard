@@ -1,4 +1,4 @@
-import { relTime } from '@/lib/logic/dates';
+import { addDaysStr, relTime } from '@/lib/logic/dates';
 import type { CcStatus } from '@/lib/types';
 
 export interface ChecklistSummary {
@@ -70,4 +70,43 @@ export function checklistLine(summary: ChecklistSummary): string {
   }
   if (summary.meOpen > 0) line += ` · 내 할 일 ${summary.meOpen}`;
   return line;
+}
+
+export interface DueChecklistItem {
+  project: string; // short project name ('동네시세 (realty-chart)' -> '동네시세')
+  text: string;
+  due: string;
+  blocked: boolean;
+}
+
+export interface DueChecklist {
+  overdue: DueChecklistItem[]; // due within the last `overdueDays` days, before today
+  today: DueChecklistItem[];
+  tomorrow: DueChecklistItem[];
+}
+
+/** The owner's ("me") open project-checklist items (docs/cc-status.json) that are
+ * overdue, due today or due tomorrow — for the Telegram digest and /today, which
+ * otherwise only see dashboard tasks. Overdue items older than `overdueDays` are
+ * dropped so long-stale entries don't flood every morning. */
+export function meChecklistDue(
+  entries: { projectName: string; status: CcStatus | null }[],
+  today: string,
+  overdueDays = 14
+): DueChecklist {
+  const tomorrow = addDaysStr(today, 1);
+  const oldest = addDaysStr(today, -overdueDays);
+  const out: DueChecklist = { overdue: [], today: [], tomorrow: [] };
+  for (const { projectName, status } of entries) {
+    const project = projectName.replace(/\s*\(.*\)\s*$/, '').trim() || projectName;
+    for (const c of status?.checklist ?? []) {
+      if (c.owner !== 'me' || c.status === 'done' || !c.due) continue;
+      const item = { project, text: c.text, due: c.due, blocked: c.status === 'blocked' };
+      if (c.due === today) out.today.push(item);
+      else if (c.due === tomorrow) out.tomorrow.push(item);
+      else if (c.due < today && c.due >= oldest) out.overdue.push(item);
+    }
+  }
+  out.overdue.sort((a, b) => a.due.localeCompare(b.due));
+  return out;
 }

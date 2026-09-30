@@ -7,6 +7,7 @@ const TODAY = '2026-09-26';
 function fakeRepo(overrides: Partial<DigestRepo> = {}): DigestRepo {
   const meta = new Map<string, unknown>();
   return {
+    listProjects: async () => [],
     listTasks: async () => [] as Task[],
     listDeadlines: async () => [] as Deadline[],
     listReviews: async () => [] as ReviewJob[],

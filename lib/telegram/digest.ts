@@ -1,6 +1,7 @@
 // Daily digest orchestration (phase 2b), extracted from app/api/cron/daily so it
 // can be unit-tested with a fake repo + fake sender (no Next.js route needed).
-import type { CalendarEvent, Deadline, ReviewJob, Task, TradingSummary } from '@/lib/types';
+import type { CalendarEvent, Deadline, Project, ProjectDetail, ReviewJob, Task, TradingSummary } from '@/lib/types';
+import { meChecklistDue, projectDetailMetaKey, type DueChecklist } from '@/lib/logic/project-detail';
 import { TRADING_SUMMARY_META_KEY, tradingOneLine } from '@/lib/logic/trading';
 import type { StatusItem } from '@/lib/status/types';
 import { checklist } from '@/lib/logic/checklist';
@@ -14,6 +15,7 @@ export type DigestResult = 'sent' | 'skipped-empty' | 'skipped-already' | 'faile
 const META_KEY = 'telegram:digest:lastSent';
 
 export interface DigestRepo {
+  listProjects(): Promise<Project[]>;
   listTasks(): Promise<Task[]>;
   listDeadlines(): Promise<Deadline[]>;
   listReviews(): Promise<ReviewJob[]>;
@@ -24,6 +26,20 @@ export interface DigestRepo {
 }
 
 export type Sender = (text: string) => Promise<SendResult>;
+
+/** My overdue/today/tomorrow items across every non-archived project's cc-status
+ * checklist (shared by the digest and /today). */
+export async function loadProjectDue(
+  repo: Pick<DigestRepo, 'listProjects' | 'getMeta'>,
+  today: string
+): Promise<DueChecklist> {
+  const projects = (await repo.listProjects()).filter((p) => p.status !== 'archived');
+  const details = await Promise.all(projects.map((p) => repo.getMeta<ProjectDetail>(projectDetailMetaKey(p.id))));
+  return meChecklistDue(
+    projects.map((p, i) => ({ projectName: p.name, status: details[i]?.status ?? null })),
+    today
+  );
+}
 
 /** At most once per KST day (`force` bypasses the guard, still requires cron auth
  * upstream). Empty digest -> no message, no `lastSent` write. */
@@ -39,7 +55,7 @@ export async function runDigest(
     if (lastSent === today) return 'skipped-already';
   }
 
-  const [tasks, deadlines, reviews, snapshot, rawTodayEvents, visibleCalendars, trading, work] = await Promise.all([
+  const [tasks, deadlines, reviews, snapshot, rawTodayEvents, visibleCalendars, trading, work, projectDue] = await Promise.all([
     repo.listTasks(),
     repo.listDeadlines(),
     repo.listReviews(),
@@ -48,9 +64,11 @@ export async function runDigest(
     repo.getMeta<string[]>(CALENDAR_VISIBLE_META_KEY),
     repo.getMeta<TradingSummary>(TRADING_SUMMARY_META_KEY),
     repo.getMeta<WorkShiftsMeta>(WORK_SHIFTS_META_KEY),
+    loadProjectDue(repo, today),
   ]);
   const me = checklist(tasks, deadlines, reviews, today).me;
   const message = formatDigest({
+    projectDue,
     today,
     deadlines,
     reviews,
