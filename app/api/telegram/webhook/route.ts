@@ -2,7 +2,17 @@ import { NextResponse } from 'next/server';
 import { constantTimeEqual } from '@/lib/auth/bearer';
 import { telegramConfig, sendMessage } from '@/lib/telegram/client';
 import { WORK_SHIFTS_META_KEY, type WorkShiftsMeta } from '@/lib/logic/work';
-import { formatCaptureReply, formatToday, formatUpcomingList, parseUpdate, route } from '@/lib/telegram/format';
+import {
+  escapeHtml,
+  formatCaptureReply,
+  formatRoutineList,
+  formatToday,
+  formatUpcomingList,
+  parseUpdate,
+  route,
+} from '@/lib/telegram/format';
+import { matchRoutine, routineDoneMetaKey, routineStatus, routineStreak } from '@/lib/logic/routines';
+import { loadRoutineDone, loadRoutineDoneHistory, loadRoutineItems } from '@/lib/routines-data';
 import { loadProjectDue } from '@/lib/telegram/digest';
 import { createNoteFromText } from '@/lib/create-note';
 import { getRepo } from '@/lib/repo';
@@ -13,7 +23,7 @@ import { CALENDAR_VISIBLE_META_KEY, filterVisibleEvents } from '@/lib/logic/cale
 
 export const dynamic = 'force-dynamic';
 
-const HELP_TEXT = '메모는 그냥 보내면 저장돼요. @프로젝트 #태그 지원 · /today · /deadlines';
+const HELP_TEXT = '메모는 그냥 보내면 저장돼요. @프로젝트 #태그 지원 · /today · /deadlines · /done 1 (루틴 완료)';
 
 /** Telegram Bot API webhook (phase 2b). Always 200s (Telegram retries non-2xx) —
  * failures are reported to the chat, not via the HTTP status. */
@@ -69,6 +79,9 @@ async function handle(text: string): Promise<void> {
     case 'deadlines':
       await sendMessage(await buildDeadlines());
       return;
+    case 'done':
+      await sendMessage(await handleDone(parsed.arg));
+      return;
     case 'help':
     case 'start':
     case 'unknown':
@@ -76,10 +89,27 @@ async function handle(text: string): Promise<void> {
   }
 }
 
+/** `/done <n|이름>`: marks today's matching routine done; no/unknown argument lists them. */
+async function handleDone(arg: string): Promise<string> {
+  const repo = getRepo();
+  const today = todayKST();
+  const [items, doneIds] = await Promise.all([loadRoutineItems(repo), loadRoutineDone(repo, today)]);
+  const rows = routineStatus(items, doneIds, today);
+  const match = arg.trim() ? matchRoutine(rows.map((r) => r.item), arg) : null;
+  if (!match) return formatRoutineList(rows);
+
+  const nextDone = doneIds.includes(match.id) ? doneIds : [...doneIds, match.id];
+  await repo.setMeta(routineDoneMetaKey(today), nextDone);
+  const history = await loadRoutineDoneHistory(repo);
+  history[today] = nextDone;
+  const streak = routineStreak(history, match.id, today);
+  return `✅ ${escapeHtml(match.label)} 완료${streak > 1 ? ` (🔥${streak})` : ''}`;
+}
+
 async function buildToday(): Promise<string> {
   const repo = getRepo();
   const today = todayKST();
-  const [tasks, deadlines, reviews, notes, snapshot, rawTodayEvents, visibleCalendars, work, projectDue] = await Promise.all([
+  const [tasks, deadlines, reviews, notes, snapshot, rawTodayEvents, visibleCalendars, work, projectDue, routineItems, routineDone] = await Promise.all([
     repo.listTasks(),
     repo.listDeadlines(),
     repo.listReviews(),
@@ -89,6 +119,8 @@ async function buildToday(): Promise<string> {
     repo.getMeta<string[]>(CALENDAR_VISIBLE_META_KEY),
     repo.getMeta<WorkShiftsMeta>(WORK_SHIFTS_META_KEY),
     loadProjectDue(repo, today),
+    loadRoutineItems(repo),
+    loadRoutineDone(repo, today),
   ]);
   const me = checklist(tasks, deadlines, reviews, today).me;
   const dayMemos = notes.filter((n) => n.date === today && n.status !== 'archived');
@@ -102,6 +134,7 @@ async function buildToday(): Promise<string> {
     cloudUrl: process.env.CLOUD_URL ?? null,
     workShift: work?.shifts.find((s) => s.date === today) ?? null,
     projectDue,
+    routines: routineStatus(routineItems, routineDone, today),
   });
 }
 

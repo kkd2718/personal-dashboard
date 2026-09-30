@@ -7,6 +7,8 @@ import type { StatusItem } from '@/lib/status/types';
 import { checklist } from '@/lib/logic/checklist';
 import { CALENDAR_VISIBLE_META_KEY, filterVisibleEvents } from '@/lib/logic/calendar';
 import { WORK_SHIFTS_META_KEY, type WorkShiftsMeta } from '@/lib/logic/work';
+import { routineStatus } from '@/lib/logic/routines';
+import { loadRoutineDone, loadRoutineItems } from '@/lib/routines-data';
 import { formatDigest } from '@/lib/telegram/format';
 import type { SendResult } from '@/lib/telegram/client';
 
@@ -55,7 +57,7 @@ export async function runDigest(
     if (lastSent === today) return 'skipped-already';
   }
 
-  const [tasks, deadlines, reviews, snapshot, rawTodayEvents, visibleCalendars, trading, work, projectDue] = await Promise.all([
+  const [tasks, deadlines, reviews, snapshot, rawTodayEvents, visibleCalendars, trading, work, projectDue, routineItems, routineDone] = await Promise.all([
     repo.listTasks(),
     repo.listDeadlines(),
     repo.listReviews(),
@@ -65,9 +67,13 @@ export async function runDigest(
     repo.getMeta<TradingSummary>(TRADING_SUMMARY_META_KEY),
     repo.getMeta<WorkShiftsMeta>(WORK_SHIFTS_META_KEY),
     loadProjectDue(repo, today),
+    loadRoutineItems(repo),
+    loadRoutineDone(repo, today),
   ]);
   const me = checklist(tasks, deadlines, reviews, today).me;
+  const routines = routineStatus(routineItems, routineDone, today);
   const message = formatDigest({
+    routines,
     projectDue,
     today,
     deadlines,

@@ -90,6 +90,7 @@ async function main() {
     commands: [
       { command: 'today', description: '오늘 할 일·마감 요약' },
       { command: 'deadlines', description: '14일 내 마감' },
+      { command: 'done', description: '루틴 완료 (/done 1)' },
       { command: 'help', description: '사용법' },
     ],
   });

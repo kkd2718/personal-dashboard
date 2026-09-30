@@ -9,6 +9,7 @@ import { ddayLabel } from '@/lib/logic/dates';
 import { todayCalendarEvents } from '@/lib/logic/calendar';
 import { parseShift, type WorkShift } from '@/lib/logic/work';
 import type { DueChecklist, DueChecklistItem } from '@/lib/logic/project-detail';
+import type { RoutineItem, RoutineStatus } from '@/lib/logic/routines';
 
 const WEEKDAY_KO = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -101,6 +102,42 @@ export function workLine(shift: WorkShift | null | undefined, today: string): st
   return `💼 근무 ${escapeHtml(p.label)}`;
 }
 
+/** Routine label, as an HTML link when it has a url (both escaped). */
+function routineLabel(item: RoutineItem): string {
+  const label = escapeHtml(item.label);
+  if (!item.url) return label;
+  return `<a href="${escapeHtml(item.url).replace(/"/g, '&quot;')}">${label}</a>`;
+}
+
+function routineSection(rows: RoutineStatus[], withState: boolean): string[] {
+  return [
+    header('🔁 오늘 루틴'),
+    ...rows.map((r) => `${withState ? (r.done ? '✅' : '⬜') : '•'} ${routineLabel(r.item)}`),
+  ];
+}
+
+/** Evening reminder: only the routines not done yet, or null when there are none. */
+export function formatEvening(pending: RoutineItem[]): string | null {
+  if (pending.length === 0) return null;
+  return [
+    header('🌙 저녁 체크'),
+    ...pending.map((r) => `• ${routineLabel(r)}`),
+    '',
+    '완료하면 /done 1 처럼 보내세요',
+  ].join('\n');
+}
+
+/** `/done` with no/unknown argument: numbered status list of today's routines. */
+export function formatRoutineList(rows: RoutineStatus[]): string {
+  if (rows.length === 0) return '오늘 활성 루틴이 없어요';
+  return [
+    header('🔁 오늘 루틴'),
+    ...rows.map((r, i) => `${i + 1}. ${r.done ? '✅' : '⬜'} ${escapeHtml(r.item.label)}`),
+    '',
+    '/done 1 또는 /done 알렌 처럼 보내세요',
+  ].join('\n');
+}
+
 const MAX_LINES = 30;
 const EMPTY_DUE: DueChecklist = { overdue: [], today: [], tomorrow: [] };
 
@@ -121,6 +158,7 @@ export interface TodayInput {
   cloudUrl?: string | null;
   workShift?: WorkShift | null; // today's own shift, if synced
   projectDue?: DueChecklist; // my dated items from each project's docs/cc-status.json
+  routines?: RoutineStatus[]; // active routines today with done state
 }
 
 /** `/today` message: 지연/오늘/7일 내 마감/오늘 일정/오늘 메모/상태, each section omitted when empty. */
@@ -129,6 +167,7 @@ export function formatToday(input: TodayInput): string {
 
   const shiftLine = workLine(input.workShift, input.today);
   if (shiftLine) sections.push([shiftLine]);
+  if (input.routines && input.routines.length > 0) sections.push(routineSection(input.routines, true));
   const pd = input.projectDue ?? EMPTY_DUE;
   if (input.checklist.overdue.length > 0 || pd.overdue.length > 0) {
     sections.push([header('🔴 지연'), ...input.checklist.overdue.map(taskLine), ...projectLines(pd.overdue, input.today)]);
@@ -177,6 +216,7 @@ export interface DigestInput {
   cloudUrl?: string | null;
   workShift?: WorkShift | null; // today's own shift, if synced
   projectDue?: DueChecklist; // my dated items from each project's docs/cc-status.json
+  routines?: RoutineStatus[]; // active routines today; count as content
 }
 
 function headerDate(dateStr: string): string {
@@ -197,8 +237,10 @@ export function formatDigest(input: DigestInput): string | null {
   const hasToday = input.checklist.today.length > 0 || pd.today.length > 0;
   const hasTomorrow = pd.tomorrow.length > 0;
   const todayEvents = todayCalendarEvents(input.todayEvents ?? []);
+  const routines = input.routines ?? [];
 
   if (
+    routines.length === 0 &&
     reminders.length === 0 &&
     !hasOverdue &&
     !hasToday &&
@@ -212,6 +254,7 @@ export function formatDigest(input: DigestInput): string | null {
   const sections: string[][] = [[header(`☀️ ${headerDate(input.today)} 브리핑`)]];
   const shiftLine = workLine(input.workShift, input.today);
   if (shiftLine) sections[0].push(shiftLine);
+  if (routines.length > 0) sections.push(routineSection(routines, false));
   if (reminders.length > 0) sections.push([header('📅 마감 리마인더'), ...reminders.map(upcomingLine)]);
   if (hasToday)
     sections.push([header('📌 오늘'), ...input.checklist.today.map(taskLine), ...projectLines(pd.today, input.today)]);
@@ -249,11 +292,11 @@ export function parseUpdate(update: unknown): TelegramMessage | null {
   return { chatId, text };
 }
 
-export type CommandName = 'today' | 'deadlines' | 'help' | 'start' | 'unknown';
+export type CommandName = 'today' | 'deadlines' | 'done' | 'help' | 'start' | 'unknown';
 
 export type Route = { kind: 'command'; name: CommandName; arg: string } | { kind: 'capture'; text: string };
 
-const COMMAND_NAMES: ReadonlySet<string> = new Set(['today', 'deadlines', 'help', 'start']);
+const COMMAND_NAMES: ReadonlySet<string> = new Set(['today', 'deadlines', 'done', 'help', 'start']);
 
 /** Routes incoming text to a command or a plain capture. Commands may carry a
  * `@BotName` suffix (`/today@my_bot`); anything else is a memo to capture. */

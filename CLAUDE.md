@@ -121,6 +121,12 @@ project's DB password isn't always available/known. Run scripts with
   token-authenticated JSON API (`lib/carenote/client.ts`, `CARENOTE_WS_TOKEN`). Nothing from
   CareNote is persisted dashboard-side — fetched live per visible calendar range and held in
   client state only; feature flag `careNoteEnabled = !!CARENOTE_WS_TOKEN`.
+- **Daily routines (2026-09-30)**: `routine:items` (seeded 알렌/암기, from 2026-10-01) + `routine:done:<date>`
+  in `app_meta` (`lib/logic/routines.ts`, `lib/routines-data.ts`, `app/actions/routines.ts`). Home 할 일
+  lane shows a checkable 오늘 루틴 block (`components/home/routine-strip.tsx`, 🔥streak), settings has a
+  루틴 editor. Telegram: `🔁 오늘 루틴` in the digest and `/today`, `/done <n|이름>`, and an evening
+  reminder cron `/api/cron/evening` (12:00 UTC, `lib/telegram/evening.ts`, once/day via
+  `telegram:evening:lastSent`). Adding `/done` needs `scripts/telegram-setup.mjs` rerun for the command menu.
 
 ## Conventions
 - Opus plans (`docs/PLAN.md`), Sonnet implements. Don't redesign a plan's data model/signatures

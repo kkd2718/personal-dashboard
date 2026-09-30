@@ -7,6 +7,9 @@ import { AccountStrip } from '@/components/trading/account-strip';
 import type { ProjectDetail, TradingSummary } from '@/lib/types';
 import { getRepo } from '@/lib/repo';
 import { getStatusPanelData } from '@/lib/status';
+import { RoutineStrip, type RoutineRow } from '@/components/home/routine-strip';
+import { routineStatus, routineStreak } from '@/lib/logic/routines';
+import { loadRoutineDoneHistory, loadRoutineItems } from '@/lib/routines-data';
 import { QuickCapture } from '@/components/quick-capture';
 import { ChecklistPanel } from '@/components/checklist-panel';
 import { WeekStrip } from '@/components/home/week-strip';
@@ -59,6 +62,8 @@ export default async function HomePage({
     visibleCalendars,
     tradingSummary,
     workMeta,
+    routineItems,
+    routineHistory,
   ] = await Promise.all([
     repo.listProjects(),
     repo.listTasks(),
@@ -73,6 +78,8 @@ export default async function HomePage({
     repo.getMeta<string[]>(CALENDAR_VISIBLE_META_KEY),
     repo.getMeta<TradingSummary>(TRADING_SUMMARY_META_KEY),
     repo.getMeta<WorkShiftsMeta>(WORK_SHIFTS_META_KEY),
+    loadRoutineItems(repo),
+    loadRoutineDoneHistory(repo),
   ]);
   // One Promise.all of getMeta calls for the distinct project ids behind the queue
   // lane's active projects or a paper (§4: home lanes prefer the checklist line).
@@ -95,6 +102,15 @@ export default async function HomePage({
   const today = todayKST();
   const visibleEvents = filterVisibleEvents(calendarEvents, visibleCalendars);
   const todayEvents = todayCalendarEvents(visibleEvents.filter((e) => e.startDate <= today && e.endDate >= today));
+  const routineRows: RoutineRow[] = routineStatus(routineItems, routineHistory[today] ?? [], today).map(
+    ({ item, done }) => ({
+      id: item.id,
+      label: item.label,
+      url: item.url,
+      done,
+      streak: routineStreak(routineHistory, item.id, today),
+    })
+  );
   const counts = deadlineCounts(deadlines, today);
   // Account strip shows only while the trading project exists and isn't archived.
   const tradingProject = projects.find((p) => p.id === TRADING_PROJECT_ID && p.status !== 'archived') ?? null;
@@ -202,6 +218,7 @@ export default async function HomePage({
         }
         todo={
           <LaneCard title="할 일">
+            <RoutineStrip date={today} routines={routineRows} />
             <ChecklistPanel
               bare
               initialTasks={tasks}

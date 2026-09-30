@@ -4,6 +4,8 @@ import { Card } from '@/components/ui/card';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { IntegrationRow } from '@/components/settings/integration-row';
 import { CalendarVisibilitySettings } from '@/components/settings/calendar-visibility-settings';
+import { RoutineSettings } from '@/components/settings/routine-settings';
+import { loadRoutineItems } from '@/lib/routines-data';
 import { LogoutButton } from '@/components/settings/logout-button';
 import { authConfigured } from '@/lib/auth/require-user';
 import { googleAccountsFromMeta, integrationRowInfo, type IntegrationMeta } from '@/lib/logic/integrations';
@@ -22,7 +24,7 @@ export default async function SettingsPage() {
   const today = todayKST();
   const now = new Date().toISOString();
 
-  const [collector, telegram, obsidian, googleMetaRaw, visibleCalendars, googleEvents, work] = await Promise.all([
+  const [collector, telegram, obsidian, googleMetaRaw, visibleCalendars, googleEvents, work, routineItems] = await Promise.all([
     repo.getMeta<IntegrationMeta>('integration:collector'),
     repo.getMeta<IntegrationMeta>('integration:telegram'),
     repo.getMeta<IntegrationMeta>('integration:obsidian'),
@@ -30,6 +32,7 @@ export default async function SettingsPage() {
     repo.getMeta<string[]>(CALENDAR_VISIBLE_META_KEY),
     repo.listCalendarEvents(addDaysStr(today, -30), addDaysStr(today, 60)),
     repo.getMeta<IntegrationMeta>('integration:work'),
+    loadRoutineItems(repo),
   ]);
   const googleAccounts = googleAccountsFromMeta(googleMetaRaw);
 
@@ -62,6 +65,13 @@ export default async function SettingsPage() {
               />
             )}
           </ul>
+        </Card>
+      </section>
+
+      <section>
+        <SectionTitle>루틴</SectionTitle>
+        <Card>
+          <RoutineSettings items={routineItems} today={today} />
         </Card>
       </section>
 
