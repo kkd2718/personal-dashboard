@@ -26,35 +26,67 @@ export function formatCaptureReply(note: Note, projectName: string | null): stri
 }
 
 function taskLine(item: ChecklistItem): string {
-  return `- ${escapeHtml(item.title)}`;
+  return `• ${escapeHtml(item.title)}`;
 }
 
-/** Project checklist item: '- [trading-system] RP 해지', with (~9/28) when overdue, (막힘) when blocked. */
-function projectItemLine(item: DueChecklistItem, today: string): string {
-  const [, m, d] = item.due.split('-').map(Number);
-  const late = item.due < today ? ` (~${m}/${d})` : '';
-  const blocked = item.blocked ? ' (막힘)' : '';
-  return `- [${escapeHtml(item.project)}] ${escapeHtml(item.text)}${late}${blocked}`;
+/** Bold section header — sections are separated by a blank line (see joinSections). */
+function header(title: string): string {
+  return `<b>${title}</b>`;
+}
+
+/** Long checklist texts wrap into 3–4 lines on a phone; keep one glanceable line. */
+function clip(text: string, max = 44): string {
+  return text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
+}
+
+/** Sections joined with one blank line between them, capped at MAX_LINES. */
+function joinSections(sections: string[][]): string[] {
+  const lines: string[] = [];
+  sections.forEach((sec, i) => {
+    if (i > 0) lines.push('');
+    lines.push(...sec);
+  });
+  return capLines(lines);
+}
+
+/** Project checklist items grouped under their project name:
+ *   <i>trading-system</i>
+ *    • RP 해지 (~9/28) (막힘)
+ * — (~M/D) when overdue, (막힘) when blocked, text clipped to one phone line. */
+function projectLines(items: DueChecklistItem[], today: string): string[] {
+  const out: string[] = [];
+  let current: string | null = null;
+  for (const item of items) {
+    if (item.project !== current) {
+      current = item.project;
+      out.push(`<i>${escapeHtml(item.project)}</i>`);
+    }
+    const [, m, d] = item.due.split('-').map(Number);
+    const late = item.due < today ? ` (~${m}/${d})` : '';
+    const blocked = item.blocked ? ' (막힘)' : '';
+    out.push(`  • ${escapeHtml(clip(item.text))}${late}${blocked}`);
+  }
+  return out;
 }
 
 function upcomingLine(item: UpcomingItem): string {
-  return `- ${ddayLabel(item.dday)} ${escapeHtml(item.title)}`;
+  return `• ${ddayLabel(item.dday)} ${escapeHtml(item.title)}`;
 }
 
 function memoLine(note: Note): string {
   const firstLine = note.body.split('\n')[0];
-  return `- ${escapeHtml(firstLine)}`;
+  return `• ${escapeHtml(firstLine)}`;
 }
 
 /** Timed events first, then all-day, holidays excluded (see lib/logic/calendar.ts). */
 function eventLine(e: CalendarEvent): string {
   const time = e.startTime ? `${e.startTime} ` : '';
-  return `- ${time}${escapeHtml(e.title)}`;
+  return `• ${time}${escapeHtml(e.title)}`;
 }
 
 function statusLine(item: StatusItem): string {
   const detail = item.detail ? ` — ${escapeHtml(item.detail)}` : '';
-  return `- ${escapeHtml(item.title)}${detail}`;
+  return `• ${escapeHtml(item.title)}${detail}`;
 }
 
 function isAlertable(item: StatusItem): boolean {
@@ -99,33 +131,33 @@ export function formatToday(input: TodayInput): string {
   if (shiftLine) sections.push([shiftLine]);
   const pd = input.projectDue ?? EMPTY_DUE;
   if (input.checklist.overdue.length > 0 || pd.overdue.length > 0) {
-    sections.push(['🔴 지연', ...input.checklist.overdue.map(taskLine), ...pd.overdue.map((i) => projectItemLine(i, input.today))]);
+    sections.push([header('🔴 지연'), ...input.checklist.overdue.map(taskLine), ...projectLines(pd.overdue, input.today)]);
   }
   if (input.checklist.today.length > 0 || pd.today.length > 0) {
-    sections.push(['📌 오늘', ...input.checklist.today.map(taskLine), ...pd.today.map((i) => projectItemLine(i, input.today))]);
+    sections.push([header('📌 오늘'), ...input.checklist.today.map(taskLine), ...projectLines(pd.today, input.today)]);
   }
   if (pd.tomorrow.length > 0) {
-    sections.push(['🔜 내일', ...pd.tomorrow.map((i) => projectItemLine(i, input.today))]);
+    sections.push([header('🔜 내일'), ...projectLines(pd.tomorrow, input.today)]);
   }
   if (input.upcoming.length > 0) {
-    sections.push(['⏳ 7일 내 마감', ...input.upcoming.map(upcomingLine)]);
+    sections.push([header('⏳ 7일 내 마감'), ...input.upcoming.map(upcomingLine)]);
   }
   const todayEvents = todayCalendarEvents(input.todayEvents ?? []);
   if (todayEvents.length > 0) {
-    sections.push(['🗓 오늘 일정', ...todayEvents.map(eventLine)]);
+    sections.push([header('🗓 오늘 일정'), ...todayEvents.map(eventLine)]);
   }
   if (input.dayMemos.length > 0) {
-    sections.push(['📝 오늘 메모', ...input.dayMemos.map(memoLine)]);
+    sections.push([header('📝 오늘 메모'), ...input.dayMemos.map(memoLine)]);
   }
   const statusItems = input.statusItems.filter(isAlertable);
   if (statusItems.length > 0) {
-    sections.push(['⚠️ 상태', ...statusItems.map(statusLine)]);
+    sections.push([header('⚠️ 상태'), ...statusItems.map(statusLine)]);
   }
 
   if (sections.length === 0) return '오늘은 비어 있어요 ✨';
 
-  const lines = capLines(sections.flat());
-  if (input.cloudUrl) lines.push(`대시보드: ${input.cloudUrl}`);
+  const lines = joinSections(sections);
+  if (input.cloudUrl) lines.push('', `대시보드: ${input.cloudUrl}`);
   return lines.join('\n');
 }
 
@@ -165,7 +197,6 @@ export function formatDigest(input: DigestInput): string | null {
   const hasToday = input.checklist.today.length > 0 || pd.today.length > 0;
   const hasTomorrow = pd.tomorrow.length > 0;
   const todayEvents = todayCalendarEvents(input.todayEvents ?? []);
-  const projectLine = (i: DueChecklistItem) => projectItemLine(i, input.today);
 
   if (
     reminders.length === 0 &&
@@ -178,18 +209,20 @@ export function formatDigest(input: DigestInput): string | null {
     return null;
   }
 
-  const sections: string[][] = [[`☀️ ${headerDate(input.today)} 브리핑`]];
+  const sections: string[][] = [[header(`☀️ ${headerDate(input.today)} 브리핑`)]];
   const shiftLine = workLine(input.workShift, input.today);
   if (shiftLine) sections[0].push(shiftLine);
-  if (reminders.length > 0) sections.push(['📅 마감 리마인더', ...reminders.map(upcomingLine)]);
-  if (hasToday) sections.push(['📌 오늘', ...input.checklist.today.map(taskLine), ...pd.today.map(projectLine)]);
-  if (todayEvents.length > 0) sections.push(['🗓 오늘 일정', ...todayEvents.map(eventLine)]);
-  if (hasTomorrow) sections.push(['🔜 내일 (미리)', ...pd.tomorrow.map(projectLine)]);
-  if (hasOverdue) sections.push(['🔴 지연', ...input.checklist.overdue.map(taskLine), ...pd.overdue.map(projectLine)]);
-  if (statusItems.length > 0) sections.push(['⚠️ 상태', ...statusItems.map(statusLine)]);
+  if (reminders.length > 0) sections.push([header('📅 마감 리마인더'), ...reminders.map(upcomingLine)]);
+  if (hasToday)
+    sections.push([header('📌 오늘'), ...input.checklist.today.map(taskLine), ...projectLines(pd.today, input.today)]);
+  if (todayEvents.length > 0) sections.push([header('🗓 오늘 일정'), ...todayEvents.map(eventLine)]);
+  if (hasTomorrow) sections.push([header('🔜 내일 (미리)'), ...projectLines(pd.tomorrow, input.today)]);
+  if (hasOverdue)
+    sections.push([header('🔴 지연'), ...input.checklist.overdue.map(taskLine), ...projectLines(pd.overdue, input.today)]);
+  if (statusItems.length > 0) sections.push([header('⚠️ 상태'), ...statusItems.map(statusLine)]);
 
-  const lines = capLines(sections.flat());
-  if (input.cloudUrl) lines.push(`대시보드: ${input.cloudUrl}`);
+  const lines = joinSections(sections);
+  if (input.cloudUrl) lines.push('', `대시보드: ${input.cloudUrl}`);
   return lines.join('\n');
 }
 

@@ -169,7 +169,7 @@ describe('formatToday', () => {
       statusItems: [statusItem({ severity: 'ok' })], // ok is never alertable
     });
     expect(result).toContain('🔴 지연');
-    expect(result).toContain('- 지연 작업');
+    expect(result).toContain('• 지연 작업');
     expect(result).toContain('⏳ 7일 내 마감');
     expect(result).toContain('D-3 마감 임박');
     expect(result).not.toContain('📌 오늘');
@@ -201,8 +201,8 @@ describe('formatToday', () => {
       statusItems: [],
     });
     expect(result).toContain('🗓 오늘 일정');
-    expect(result).toContain('- 14:00 Fictional Meeting');
-    expect(result).toContain('- Fictional All-Day');
+    expect(result).toContain('• 14:00 Fictional Meeting');
+    expect(result).toContain('• Fictional All-Day');
     expect(result).not.toContain('Fictional Holiday');
     // timed before all-day
     expect(result.indexOf('Fictional Meeting')).toBeLessThan(result.indexOf('Fictional All-Day'));
@@ -228,7 +228,7 @@ describe('formatUpcomingList', () => {
   });
 
   it('formats each item with a D-day label', () => {
-    expect(formatUpcomingList([upcomingItem({ title: 'x', dday: 0 })])).toBe('- D-DAY x');
+    expect(formatUpcomingList([upcomingItem({ title: 'x', dday: 0 })])).toBe('• D-DAY x');
   });
 });
 
@@ -254,7 +254,7 @@ describe('formatDigest', () => {
       statusItems: [],
     });
     expect(result).toContain('🗓 오늘 일정');
-    expect(result).toContain('- 09:00 Fictional Standup');
+    expect(result).toContain('• 09:00 Fictional Standup');
   });
 
   it('includes a Korean weekday header and due reminders', () => {
@@ -339,8 +339,8 @@ describe('formatDigest — project checklist items', () => {
         overdue: [{ project: 'Amgi', text: '콘솔 확인', due: '2026-09-28', blocked: true }],
       },
     });
-    expect(result).toContain('📌 오늘\n- [trading] RP 해지');
-    expect(result).toContain('🔜 내일 (미리)\n- [trading] IB+VR 시작');
-    expect(result).toContain('- [Amgi] 콘솔 확인 (~9/28) (막힘)');
+    expect(result).toContain('<b>📌 오늘</b>\n<i>trading</i>\n  • RP 해지');
+    expect(result).toContain('<b>🔜 내일 (미리)</b>\n<i>trading</i>\n  • IB+VR 시작');
+    expect(result).toContain('<i>Amgi</i>\n  • 콘솔 확인 (~9/28) (막힘)');
   });
 });

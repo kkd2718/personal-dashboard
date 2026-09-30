@@ -84,6 +84,7 @@ export async function runDigest(
   const tradingLine =
     trading && Date.now() - new Date(trading.collectedAt).getTime() < 30 * 3_600_000
       ? `
+
 💰 계좌 ${tradingOneLine(trading, today)}`
       : '';
 
