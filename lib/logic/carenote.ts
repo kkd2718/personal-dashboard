@@ -121,6 +121,9 @@ export interface ProcedureStat {
   status: 'overdue' | 'available' | 'upcoming' | null;
 }
 
+/** Days past `nextTo` that a type keeps showing "지남" before it's treated as paused. */
+export const OVERDUE_GRACE_DAYS = 30;
+
 /** Groups `records` by (personId, procedureTypeId), sorted overdue-first then by
  * next-window start (PLAN_CARENOTE.md Addendum A2). Records for a type not present
  * in `types` are skipped (can't be summarized without its schema/interval). */
@@ -147,7 +150,10 @@ export function procedureStats(records: CareRecord[], types: ProcedureType[], to
     if (type.intervalMinDays != null && type.intervalMaxDays != null) {
       nextFrom = addDaysStr(lastDate, type.intervalMinDays);
       nextTo = addDaysStr(lastDate, type.intervalMaxDays);
-      if (today > nextTo) status = 'overdue';
+      // Overdue only for OVERDUE_GRACE_DAYS past the window; after that the type is
+      // treated as paused and shows no status (otherwise "지남" never goes away).
+      if (today > addDaysStr(nextTo, OVERDUE_GRACE_DAYS)) status = null;
+      else if (today > nextTo) status = 'overdue';
       else if (today >= nextFrom) status = 'available';
       else status = 'upcoming';
     }

@@ -16,7 +16,7 @@ export interface ChecklistItem {
   projectId: string | null;
   dueDate: string | null;
   done: boolean;
-  readOnly: boolean; // true for deadline/review — not toggleable from the checklist
+  readOnly: boolean; // true for deadline/review — ticked via their own actions (deadline done / review submitted), not the task toggle
 }
 
 export interface Checklist {

@@ -6,6 +6,9 @@ import { Bot, CalendarDays, Plus } from 'lucide-react';
 import { checklist, checklistItemCount, type ChecklistItem } from '@/lib/logic/checklist';
 import { dday, todayKST } from '@/lib/logic/dates';
 import { createTaskAction, toggleTaskDoneAction } from '@/app/actions/tasks';
+import { toggleDeadlineDoneAction } from '@/app/actions/deadlines';
+import { updateReviewAction } from '@/app/actions/reviews';
+import { useToast } from '@/components/ui/toast';
 import { DdayChip } from '@/components/dday-chip';
 import { EmptyState } from '@/components/ui/empty-state';
 import { projectColorClasses } from '@/lib/project-colors';
@@ -32,7 +35,7 @@ function Row({
   item: ChecklistItem;
   projects: Project[];
   today: string;
-  onToggle: (id: string, done: boolean) => void;
+  onToggle: (item: ChecklistItem, done: boolean) => void;
   isAgent?: boolean;
 }) {
   const project = projects.find((p) => p.id === item.projectId);
@@ -46,13 +49,19 @@ function Row({
         <input
           type="checkbox"
           checked={item.done}
-          onChange={(e) => onToggle(item.id, e.target.checked)}
+          onChange={(e) => onToggle(item, e.target.checked)}
           className="shrink-0"
         />
       ) : (
-        <span
-          className="h-3.5 w-3.5 shrink-0 rounded-full border border-border"
-          title={label ?? item.kind}
+        // Deadlines/reviews keep the round marker but are checkable too:
+        // deadline → done, review → submitted (undo via toast).
+        <input
+          type="checkbox"
+          checked={item.done}
+          onChange={(e) => onToggle(item, e.target.checked)}
+          className="h-3.5 w-3.5 shrink-0 cursor-pointer appearance-none rounded-full border border-foreground/40 checked:border-blue-600 checked:bg-blue-600"
+          title={item.kind === 'review' ? '제출 완료로 표시' : '완료로 표시'}
+          aria-label={`${label ?? item.kind} 완료`}
         />
       )}
       {project && <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${colors.dot}`} />}
@@ -196,10 +205,57 @@ export function ChecklistPanel({
   }
   const today = todayKST();
   const [tab, setTab] = useState<'me' | 'agent'>('me');
-  const byAssignee = checklist(tasks, deadlines, reviews, today, new Set(activeMilestoneIds));
+  const { show } = useToast();
+  // Deadlines/reviews ticked here are hidden optimistically until the server refresh drops them.
+  const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
+  const byAssignee = checklist(
+    tasks,
+    deadlines.filter((d) => !hidden.has(d.id)),
+    reviews.filter((r) => !hidden.has(r.id)),
+    today,
+    new Set(activeMilestoneIds)
+  );
   const result = byAssignee[tab];
 
-  function handleToggle(id: string, done: boolean) {
+  function setHiddenId(id: string, on: boolean) {
+    setHidden((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
+
+  function handleToggle(item: ChecklistItem, done: boolean) {
+    if (item.kind === 'deadline' || item.kind === 'review') {
+      const review = item.kind === 'review' ? reviews.find((r) => r.id === item.id) : undefined;
+      const prevStatus = review?.status ?? 'accepted';
+      const commit = (on: boolean) =>
+        item.kind === 'deadline'
+          ? toggleDeadlineDoneAction(item.id, on)
+          : updateReviewAction({ id: item.id, status: on ? 'submitted' : prevStatus });
+      setHiddenId(item.id, true);
+      commit(true)
+        .then(() => {
+          show(item.kind === 'review' ? `제출 완료: ${item.title}` : `완료: ${item.title}`, {
+            variant: 'success',
+            action: {
+              label: '되돌리기',
+              onClick: () => {
+                commit(false)
+                  .then(() => setHiddenId(item.id, false))
+                  .catch(() => router.refresh());
+              },
+            },
+          });
+        })
+        .catch(() => {
+          setHiddenId(item.id, false);
+          show('저장하지 못했어요', { variant: 'danger' });
+        });
+      return;
+    }
+    const id = item.id;
     const now = new Date().toISOString();
     setTasks((prev) =>
       prev.map((t) => (t.id === id ? { ...t, status: done ? 'done' : 'todo', doneAt: done ? now : null } : t))

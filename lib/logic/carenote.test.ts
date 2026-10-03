@@ -190,6 +190,13 @@ describe('procedureStats', () => {
     expect(stats[0]).toMatchObject({ status: 'overdue' });
   });
 
+  it('keeps overdue through 30 days past last+max, then drops the status', () => {
+    const t = type({ intervalMinDays: 10, intervalMaxDays: 20 });
+    // nextTo = 2026-09-21 → overdue until 2026-10-21, null from 2026-10-22
+    expect(procedureStats([record({ date: '2026-09-01' })], [t], '2026-10-21')[0]).toMatchObject({ status: 'overdue' });
+    expect(procedureStats([record({ date: '2026-09-01' })], [t], '2026-10-22')[0]).toMatchObject({ status: null });
+  });
+
   it('marks upcoming when today is before last+min', () => {
     const t = type({ intervalMinDays: 10, intervalMaxDays: 20 });
     const stats = procedureStats([record({ date: '2026-09-01' })], [t], '2026-09-05');
@@ -199,7 +206,7 @@ describe('procedureStats', () => {
   it('groups multiple persons separately and sorts overdue first', () => {
     const t = type({ id: 1, intervalMinDays: 10, intervalMaxDays: 20 });
     const records = [
-      record({ id: 1, personId: 1, date: '2026-08-01' }), // overdue by 2026-09-28
+      record({ id: 1, personId: 1, date: '2026-09-01' }), // overdue by 2026-09-28
       record({ id: 2, personId: 2, date: '2026-09-20' }), // upcoming
     ];
     const stats = procedureStats(records, [t], '2026-09-28');
