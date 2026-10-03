@@ -104,10 +104,11 @@ export function CareHistoryPanel() {
   const stats = useMemo(() => procedureStats(filtered, types, todayKST()), [filtered, types]);
   const visibleStats = statsExpanded ? stats : stats.slice(0, STATS_PAGE_SIZE);
 
-  function upsert(record: CareRecord) {
-    setRecords((prev) =>
-      prev.some((r) => r.id === record.id) ? prev.map((r) => (r.id === record.id ? record : r)) : [...prev, record]
-    );
+  function upsert(saved: CareRecord[]) {
+    setRecords((prev) => {
+      const byId = new Map(saved.map((r) => [r.id, r]));
+      return [...prev.map((r) => byId.get(r.id) ?? r), ...saved.filter((r) => !prev.some((x) => x.id === r.id))];
+    });
     setEditing('closed');
   }
 

@@ -121,6 +121,25 @@ export interface ProcedureStat {
   status: 'overdue' | 'available' | 'upcoming' | null;
 }
 
+/** Distinct non-empty string values saved under `params[key]` for one procedure type,
+ * most recently used first. Offered as tap-to-pick chips so a free-text 부위 is reused
+ * verbatim (CareNote groups due-dates by the exact string). */
+export function usedParamValues(records: CareRecord[], procedureTypeId: number, key: string): string[] {
+  const lastUsed = new Map<string, string>();
+  for (const r of records) {
+    if (r.procedureTypeId !== procedureTypeId) continue;
+    const v = r.params?.[key];
+    if (typeof v !== 'string') continue;
+    const value = v.trim();
+    if (!value) continue;
+    const prev = lastUsed.get(value);
+    if (!prev || r.date > prev) lastUsed.set(value, r.date);
+  }
+  return [...lastUsed.entries()]
+    .sort((a, b) => (a[1] === b[1] ? (a[0] < b[0] ? -1 : 1) : a[1] < b[1] ? 1 : -1))
+    .map(([value]) => value);
+}
+
 /** Days past `nextTo` that a type keeps showing "지남" before it's treated as paused. */
 export const OVERDUE_GRACE_DAYS = 30;
 

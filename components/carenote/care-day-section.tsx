@@ -42,9 +42,10 @@ export function CareDaySection({
   const typeById = new Map(procedureTypes.map((t) => [t.id, t]));
   const showPersonDot = new Set(records.map((r) => r.personId)).size > 1;
 
-  function upsert(record: CareRecord) {
-    const exists = records.some((r) => r.id === record.id);
-    onChanged(exists ? records.map((r) => (r.id === record.id ? record : r)) : [...records, record]);
+  function upsert(saved: CareRecord[]) {
+    const byId = new Map(saved.map((r) => [r.id, r]));
+    const updated = records.map((r) => byId.get(r.id) ?? r);
+    onChanged([...updated, ...saved.filter((r) => !records.some((x) => x.id === r.id))]);
     setEditing('closed');
   }
 

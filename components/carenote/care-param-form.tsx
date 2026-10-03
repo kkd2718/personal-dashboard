@@ -56,6 +56,81 @@ function TextField({ field, value, onChange, error }: FieldProps) {
   );
 }
 
+/** Tap-to-pick chips for a free-text field (부위): reuses past values verbatim so
+ * CareNote's per-region grouping isn't split by spelling. */
+export interface ParamPick {
+  key: string;
+  options: string[];
+  selected: string[];
+  /** New-record mode: several picks → one record per value. */
+  multiple: boolean;
+  onChange: (selected: string[]) => void;
+}
+
+function PickField({ field, pick, error }: { field: ParamField; pick: ParamPick; error?: string }) {
+  const [draft, setDraft] = useState('');
+  const options = [...pick.options, ...pick.selected.filter((v) => !pick.options.includes(v))];
+
+  function toggle(v: string) {
+    if (pick.selected.includes(v)) pick.onChange(pick.selected.filter((x) => x !== v));
+    else pick.onChange(pick.multiple ? [...pick.selected, v] : [v]);
+  }
+
+  function addDraft() {
+    const v = draft.trim();
+    if (!v) return;
+    if (!pick.selected.includes(v)) pick.onChange(pick.multiple ? [...pick.selected, v] : [v]);
+    setDraft('');
+  }
+
+  return (
+    <div className="flex min-w-0 flex-col gap-1.5">
+      {options.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {options.map((v) => {
+            const on = pick.selected.includes(v);
+            return (
+              <button
+                key={v}
+                type="button"
+                aria-pressed={on}
+                onClick={() => toggle(v)}
+                className={`rounded-full border px-2 py-0.5 text-xs ${on ? 'border-blue-600 bg-blue-600 text-white' : 'border-border text-foreground/70'}`}
+              >
+                {on ? '✓ ' : ''}
+                {v}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      <div className="flex min-w-0 gap-1.5">
+        <input
+          type="text"
+          value={draft}
+          maxLength={200}
+          placeholder={options.length > 0 ? '새 부위 추가' : field.placeholder}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              addDraft();
+            }
+          }}
+          className={inputClass(error)}
+        />
+        <button type="button" onClick={addDraft} className="shrink-0 text-sm text-accent">
+          추가
+        </button>
+      </div>
+      {pick.multiple && pick.selected.length > 1 && (
+        <p className="text-xs text-foreground/50">부위 {pick.selected.length}곳 — 부위별로 따로 기록돼요.</p>
+      )}
+      {error && <p className="mt-0.5 text-xs text-danger">{error}</p>}
+    </div>
+  );
+}
+
 function TextareaField({ field, value, onChange, error }: FieldProps) {
   const strValue = typeof value === 'string' ? value : '';
   return (
@@ -237,9 +312,11 @@ interface CareParamFormProps {
   onChange: (values: Record<string, ParamValue>) => void;
   /** Keyed by 'params.<key>' per PLAN_CARENOTE.md §1's fieldErrors shape. */
   fieldErrors?: Record<string, string>;
+  /** Renders `pick.key` as chips instead of a plain text input. */
+  pick?: ParamPick | null;
 }
 
-export function CareParamForm({ schema, values, onChange, fieldErrors }: CareParamFormProps) {
+export function CareParamForm({ schema, values, onChange, fieldErrors, pick }: CareParamFormProps) {
   function setFieldValue(key: string, value: ParamValue | undefined) {
     const next = { ...values };
     if (value === undefined) delete next[key];
@@ -260,12 +337,16 @@ export function CareParamForm({ schema, values, onChange, fieldErrors }: CarePar
                 <span className="ml-1 font-normal text-foreground/40">({field.unit})</span>
               )}
             </label>
-            <Renderer
-              field={field}
-              value={values[field.key]}
-              onChange={(v) => setFieldValue(field.key, v)}
-              error={fieldErrors?.[`params.${field.key}`]}
-            />
+            {pick && pick.key === field.key ? (
+              <PickField field={field} pick={pick} error={fieldErrors?.[`params.${field.key}`]} />
+            ) : (
+              <Renderer
+                field={field}
+                value={values[field.key]}
+                onChange={(v) => setFieldValue(field.key, v)}
+                error={fieldErrors?.[`params.${field.key}`]}
+              />
+            )}
             {field.help && <p className="text-xs text-foreground/40">{field.help}</p>}
           </div>
         );

@@ -4,9 +4,9 @@
 // carenote server actions — no dashboard-side persistence.
 import { useMemo, useState, useTransition } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import { CareParamForm } from '@/components/carenote/care-param-form';
+import { CareParamForm, type ParamPick } from '@/components/carenote/care-param-form';
 import { createCareRecordAction, deleteCareRecordAction, updateCareRecordAction } from '@/app/actions/carenote';
-import { cleanParams, suggestSeries } from '@/lib/logic/carenote';
+import { cleanParams, suggestSeries, usedParamValues } from '@/lib/logic/carenote';
 import { todayKST } from '@/lib/logic/dates';
 import { Button } from '@/components/ui/button';
 import type { CareRecord, ParamValue, Person, ProcedureType } from '@/lib/carenote/types';
@@ -27,7 +27,8 @@ interface Props {
   persons: Person[];
   procedureTypes: ProcedureType[];
   records: CareRecord[];
-  onSaved: (record: CareRecord) => void;
+  /** Records created/updated in one save (several when multiple regions are picked). */
+  onSaved: (records: CareRecord[]) => void;
   onDeleted: (id: number) => void;
   onCancel: () => void;
 }
@@ -48,8 +49,37 @@ export function CareRecordEditor({ date, record, persons, procedureTypes, record
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [pending, startTransition] = useTransition();
+  /** Picked regions beyond params[pickKey] (create mode only). */
+  const [extraPicks, setExtraPicks] = useState<string[]>([]);
 
   const type = procedureTypes.find((t) => t.id === procedureTypeId) ?? null;
+
+  // 부위 is free text in CareNote's schema, and CareNote groups due dates by the exact
+  // string — so it's picked from past values; in create mode several picks save one
+  // record per region.
+  const pickKey =
+    type?.paramSchema.fields.find((f) => f.type === 'text' && (f.key === 'region' || f.label.includes('부위')))?.key ?? null;
+  const pickOptions = useMemo(
+    () => (pickKey ? usedParamValues(records, procedureTypeId, pickKey) : []),
+    [records, procedureTypeId, pickKey]
+  );
+  const firstPick = pickKey && typeof params[pickKey] === 'string' ? (params[pickKey] as string).trim() : '';
+  const pickedValues = firstPick ? [firstPick, ...extraPicks.filter((x) => x !== firstPick)] : extraPicks;
+  const pick: ParamPick | null = pickKey
+    ? {
+        key: pickKey,
+        options: pickOptions,
+        selected: pickedValues,
+        multiple: !isEdit,
+        onChange: (selected) => {
+          const next = { ...params };
+          if (selected[0]) next[pickKey] = selected[0];
+          else delete next[pickKey];
+          setParams(next);
+          setExtraPicks(selected.slice(1));
+        },
+      }
+    : null;
 
   const groupedTypes = useMemo(() => {
     const active = procedureTypes.filter((t) => t.active || t.id === record?.procedureTypeId);
@@ -65,6 +95,7 @@ export function CareRecordEditor({ date, record, persons, procedureTypes, record
   function handleProcedureChange(id: number) {
     setProcedureTypeId(id);
     setParams({});
+    setExtraPicks([]);
     const nextType = procedureTypes.find((t) => t.id === id);
     if (nextType && personId) {
       const suggestion = suggestSeries(nextType, records, personId, recordDate);
@@ -97,15 +128,39 @@ export function CareRecordEditor({ date, record, persons, procedureTypes, record
     setError(null);
     setFieldErrors({});
     startTransition(async () => {
-      const result = isEdit
-        ? await updateCareRecordAction(record!.id, input)
-        : await createCareRecordAction(input);
-      if (!result.ok) {
-        setError(result.error);
-        setFieldErrors(result.fieldErrors ?? {});
+      if (isEdit) {
+        const result = await updateCareRecordAction(record!.id, input);
+        if (!result.ok) {
+          setError(result.error);
+          setFieldErrors(result.fieldErrors ?? {});
+          return;
+        }
+        onSaved([result.data]);
         return;
       }
-      onSaved(result.data);
+      // One record per picked region (a single create when at most one is picked).
+      const regions = pickKey && pickedValues.length > 1 ? pickedValues : [null];
+      const saved: CareRecord[] = [];
+      for (const [i, region] of regions.entries()) {
+        const result = await createCareRecordAction(
+          region && pickKey ? { ...input, params: { ...input.params, [pickKey]: region } } : input
+        );
+        if (!result.ok) {
+          setFieldErrors(result.fieldErrors ?? {});
+          if (i === 0) {
+            setError(result.error);
+          } else {
+            // Keep only the unsaved regions picked so a retry doesn't duplicate.
+            const rest = regions.slice(i) as string[];
+            setError(`${result.error} (${regions.slice(0, i).join(', ')} 저장됨)`);
+            setParams((p) => ({ ...p, [pickKey!]: rest[0] }));
+            setExtraPicks(rest.slice(1));
+          }
+          return;
+        }
+        saved.push(result.data);
+      }
+      onSaved(saved);
     });
   }
 
@@ -169,7 +224,7 @@ export function CareRecordEditor({ date, record, persons, procedureTypes, record
       />
 
       {type && (
-        <CareParamForm schema={type.paramSchema} values={params} onChange={setParams} fieldErrors={fieldErrors} />
+        <CareParamForm schema={type.paramSchema} values={params} onChange={setParams} fieldErrors={fieldErrors} pick={pick} />
       )}
 
       <button

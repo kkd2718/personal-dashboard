@@ -5,6 +5,7 @@ import {
   dayRecordChips,
   isMonthWithinRange,
   procedureStats,
+  usedParamValues,
   recordSummary,
   recordsByDate,
   suggestSeries,
@@ -270,5 +271,19 @@ describe('careErrorMessage', () => {
     expect(careErrorMessage({ code: 'not_found', message: '알 수 없는 personId', status: 404 })).toBe(
       '알 수 없는 personId'
     );
+  });
+});
+
+describe('usedParamValues', () => {
+  it('returns distinct trimmed values for the type, most recent first', () => {
+    const records = [
+      record({ id: 1, procedureTypeId: 2, date: '2026-07-22', params: { region: '풀페이스' } }),
+      record({ id: 2, procedureTypeId: 2, date: '2026-09-19', params: { region: '하관 전체 ' } }),
+      record({ id: 3, procedureTypeId: 2, date: '2026-08-20', params: { region: '배' } }),
+      record({ id: 4, procedureTypeId: 2, date: '2026-09-19', params: { region: '배' } }),
+      record({ id: 5, procedureTypeId: 3, date: '2026-09-30', params: { region: '눈밑' } }),
+      record({ id: 6, procedureTypeId: 2, date: '2026-09-30', params: { region: '' } }),
+    ];
+    expect(usedParamValues(records, 2, 'region')).toEqual(['배', '하관 전체', '풀페이스']);
   });
 });
