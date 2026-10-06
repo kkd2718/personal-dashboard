@@ -38,7 +38,7 @@ export async function loadProjectDue(
   const projects = (await repo.listProjects()).filter((p) => p.status !== 'archived');
   const details = await Promise.all(projects.map((p) => repo.getMeta<ProjectDetail>(projectDetailMetaKey(p.id))));
   return meChecklistDue(
-    projects.map((p, i) => ({ projectName: p.name, status: details[i]?.status ?? null })),
+    projects.map((p, i) => ({ projectId: p.id, projectName: p.name, status: details[i]?.status ?? null })),
     today
   );
 }

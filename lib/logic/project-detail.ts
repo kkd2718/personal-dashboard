@@ -73,6 +73,7 @@ export function checklistLine(summary: ChecklistSummary): string {
 }
 
 export interface DueChecklistItem {
+  projectId?: string;
   project: string; // short project name ('동네시세 (realty-chart)' -> '동네시세')
   text: string;
   due: string;
@@ -90,18 +91,18 @@ export interface DueChecklist {
  * otherwise only see dashboard tasks. Overdue items older than `overdueDays` are
  * dropped so long-stale entries don't flood every morning. */
 export function meChecklistDue(
-  entries: { projectName: string; status: CcStatus | null }[],
+  entries: { projectId?: string; projectName: string; status: CcStatus | null }[],
   today: string,
   overdueDays = 14
 ): DueChecklist {
   const tomorrow = addDaysStr(today, 1);
   const oldest = addDaysStr(today, -overdueDays);
   const out: DueChecklist = { overdue: [], today: [], tomorrow: [] };
-  for (const { projectName, status } of entries) {
+  for (const { projectId, projectName, status } of entries) {
     const project = projectName.replace(/\s*\(.*\)\s*$/, '').trim() || projectName;
     for (const c of status?.checklist ?? []) {
       if (c.owner !== 'me' || c.status === 'done' || !c.due) continue;
-      const item = { project, text: c.text, due: c.due, blocked: c.status === 'blocked' };
+      const item: DueChecklistItem = { projectId, project, text: c.text, due: c.due, blocked: c.status === 'blocked' };
       if (c.due === today) out.today.push(item);
       else if (c.due === tomorrow) out.tomorrow.push(item);
       else if (c.due < today && c.due >= oldest) out.overdue.push(item);

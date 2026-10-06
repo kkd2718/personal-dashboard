@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Bot, CalendarDays, Plus } from 'lucide-react';
+import { Bot, CalendarDays, ClipboardList, Plus } from 'lucide-react';
 import { checklist, checklistItemCount, type ChecklistItem } from '@/lib/logic/checklist';
 import { dday, todayKST } from '@/lib/logic/dates';
 import { createTaskAction, toggleTaskDoneAction } from '@/app/actions/tasks';
@@ -12,6 +13,7 @@ import { useToast } from '@/components/ui/toast';
 import { DdayChip } from '@/components/dday-chip';
 import { EmptyState } from '@/components/ui/empty-state';
 import { projectColorClasses } from '@/lib/project-colors';
+import type { DueChecklist, DueChecklistItem } from '@/lib/logic/project-detail';
 import type { CalendarEvent, Deadline, Project, ReviewJob, Task } from '@/lib/types';
 
 const DEADLINE_KIND_LABEL: Record<string, string> = {
@@ -162,6 +164,40 @@ function AddTaskForm({ projects, onAdded }: { projects: Project[]; onAdded: () =
   );
 }
 
+/** Read-only row for an owner ("me") item from a project's docs/cc-status.json checklist.
+ * It's ticked in that project's own session (the file lives in its repo), so this only
+ * links to the project page. */
+function ProjectItemRow({ item, projects, today }: { item: DueChecklistItem; projects: Project[]; today: string }) {
+  const project = projects.find((p) => p.id === item.projectId);
+  const colors = projectColorClasses(project?.color);
+  const body = (
+    <>
+      <ClipboardList size={14} className="shrink-0 text-foreground/40" />
+      {project && <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${colors.dot}`} />}
+      <span className="min-w-0 flex-1 truncate">{item.text}</span>
+      <span className="max-w-[35%] shrink-0 truncate rounded-full bg-foreground/5 px-1.5 py-0.5 text-[10px] text-foreground/50">
+        {item.project}
+      </span>
+      {item.blocked && (
+        <span className="shrink-0 rounded bg-amber-500/15 px-1 text-[10px] text-amber-700 dark:text-amber-300">막힘</span>
+      )}
+      <DdayChip n={dday(item.due, today)} />
+    </>
+  );
+  const cls = 'flex items-center gap-2 rounded-lg border border-border bg-surface px-2.5 py-2 text-sm';
+  return (
+    <li>
+      {project ? (
+        <Link href={`/projects/${project.slug}`} className={`${cls} hover:bg-foreground/5`} title="프로젝트 체크리스트 항목">
+          {body}
+        </Link>
+      ) : (
+        <div className={cls}>{body}</div>
+      )}
+    </li>
+  );
+}
+
 /** Read-only row for a today's Google Calendar event, shown at the top of 오늘 (§5.1). */
 function EventRow({ event }: { event: CalendarEvent }) {
   return (
@@ -182,6 +218,7 @@ export function ChecklistPanel({
   projects,
   activeMilestoneIds,
   todayEvents = [],
+  projectDue,
   bare = false,
 }: {
   initialTasks: Task[];
@@ -191,6 +228,9 @@ export function ChecklistPanel({
   projects: Project[];
   /** Today's timed/all-day Google events, rendered as read-only rows inside 오늘 (§5.1). */
   todayEvents?: CalendarEvent[];
+  /** My overdue/today/tomorrow items from project cc-status checklists (same source as the
+   * Telegram digest), shown read-only in the 나 tab. */
+  projectDue?: DueChecklist;
   /** Drops the outer card chrome + "오늘" title when embedded in the home 할 일
    * lane (PLAN_HOME2.md §Lanes 3) — the lane card supplies its own header. */
   bare?: boolean;
@@ -216,6 +256,11 @@ export function ChecklistPanel({
     new Set(activeMilestoneIds)
   );
   const result = byAssignee[tab];
+  const projectRows: Partial<Record<keyof typeof result, DueChecklistItem[]>> =
+    tab === 'me' && projectDue
+      ? { overdue: projectDue.overdue, today: projectDue.today, thisWeek: projectDue.tomorrow }
+      : {};
+  const meCount = checklistItemCount(byAssignee.me) + (projectDue ? projectDue.overdue.length + projectDue.today.length + projectDue.tomorrow.length : 0);
 
   function setHiddenId(id: string, on: boolean) {
     setHidden((prev) => {
@@ -274,7 +319,10 @@ export function ChecklistPanel({
   // nothing collapses to nothing instead of an "없음" line. Today's Google
   // events count toward keeping 오늘 visible even with zero tasks.
   const visibleSections = sections.filter(
-    ({ key }) => result[key].length > 0 || (key === 'today' && tab === 'me' && todayEvents.length > 0)
+    ({ key }) =>
+      result[key].length > 0 ||
+      (projectRows[key]?.length ?? 0) > 0 ||
+      (key === 'today' && tab === 'me' && todayEvents.length > 0)
   );
   const isEmpty = visibleSections.length === 0;
 
@@ -288,7 +336,7 @@ export function ChecklistPanel({
             onClick={() => setTab('me')}
             className={`rounded-md px-2 py-1 ${tab === 'me' ? 'bg-blue-600 text-white' : 'text-foreground/60'}`}
           >
-            나 {checklistItemCount(byAssignee.me)}
+            나 {meCount}
           </button>
           <button
             type="button"
@@ -308,12 +356,15 @@ export function ChecklistPanel({
           visibleSections.map(({ key, label }) => (
             <section key={key} className="flex flex-col gap-1.5">
               <h3 className="text-xs font-medium text-foreground/50">
-                {label} ({result[key].length})
+                {label} ({result[key].length + (projectRows[key]?.length ?? 0)})
               </h3>
               <ul className="flex flex-col gap-1">
                 {key === 'today' &&
                   tab === 'me' &&
                   todayEvents.map((e) => <EventRow key={e.id} event={e} />)}
+                {(projectRows[key] ?? []).map((item, i) => (
+                  <ProjectItemRow key={`p-${item.projectId ?? item.project}-${i}`} item={item} projects={projects} today={today} />
+                ))}
                 {result[key].map((item) => (
                   <Row
                     key={item.id}

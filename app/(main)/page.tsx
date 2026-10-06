@@ -24,6 +24,7 @@ import { checklist, checklistItemCount } from '@/lib/logic/checklist';
 import { buildQueueLaneCards, deadlineCounts, headerCountLabel, nextDeadlineAfterWeek } from '@/lib/logic/home';
 import { WORK_SHIFTS_META_KEY, type WorkShiftsMeta } from '@/lib/logic/work';
 import { projectDetailMetaKey } from '@/lib/logic/project-detail';
+import { loadProjectDue } from '@/lib/telegram/digest';
 import { addDaysStr, startOfSundayWeek, todayKST } from '@/lib/logic/dates';
 import { CALENDAR_VISIBLE_META_KEY, filterVisibleEvents, todayCalendarEvents } from '@/lib/logic/calendar';
 
@@ -96,7 +97,7 @@ export default async function HomePage({
     if (d) details[id] = d;
   });
 
-  const status = await getStatusPanelData(repo, projects);
+  const [status, projectDue] = await Promise.all([getStatusPanelData(repo, projects), loadProjectDue(repo, todayKST())]);
   const activeProjects = projects.filter((p) => p.status === 'active');
   const activeMilestoneIds = milestones.filter((m) => m.status === 'active').map((m) => m.id);
   const today = todayKST();
@@ -194,7 +195,7 @@ export default async function HomePage({
         counts={{
           queue: queueCount,
           papers: papers.length + openReviewCount,
-          todo: checklistItemCount(meChecklist),
+          todo: checklistItemCount(meChecklist) + projectDue.overdue.length + projectDue.today.length + projectDue.tomorrow.length,
           memo: openNoteCount,
         }}
         queue={
@@ -227,6 +228,7 @@ export default async function HomePage({
               projects={activeProjects}
               activeMilestoneIds={activeMilestoneIds}
               todayEvents={todayEvents}
+              projectDue={projectDue}
             />
           </LaneCard>
         }
