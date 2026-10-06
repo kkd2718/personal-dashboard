@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { checklistLine, checklistSummary, isStatusStale, meChecklistDue, projectDetailMetaKey, statusAgeLabel } from './project-detail';
+import {
+  checklistLine,
+  checklistSummary,
+  isStatusStale,
+  meChecklistDue,
+  projectDetailMetaKey,
+  pruneResolved,
+  resolvedItemKey,
+  statusAgeLabel,
+} from './project-detail';
 import type { CcChecklistItem, CcStatus } from '@/lib/types';
 
 const status = (updatedAt: string | null): CcStatus => ({ updatedAt, focus: null, next: [], blockers: [], done: [], checklist: [] });
@@ -140,5 +149,36 @@ describe('meChecklistDue', () => {
     expect(out.today).toEqual([{ project: 'trading-system', text: 'RP 해지', due: '2026-09-30', blocked: false }]);
     expect(out.tomorrow.map((i) => i.text)).toEqual(['IB+VR 시작']);
     expect(out.overdue).toEqual([{ project: 'trading-system', text: '예탁금 문의', due: '2026-09-28', blocked: true }]);
+  });
+
+  it('drops items older than the 7-day window and items resolved from the dashboard', () => {
+    const out = meChecklistDue(
+      [
+        {
+          projectId: 'p-x',
+          projectName: 'X',
+          status: st([
+            item({ text: '8일 전', owner: 'me', due: '2026-09-22' }),
+            item({ text: '7일 전', owner: 'me', due: '2026-09-23' }),
+            item({ text: '대시보드에서 완료', owner: 'me', due: '2026-09-30' }),
+          ]),
+        },
+      ],
+      '2026-09-30',
+      7,
+      new Set([resolvedItemKey('p-x', '대시보드에서 완료')])
+    );
+    expect(out.overdue.map((i) => i.text)).toEqual(['7일 전']);
+    expect(out.today).toEqual([]);
+  });
+});
+
+describe('pruneResolved', () => {
+  it('keeps entries resolved within 60 days', () => {
+    const map = {
+      a: { state: 'done' as const, at: '2026-08-01', noteId: null },
+      b: { state: 'skip' as const, at: '2026-08-02', noteId: 'n1' },
+    };
+    expect(Object.keys(pruneResolved(map, '2026-10-01'))).toEqual(['b']);
   });
 });

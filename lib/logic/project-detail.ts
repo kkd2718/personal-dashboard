@@ -86,6 +86,29 @@ export interface DueChecklist {
   tomorrow: DueChecklistItem[];
 }
 
+/** app_meta key for project-checklist items the owner resolved from the dashboard home
+ * (ticked done or marked "안 함") before the project's own session updated its file. */
+export const RESOLVED_PROJECT_ITEMS_META_KEY = 'project-checklist:resolved';
+
+export interface ResolvedProjectItem {
+  state: 'done' | 'skip';
+  at: string; // 'YYYY-MM-DD' (KST) when resolved
+  noteId: string | null; // memo sent to the project's session inbox
+}
+
+export type ResolvedProjectItems = Record<string, ResolvedProjectItem>;
+
+export function resolvedItemKey(projectId: string, text: string): string {
+  return `${projectId}::${text}`;
+}
+
+/** Drops entries resolved more than `keepDays` ago — by then the project's session has
+ * long since rewritten its checklist, so the override is dead weight. */
+export function pruneResolved(map: ResolvedProjectItems, today: string, keepDays = 60): ResolvedProjectItems {
+  const oldest = addDaysStr(today, -keepDays);
+  return Object.fromEntries(Object.entries(map).filter(([, v]) => v.at >= oldest));
+}
+
 /** The owner's ("me") open project-checklist items (docs/cc-status.json) that are
  * overdue, due today or due tomorrow — for the Telegram digest and /today, which
  * otherwise only see dashboard tasks. Overdue items older than `overdueDays` are
@@ -93,7 +116,8 @@ export interface DueChecklist {
 export function meChecklistDue(
   entries: { projectId?: string; projectName: string; status: CcStatus | null }[],
   today: string,
-  overdueDays = 14
+  overdueDays = 7,
+  hidden: ReadonlySet<string> = new Set()
 ): DueChecklist {
   const tomorrow = addDaysStr(today, 1);
   const oldest = addDaysStr(today, -overdueDays);
@@ -102,6 +126,7 @@ export function meChecklistDue(
     const project = projectName.replace(/\s*\(.*\)\s*$/, '').trim() || projectName;
     for (const c of status?.checklist ?? []) {
       if (c.owner !== 'me' || c.status === 'done' || !c.due) continue;
+      if (projectId && hidden.has(resolvedItemKey(projectId, c.text))) continue;
       const item: DueChecklistItem = { projectId, project, text: c.text, due: c.due, blocked: c.status === 'blocked' };
       if (c.due === today) out.today.push(item);
       else if (c.due === tomorrow) out.tomorrow.push(item);

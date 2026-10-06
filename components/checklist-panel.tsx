@@ -3,13 +3,14 @@
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Bot, CalendarDays, ClipboardList, Plus } from 'lucide-react';
+import { Bot, CalendarDays, ClipboardList, Plus, X } from 'lucide-react';
 import { checklist, checklistItemCount, type ChecklistItem } from '@/lib/logic/checklist';
 import { dday, todayKST } from '@/lib/logic/dates';
 import { createTaskAction, toggleTaskDoneAction } from '@/app/actions/tasks';
 import { toggleDeadlineDoneAction } from '@/app/actions/deadlines';
 import { updateReviewAction } from '@/app/actions/reviews';
 import { useToast } from '@/components/ui/toast';
+import { resolveProjectItemAction, unresolveProjectItemAction } from '@/app/actions/project-checklist';
 import { DdayChip } from '@/components/dday-chip';
 import { EmptyState } from '@/components/ui/empty-state';
 import { projectColorClasses } from '@/lib/project-colors';
@@ -164,15 +165,24 @@ function AddTaskForm({ projects, onAdded }: { projects: Project[]; onAdded: () =
   );
 }
 
-/** Read-only row for an owner ("me") item from a project's docs/cc-status.json checklist.
- * It's ticked in that project's own session (the file lives in its repo), so this only
- * links to the project page. */
-function ProjectItemRow({ item, projects, today }: { item: DueChecklistItem; projects: Project[]; today: string }) {
+/** Row for an owner ("me") item from a project's docs/cc-status.json checklist. The file
+ * lives in that project's repo, so ✓ / 안 함 hide it here and send a memo to the project's
+ * session inbox (resolveProjectItemAction); the text links to the project page. */
+function ProjectItemRow({
+  item,
+  projects,
+  today,
+  onResolve,
+}: {
+  item: DueChecklistItem;
+  projects: Project[];
+  today: string;
+  onResolve: (item: DueChecklistItem, state: 'done' | 'skip') => void;
+}) {
   const project = projects.find((p) => p.id === item.projectId);
   const colors = projectColorClasses(project?.color);
   const body = (
     <>
-      <ClipboardList size={14} className="shrink-0 text-foreground/40" />
       {project && <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${colors.dot}`} />}
       <span className="min-w-0 flex-1 truncate">{item.text}</span>
       <span className="max-w-[35%] shrink-0 truncate rounded-full bg-foreground/5 px-1.5 py-0.5 text-[10px] text-foreground/50">
@@ -184,15 +194,38 @@ function ProjectItemRow({ item, projects, today }: { item: DueChecklistItem; pro
       <DdayChip n={dday(item.due, today)} />
     </>
   );
-  const cls = 'flex items-center gap-2 rounded-lg border border-border bg-surface px-2.5 py-2 text-sm';
+  const canResolve = !!item.projectId;
   return (
-    <li>
+    <li className="flex items-center gap-2 rounded-lg border border-border bg-surface px-2.5 py-2 text-sm">
+      {canResolve ? (
+        <input
+          type="checkbox"
+          checked={false}
+          onChange={() => onResolve(item, 'done')}
+          className="shrink-0"
+          title="완료 — 프로젝트 세션에도 전달돼요"
+          aria-label="완료"
+        />
+      ) : (
+        <ClipboardList size={14} className="shrink-0 text-foreground/40" />
+      )}
       {project ? (
-        <Link href={`/projects/${project.slug}`} className={`${cls} hover:bg-foreground/5`} title="프로젝트 체크리스트 항목">
+        <Link href={`/projects/${project.slug}`} className="flex min-w-0 flex-1 items-center gap-2 hover:underline" title="프로젝트 체크리스트 항목">
           {body}
         </Link>
       ) : (
-        <div className={cls}>{body}</div>
+        <div className="flex min-w-0 flex-1 items-center gap-2">{body}</div>
+      )}
+      {canResolve && (
+        <button
+          type="button"
+          onClick={() => onResolve(item, 'skip')}
+          className="shrink-0 rounded p-0.5 text-foreground/30 hover:bg-foreground/10 hover:text-foreground/70"
+          title="안 함 — 목록에서 빼고 프로젝트 세션에 전달"
+          aria-label="안 함"
+        >
+          <X size={14} />
+        </button>
       )}
     </li>
   );
@@ -256,11 +289,50 @@ export function ChecklistPanel({
     new Set(activeMilestoneIds)
   );
   const result = byAssignee[tab];
+  // Project items resolved here are hidden optimistically until the refresh drops them.
+  const [resolvedKeys, setResolvedKeys] = useState<ReadonlySet<string>>(new Set());
+  const itemKey = (i: DueChecklistItem) => `${i.projectId}::${i.text}`;
+  const visibleDue = (list: DueChecklistItem[] = []) => list.filter((i) => !resolvedKeys.has(itemKey(i)));
+  const due = projectDue
+    ? { overdue: visibleDue(projectDue.overdue), today: visibleDue(projectDue.today), tomorrow: visibleDue(projectDue.tomorrow) }
+    : null;
   const projectRows: Partial<Record<keyof typeof result, DueChecklistItem[]>> =
-    tab === 'me' && projectDue
-      ? { overdue: projectDue.overdue, today: projectDue.today, thisWeek: projectDue.tomorrow }
-      : {};
-  const meCount = checklistItemCount(byAssignee.me) + (projectDue ? projectDue.overdue.length + projectDue.today.length + projectDue.tomorrow.length : 0);
+    tab === 'me' && due ? { overdue: due.overdue, today: due.today, thisWeek: due.tomorrow } : {};
+  const meCount = checklistItemCount(byAssignee.me) + (due ? due.overdue.length + due.today.length + due.tomorrow.length : 0);
+
+  function setResolved(key: string, on: boolean) {
+    setResolvedKeys((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+  }
+
+  function handleResolve(item: DueChecklistItem, state: 'done' | 'skip') {
+    if (!item.projectId) return;
+    const key = itemKey(item);
+    const ref = { projectId: item.projectId, text: item.text };
+    setResolved(key, true);
+    resolveProjectItemAction({ ...ref, state })
+      .then(() =>
+        show(state === 'done' ? `완료: ${item.text}` : `안 함: ${item.text}`, {
+          variant: 'success',
+          action: {
+            label: '되돌리기',
+            onClick: () => {
+              unresolveProjectItemAction(ref)
+                .then(() => setResolved(key, false))
+                .catch(() => router.refresh());
+            },
+          },
+        })
+      )
+      .catch(() => {
+        setResolved(key, false);
+        show('저장하지 못했어요', { variant: 'danger' });
+      });
+  }
 
   function setHiddenId(id: string, on: boolean) {
     setHidden((prev) => {
@@ -363,7 +435,13 @@ export function ChecklistPanel({
                   tab === 'me' &&
                   todayEvents.map((e) => <EventRow key={e.id} event={e} />)}
                 {(projectRows[key] ?? []).map((item, i) => (
-                  <ProjectItemRow key={`p-${item.projectId ?? item.project}-${i}`} item={item} projects={projects} today={today} />
+                  <ProjectItemRow
+                    key={`p-${item.projectId ?? item.project}-${i}`}
+                    item={item}
+                    projects={projects}
+                    today={today}
+                    onResolve={handleResolve}
+                  />
                 ))}
                 {result[key].map((item) => (
                   <Row

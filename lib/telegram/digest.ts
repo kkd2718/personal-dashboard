@@ -1,7 +1,13 @@
 // Daily digest orchestration (phase 2b), extracted from app/api/cron/daily so it
 // can be unit-tested with a fake repo + fake sender (no Next.js route needed).
 import type { CalendarEvent, Deadline, Project, ProjectDetail, ReviewJob, Task, TradingSummary } from '@/lib/types';
-import { meChecklistDue, projectDetailMetaKey, type DueChecklist } from '@/lib/logic/project-detail';
+import {
+  meChecklistDue,
+  projectDetailMetaKey,
+  RESOLVED_PROJECT_ITEMS_META_KEY,
+  type DueChecklist,
+  type ResolvedProjectItems,
+} from '@/lib/logic/project-detail';
 import { TRADING_SUMMARY_META_KEY, tradingOneLine } from '@/lib/logic/trading';
 import type { StatusItem } from '@/lib/status/types';
 import { checklist } from '@/lib/logic/checklist';
@@ -36,10 +42,15 @@ export async function loadProjectDue(
   today: string
 ): Promise<DueChecklist> {
   const projects = (await repo.listProjects()).filter((p) => p.status !== 'archived');
-  const details = await Promise.all(projects.map((p) => repo.getMeta<ProjectDetail>(projectDetailMetaKey(p.id))));
+  const [details, resolved] = await Promise.all([
+    Promise.all(projects.map((p) => repo.getMeta<ProjectDetail>(projectDetailMetaKey(p.id)))),
+    repo.getMeta<ResolvedProjectItems>(RESOLVED_PROJECT_ITEMS_META_KEY),
+  ]);
   return meChecklistDue(
     projects.map((p, i) => ({ projectId: p.id, projectName: p.name, status: details[i]?.status ?? null })),
-    today
+    today,
+    7,
+    new Set(Object.keys(resolved ?? {}))
   );
 }
 
