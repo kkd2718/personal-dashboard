@@ -14,7 +14,7 @@ import { checklist } from '@/lib/logic/checklist';
 import { CALENDAR_VISIBLE_META_KEY, filterVisibleEvents } from '@/lib/logic/calendar';
 import { WORK_SHIFTS_META_KEY, type WorkShiftsMeta } from '@/lib/logic/work';
 import { routineStatus } from '@/lib/logic/routines';
-import { loadRoutineDone, loadRoutineItems } from '@/lib/routines-data';
+import { loadRoutineCounts, loadRoutineDone, loadRoutineItems } from '@/lib/routines-data';
 import { formatDigest } from '@/lib/telegram/format';
 import type { SendResult } from '@/lib/telegram/client';
 
@@ -82,7 +82,7 @@ export async function runDigest(
     loadRoutineDone(repo, today),
   ]);
   const me = checklist(tasks, deadlines, reviews, today).me;
-  const routines = routineStatus(routineItems, routineDone, today);
+  const routines = routineStatus(routineItems, routineDone, today, await loadRoutineCounts(repo, today));
   const message = formatDigest({
     routines,
     projectDue,

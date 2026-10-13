@@ -8,16 +8,43 @@ export interface RoutineItem {
   startDate: string; // 'YYYY-MM-DD'
   endDate: string | null;
   sort: number;
+  /** 'count': record how many (e.g. problems solved) per day; done when count > 0. */
+  kind?: 'check' | 'count';
+  /** Count unit label, e.g. '문제'. */
+  unit?: string | null;
 }
 
 export interface RoutineStatus {
   item: RoutineItem;
   done: boolean;
+  /** Today's count, for kind 'count' only. */
+  count?: number;
 }
 
 export const ROUTINE_ITEMS_META_KEY = 'routine:items';
 export const ROUTINE_DONE_PREFIX = 'routine:done:';
 export const routineDoneMetaKey = (date: string): string => `${ROUTINE_DONE_PREFIX}${date}`;
+/** Per-day counts for kind 'count' routines: `{ [routineId]: number }`. */
+export const ROUTINE_COUNT_PREFIX = 'routine:count:';
+export const routineCountMetaKey = (date: string): string => `${ROUTINE_COUNT_PREFIX}${date}`;
+export const MAX_ROUTINE_COUNT = 999;
+
+export const isCountRoutine = (item: Pick<RoutineItem, 'kind'>): boolean => item.kind === 'count';
+
+/** New count after `+n` (add) or `=n` (set), clamped to 0..MAX_ROUTINE_COUNT. */
+export function nextRoutineCount(prev: number, change: { add: number } | { set: number }): number {
+  const raw = 'set' in change ? change.set : prev + change.add;
+  return Math.max(0, Math.min(MAX_ROUTINE_COUNT, Math.round(raw)));
+}
+
+/** Done list after a count change: a count routine is done exactly when its count > 0. */
+export function doneAfterCount(doneIds: string[], id: string, count: number): string[] {
+  const rest = doneIds.filter((x) => x !== id);
+  return count > 0 ? [...rest, id] : rest;
+}
+
+/** "12문제" / "12" */
+export const formatRoutineCount = (item: Pick<RoutineItem, 'unit'>, count: number): string => `${count}${item.unit ?? ''}`;
 
 export const SEED_ROUTINES: RoutineItem[] = [
   { id: 'allen-daily', label: '알렌의 서재 오늘의 문제', url: null, startDate: '2026-10-01', endDate: null, sort: 0 },
@@ -31,9 +58,18 @@ export function activeRoutines(items: RoutineItem[], date: string): RoutineItem[
     .sort((a, b) => a.sort - b.sort);
 }
 
-export function routineStatus(items: RoutineItem[], doneIds: string[], date: string): RoutineStatus[] {
+export function routineStatus(
+  items: RoutineItem[],
+  doneIds: string[],
+  date: string,
+  counts: Record<string, number> = {}
+): RoutineStatus[] {
   const done = new Set(doneIds);
-  return activeRoutines(items, date).map((item) => ({ item, done: done.has(item.id) }));
+  return activeRoutines(items, date).map((item) =>
+    isCountRoutine(item)
+      ? { item, done: done.has(item.id) || (counts[item.id] ?? 0) > 0, count: counts[item.id] ?? 0 }
+      : { item, done: done.has(item.id) }
+  );
 }
 
 /** `/done` argument -> routine: 1-based index into `items`, or a case-insensitive label
@@ -44,6 +80,15 @@ export function matchRoutine(items: RoutineItem[], query: string): RoutineItem |
   if (/^\d+$/.test(q)) return items[Number(q) - 1] ?? null;
   const hits = items.filter((r) => r.label.toLowerCase().includes(q));
   return hits.length === 1 ? hits[0] : null;
+}
+
+/** `/done` argument split: "알렌 5" / "1 +5" / "알렌 =12" -> query + count change.
+ * A lone number stays a query (an index), so "/done 2" still means routine #2. */
+export function parseDoneArg(arg: string): { query: string; change: { add: number } | { set: number } | null } {
+  const m = /^(.*\S)\s+([+=]?)(\d+)$/.exec(arg.trim());
+  if (!m) return { query: arg.trim(), change: null };
+  const n = Number(m[3]);
+  return { query: m[1], change: m[2] === '=' ? { set: n } : { add: n } };
 }
 
 /** Consecutive done days ending today, or yesterday when today is not done yet. */

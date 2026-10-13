@@ -96,6 +96,23 @@ export function RoutineSettings({ items, today }: { items: RoutineItem[]; today:
                 종료
                 <input type="date" value={r.endDate ?? ''} onChange={(e) => patch(i, { endDate: e.target.value || null })} className={INPUT} />
               </label>
+              <label className="flex items-center gap-1">
+                <input
+                  type="checkbox"
+                  checked={r.kind === 'count'}
+                  onChange={(e) => patch(i, { kind: e.target.checked ? 'count' : 'check' })}
+                />
+                개수 기록
+              </label>
+              {r.kind === 'count' && (
+                <input
+                  value={r.unit ?? ''}
+                  maxLength={10}
+                  onChange={(e) => patch(i, { unit: e.target.value || null })}
+                  placeholder="단위 (예: 문제)"
+                  className={`${INPUT} w-28`}
+                />
+              )}
             </div>
           </li>
         ))}

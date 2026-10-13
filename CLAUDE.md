@@ -127,6 +127,9 @@ project's DB password isn't always available/known. Run scripts with
   루틴 editor. Telegram: `🔁 오늘 루틴` in the digest and `/today`, `/done <n|이름>`, and an evening
   reminder cron `/api/cron/evening` (12:00 UTC, `lib/telegram/evening.ts`, once/day via
   `telegram:evening:lastSent`). Adding `/done` needs `scripts/telegram-setup.mjs` rerun for the command menu.
+  Count routines (`kind: 'count'`, 2026-10-13): per-day tally in `routine:count:<date>`, done when > 0 (kept
+  in sync with `routine:done:<date>`); home ± stepper, `/done 알렌 5` (add) / `=12` (set), and
+  `POST /api/routine/count` (`AGENT_TOKEN`) via `scripts/routine-count.mjs <id> +N` for other sessions.
 
 ## Conventions
 - Opus plans (`docs/PLAN.md`), Sonnet implements. Don't redesign a plan's data model/signatures

@@ -9,7 +9,7 @@ import { getRepo } from '@/lib/repo';
 import { getStatusPanelData } from '@/lib/status';
 import { RoutineStrip, type RoutineRow } from '@/components/home/routine-strip';
 import { routineStatus, routineStreak } from '@/lib/logic/routines';
-import { loadRoutineDoneHistory, loadRoutineItems } from '@/lib/routines-data';
+import { loadRoutineCounts, loadRoutineDoneHistory, loadRoutineItems } from '@/lib/routines-data';
 import { QuickCapture } from '@/components/quick-capture';
 import { ChecklistPanel } from '@/components/checklist-panel';
 import { WeekStrip } from '@/components/home/week-strip';
@@ -65,6 +65,7 @@ export default async function HomePage({
     workMeta,
     routineItems,
     routineHistory,
+    routineCounts,
   ] = await Promise.all([
     repo.listProjects(),
     repo.listTasks(),
@@ -81,6 +82,7 @@ export default async function HomePage({
     repo.getMeta<WorkShiftsMeta>(WORK_SHIFTS_META_KEY),
     loadRoutineItems(repo),
     loadRoutineDoneHistory(repo),
+    loadRoutineCounts(repo, todayKST()),
   ]);
   // One Promise.all of getMeta calls for the distinct project ids behind the queue
   // lane's active projects or a paper (§4: home lanes prefer the checklist line).
@@ -103,12 +105,14 @@ export default async function HomePage({
   const today = todayKST();
   const visibleEvents = filterVisibleEvents(calendarEvents, visibleCalendars);
   const todayEvents = todayCalendarEvents(visibleEvents.filter((e) => e.startDate <= today && e.endDate >= today));
-  const routineRows: RoutineRow[] = routineStatus(routineItems, routineHistory[today] ?? [], today).map(
-    ({ item, done }) => ({
+  const routineRows: RoutineRow[] = routineStatus(routineItems, routineHistory[today] ?? [], today, routineCounts).map(
+    ({ item, done, count }) => ({
       id: item.id,
       label: item.label,
       url: item.url,
       done,
+      count: count ?? null,
+      unit: item.unit ?? null,
       streak: routineStreak(routineHistory, item.id, today),
     })
   );

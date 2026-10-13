@@ -1,6 +1,9 @@
 // Repo access for routines (app_meta keys, no migration). Shared by the home page,
 // digest, evening cron, /done and the server actions.
 import {
+  doneAfterCount,
+  nextRoutineCount,
+  routineCountMetaKey,
   ROUTINE_DONE_PREFIX,
   ROUTINE_ITEMS_META_KEY,
   SEED_ROUTINES,
@@ -35,4 +38,23 @@ export async function loadRoutineDoneHistory(repo: {
     if (Array.isArray(value)) out[key.slice(ROUTINE_DONE_PREFIX.length)] = value as string[];
   }
   return out;
+}
+
+export async function loadRoutineCounts(repo: Pick<MetaRepo, 'getMeta'>, date: string): Promise<Record<string, number>> {
+  return (await repo.getMeta<Record<string, number>>(routineCountMetaKey(date))) ?? {};
+}
+
+/** Changes a count routine's tally for `date` and keeps the done list in sync (done when
+ * count > 0, so streaks/evening reminders work unchanged). Returns the new count. */
+export async function changeRoutineCount(
+  repo: MetaRepo,
+  id: string,
+  date: string,
+  change: { add: number } | { set: number }
+): Promise<number> {
+  const [counts, doneIds] = await Promise.all([loadRoutineCounts(repo, date), loadRoutineDone(repo, date)]);
+  const count = nextRoutineCount(counts[id] ?? 0, change);
+  await repo.setMeta(routineCountMetaKey(date), { ...counts, [id]: count });
+  await repo.setMeta(routineDoneMetaKey(date), doneAfterCount(doneIds, id, count));
+  return count;
 }

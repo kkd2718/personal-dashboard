@@ -9,7 +9,7 @@ import { ddayLabel } from '@/lib/logic/dates';
 import { todayCalendarEvents } from '@/lib/logic/calendar';
 import { parseShift, type WorkShift } from '@/lib/logic/work';
 import type { DueChecklist, DueChecklistItem } from '@/lib/logic/project-detail';
-import type { RoutineItem, RoutineStatus } from '@/lib/logic/routines';
+import { formatRoutineCount, isCountRoutine, type RoutineItem, type RoutineStatus } from '@/lib/logic/routines';
 
 const WEEKDAY_KO = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -109,10 +109,15 @@ function routineLabel(item: RoutineItem): string {
   return `<a href="${escapeHtml(item.url).replace(/"/g, '&quot;')}">${label}</a>`;
 }
 
+/** " · 12문제" for count routines with a count today, else "". */
+function countSuffix(r: RoutineStatus): string {
+  return r.count !== undefined && r.count > 0 ? ` · ${escapeHtml(formatRoutineCount(r.item, r.count))}` : '';
+}
+
 function routineSection(rows: RoutineStatus[], withState: boolean): string[] {
   return [
     header('🔁 오늘 루틴'),
-    ...rows.map((r) => `${withState ? (r.done ? '✅' : '⬜') : '•'} ${routineLabel(r.item)}`),
+    ...rows.map((r) => `${withState ? (r.done ? '✅' : '⬜') : '•'} ${routineLabel(r.item)}${countSuffix(r)}`),
   ];
 }
 
@@ -123,7 +128,7 @@ export function formatEvening(pending: RoutineItem[]): string | null {
     header('🌙 저녁 체크'),
     ...pending.map((r) => `• ${routineLabel(r)}`),
     '',
-    '완료하면 /done 1 처럼 보내세요',
+    pending.some(isCountRoutine) ? '완료하면 /done 1 처럼, 개수는 /done 1 5 처럼 보내세요' : '완료하면 /done 1 처럼 보내세요',
   ].join('\n');
 }
 
@@ -132,9 +137,11 @@ export function formatRoutineList(rows: RoutineStatus[]): string {
   if (rows.length === 0) return '오늘 활성 루틴이 없어요';
   return [
     header('🔁 오늘 루틴'),
-    ...rows.map((r, i) => `${i + 1}. ${r.done ? '✅' : '⬜'} ${escapeHtml(r.item.label)}`),
+    ...rows.map((r, i) => `${i + 1}. ${r.done ? '✅' : '⬜'} ${escapeHtml(r.item.label)}${countSuffix(r)}`),
     '',
-    '/done 1 또는 /done 알렌 처럼 보내세요',
+    rows.some((r) => isCountRoutine(r.item))
+      ? '/done 1 또는 /done 알렌 처럼, 개수는 /done 알렌 5 처럼 보내세요'
+      : '/done 1 또는 /done 알렌 처럼 보내세요',
   ].join('\n');
 }
 

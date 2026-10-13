@@ -18,6 +18,7 @@ function isPublicPath(pathname: string): boolean {
     pathname.startsWith('/api/cron/') ||
     pathname.startsWith('/api/collector/') ||
     pathname.startsWith('/api/agent-inbox') ||
+    pathname.startsWith('/api/routine/count') ||
     pathname.startsWith('/api/telegram/webhook') ||
     pathname.startsWith('/api/google/sync') ||
     pathname === '/manifest.webmanifest' ||

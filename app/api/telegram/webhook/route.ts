@@ -11,8 +11,22 @@ import {
   parseUpdate,
   route,
 } from '@/lib/telegram/format';
-import { matchRoutine, routineDoneMetaKey, routineStatus, routineStreak } from '@/lib/logic/routines';
-import { loadRoutineDone, loadRoutineDoneHistory, loadRoutineItems } from '@/lib/routines-data';
+import {
+  formatRoutineCount,
+  isCountRoutine,
+  matchRoutine,
+  parseDoneArg,
+  routineDoneMetaKey,
+  routineStatus,
+  routineStreak,
+} from '@/lib/logic/routines';
+import {
+  changeRoutineCount,
+  loadRoutineCounts,
+  loadRoutineDone,
+  loadRoutineDoneHistory,
+  loadRoutineItems,
+} from '@/lib/routines-data';
 import { loadProjectDue } from '@/lib/telegram/digest';
 import { createNoteFromText } from '@/lib/create-note';
 import { getRepo } from '@/lib/repo';
@@ -23,7 +37,7 @@ import { CALENDAR_VISIBLE_META_KEY, filterVisibleEvents } from '@/lib/logic/cale
 
 export const dynamic = 'force-dynamic';
 
-const HELP_TEXT = '메모는 그냥 보내면 저장돼요. @프로젝트 #태그 지원 · /today · /deadlines · /done 1 (루틴 완료)';
+const HELP_TEXT = '메모는 그냥 보내면 저장돼요. @프로젝트 #태그 지원 · /today · /deadlines · /done 1 (루틴 완료, /done 알렌 5 = 개수)';
 
 /** Telegram Bot API webhook (phase 2b). Always 200s (Telegram retries non-2xx) —
  * failures are reported to the chat, not via the HTTP status. */
@@ -89,14 +103,31 @@ async function handle(text: string): Promise<void> {
   }
 }
 
-/** `/done <n|이름>`: marks today's matching routine done; no/unknown argument lists them. */
+/** `/done <n|이름> [개수]`: marks today's matching routine done (count routines: adds
+ * the count, or `=N` sets it); no/unknown argument lists them. */
 async function handleDone(arg: string): Promise<string> {
   const repo = getRepo();
   const today = todayKST();
-  const [items, doneIds] = await Promise.all([loadRoutineItems(repo), loadRoutineDone(repo, today)]);
-  const rows = routineStatus(items, doneIds, today);
-  const match = arg.trim() ? matchRoutine(rows.map((r) => r.item), arg) : null;
+  const [items, doneIds, counts] = await Promise.all([
+    loadRoutineItems(repo),
+    loadRoutineDone(repo, today),
+    loadRoutineCounts(repo, today),
+  ]);
+  const rows = routineStatus(items, doneIds, today, counts);
+  const { query, change } = parseDoneArg(arg);
+  const match = query ? matchRoutine(rows.map((r) => r.item), query) : null;
   if (!match) return formatRoutineList(rows);
+
+  if (isCountRoutine(match)) {
+    if (!change) {
+      const current = formatRoutineCount(match, counts[match.id] ?? 0);
+      return `${escapeHtml(match.label)}: 오늘 ${escapeHtml(current)} — 개수를 붙여 보내세요 (예: /done ${escapeHtml(query)} 5)`;
+    }
+    const count = await changeRoutineCount(repo, match.id, today, change);
+    const history = await loadRoutineDoneHistory(repo);
+    const streak = routineStreak(history, match.id, today);
+    return `${count > 0 ? '✅' : '⬜'} ${escapeHtml(match.label)} 오늘 ${escapeHtml(formatRoutineCount(match, count))}${streak > 1 ? ` (🔥${streak})` : ''}`;
+  }
 
   const nextDone = doneIds.includes(match.id) ? doneIds : [...doneIds, match.id];
   await repo.setMeta(routineDoneMetaKey(today), nextDone);
@@ -122,6 +153,7 @@ async function buildToday(): Promise<string> {
     loadRoutineItems(repo),
     loadRoutineDone(repo, today),
   ]);
+  const routineCounts = await loadRoutineCounts(repo, today);
   const me = checklist(tasks, deadlines, reviews, today).me;
   const dayMemos = notes.filter((n) => n.date === today && n.status !== 'archived');
   return formatToday({
@@ -134,7 +166,7 @@ async function buildToday(): Promise<string> {
     cloudUrl: process.env.CLOUD_URL ?? null,
     workShift: work?.shifts.find((s) => s.date === today) ?? null,
     projectDue,
-    routines: routineStatus(routineItems, routineDone, today),
+    routines: routineStatus(routineItems, routineDone, today, routineCounts),
   });
 }
 

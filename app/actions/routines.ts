@@ -4,7 +4,8 @@ import { z } from 'zod';
 import { getRepo } from '@/lib/repo';
 import { revalidateAll } from '@/app/actions/revalidate';
 import { requireUser } from '@/lib/auth/require-user';
-import { ROUTINE_ITEMS_META_KEY, routineDoneMetaKey, type RoutineItem } from '@/lib/logic/routines';
+import { MAX_ROUTINE_COUNT, ROUTINE_ITEMS_META_KEY, routineDoneMetaKey, type RoutineItem } from '@/lib/logic/routines';
+import { changeRoutineCount } from '@/lib/routines-data';
 
 const dateStr = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
@@ -20,6 +21,14 @@ const routineSchema = z.object({
     .transform((u) => u || null),
   startDate: dateStr,
   endDate: dateStr.nullable(),
+  kind: z.enum(['check', 'count']).optional(),
+  unit: z
+    .string()
+    .trim()
+    .max(10)
+    .nullable()
+    .optional()
+    .transform((u) => u || null),
 });
 
 const routinesSchema = z
@@ -38,6 +47,17 @@ export async function toggleRoutineAction(id: string, date: string, done: boolea
   const next = input.done ? [...new Set([...current, input.id])] : current.filter((x) => x !== input.id);
   await repo.setMeta(key, next);
   revalidateAll();
+}
+
+/** Sets a count routine's tally for a KST day (done when > 0). */
+export async function setRoutineCountAction(id: string, date: string, count: number): Promise<number> {
+  await requireUser();
+  const input = z
+    .object({ id: z.string().min(1).max(64), date: dateStr, count: z.number().int().min(0).max(MAX_ROUTINE_COUNT) })
+    .parse({ id, date, count });
+  const next = await changeRoutineCount(getRepo(), input.id, input.date, { set: input.count });
+  revalidateAll();
+  return next;
 }
 
 /** Replaces the routine list (settings); `sort` follows array order. */
