@@ -3,6 +3,7 @@
 import {
   doneAfterCount,
   nextRoutineCount,
+  type RoutineCountChange,
   routineCountMetaKey,
   ROUTINE_DONE_PREFIX,
   ROUTINE_ITEMS_META_KEY,
@@ -50,7 +51,7 @@ export async function changeRoutineCount(
   repo: MetaRepo,
   id: string,
   date: string,
-  change: { add: number } | { set: number }
+  change: RoutineCountChange
 ): Promise<number> {
   const [counts, doneIds] = await Promise.all([loadRoutineCounts(repo, date), loadRoutineDone(repo, date)]);
   const count = nextRoutineCount(counts[id] ?? 0, change);

@@ -6,6 +6,7 @@
 // Usage:
 //   node routine-count.mjs <routineId> +5      # add 5 to today's count
 //   node routine-count.mjs <routineId> =12     # set today's count to 12
+//   node routine-count.mjs <routineId> ^12     # raise to at least 12 (syncs: never lowers a hand-entered count)
 //   node routine-count.mjs <routineId>         # print today's count
 //   ... [--date YYYY-MM-DD]                    # another KST day (default: today)
 import path from 'node:path';
@@ -16,7 +17,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 function usage(msg) {
   if (msg) console.error(msg);
-  console.error('usage: node routine-count.mjs <routineId> [+N|=N] [--date YYYY-MM-DD]');
+  console.error('usage: node routine-count.mjs <routineId> [+N|-N|=N|^N] [--date YYYY-MM-DD]');
   process.exit(2);
 }
 
@@ -34,10 +35,11 @@ if (!id) usage();
 const body = { id };
 if (date) body.date = date;
 if (change !== undefined) {
-  const m = /^([+=-])(\d+)$/.exec(change);
-  if (!m) usage(`bad change '${change}' (use +N, -N or =N)`);
+  const m = /^([+=^-])(\d+)$/.exec(change);
+  if (!m) usage(`bad change '${change}' (use +N, -N, =N or ^N)`);
   const n = Number(m[2]);
   if (m[1] === '=') body.set = n;
+  else if (m[1] === '^') body.atLeast = n;
   else body.add = m[1] === '-' ? -n : n;
 }
 

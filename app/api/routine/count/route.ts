@@ -15,13 +15,16 @@ const bodySchema = z
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     add: z.number().int().min(-MAX_ROUTINE_COUNT).max(MAX_ROUTINE_COUNT).optional(),
     set: z.number().int().min(0).max(MAX_ROUTINE_COUNT).optional(),
+    atLeast: z.number().int().min(0).max(MAX_ROUTINE_COUNT).optional(),
   })
-  .refine((b) => b.add === undefined || b.set === undefined, { message: 'add and set are exclusive' });
+  .refine((b) => [b.add, b.set, b.atLeast].filter((x) => x !== undefined).length <= 1, {
+    message: 'add, set and atLeast are exclusive',
+  });
 
 /**
  * For scripts/routine-count.mjs (e.g. a study session logging solved problems).
- * Bearer-token auth (AGENT_TOKEN). Body `{id, add?|set?, date?}`; neither add nor set
- * just reads. The routine must be an active kind 'count' routine on that date.
+ * Bearer-token auth (AGENT_TOKEN). Body `{id, add?|set?|atLeast?, date?}`; none of them
+ * just reads. `atLeast` raises the count but never lowers it (for automated syncs). The routine must be an active kind 'count' routine on that date.
  */
 export async function POST(request: Request) {
   const auth = checkBearer(request, process.env.AGENT_TOKEN);
@@ -43,14 +46,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: parsed.error.message }, { status: 400 });
   }
 
-  const { id, add, set } = parsed.data;
+  const { id, add, set, atLeast } = parsed.data;
   const date = parsed.data.date ?? todayKST();
   const repo = getRepo();
   const item = activeRoutines(await loadRoutineItems(repo), date).find((r) => r.id === id);
   if (!item || !isCountRoutine(item)) {
     return NextResponse.json({ ok: false, error: `no active count routine '${id}' on ${date}` }, { status: 404 });
   }
-  const count = await changeRoutineCount(repo, id, date, set !== undefined ? { set } : { add: add ?? 0 });
-  if (add || set !== undefined) revalidateAll();
+  const change = set !== undefined ? { set } : atLeast !== undefined ? { atLeast } : { add: add ?? 0 };
+  const count = await changeRoutineCount(repo, id, date, change);
+  if (add || set !== undefined || atLeast !== undefined) revalidateAll();
   return NextResponse.json({ ok: true, id, date, count, unit: item.unit ?? null });
 }

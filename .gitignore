@@ -52,3 +52,6 @@ supabase/.temp/
 
 .vercel
 .env*
+
+# Local Task Scheduler wrapper written by another project (contains machine paths)
+scripts/amgi-sync.cmd

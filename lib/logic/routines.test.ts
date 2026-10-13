@@ -84,6 +84,8 @@ describe('count routines', () => {
     expect(nextRoutineCount(2, { add: -5 })).toBe(0);
     expect(nextRoutineCount(2, { set: 12 })).toBe(12);
     expect(nextRoutineCount(990, { add: 50 })).toBe(999);
+    expect(nextRoutineCount(50, { atLeast: 21 })).toBe(50);
+    expect(nextRoutineCount(10, { atLeast: 21 })).toBe(21);
   });
 
   it('doneAfterCount syncs the done list', () => {

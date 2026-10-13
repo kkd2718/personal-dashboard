@@ -31,9 +31,12 @@ export const MAX_ROUTINE_COUNT = 999;
 
 export const isCountRoutine = (item: Pick<RoutineItem, 'kind'>): boolean => item.kind === 'count';
 
-/** New count after `+n` (add) or `=n` (set), clamped to 0..MAX_ROUTINE_COUNT. */
-export function nextRoutineCount(prev: number, change: { add: number } | { set: number }): number {
-  const raw = 'set' in change ? change.set : prev + change.add;
+export type RoutineCountChange = { add: number } | { set: number } | { atLeast: number };
+
+/** New count after `+n` (add), `=n` (set) or `^n` (raise to at least n — an automated
+ * sync that never lowers a hand-entered count), clamped to 0..MAX_ROUTINE_COUNT. */
+export function nextRoutineCount(prev: number, change: RoutineCountChange): number {
+  const raw = 'set' in change ? change.set : 'atLeast' in change ? Math.max(prev, change.atLeast) : prev + change.add;
   return Math.max(0, Math.min(MAX_ROUTINE_COUNT, Math.round(raw)));
 }
 
