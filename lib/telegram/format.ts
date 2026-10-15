@@ -383,7 +383,7 @@ export function formatWaitList(open: WaitingItem[], today: string): string {
   return [`<b>⏳ 답장 대기 ${open.length}건</b>`, ...lines].join('\n');
 }
 
-export const WAIT_USAGE = '사용법: /waits · /wait 2 from:주소 · /wait 2 subject:"키워드" · /wait 2 days:5 · /wait 2 close';
+export const WAIT_USAGE = '사용법: /waits · /wait 2 from:주소 · /wait 2 subject:"키워드" · /wait 2 days:5 · /wait 2 close · /wait <id> reopen';
 
 const CATEGORY_LABEL: Record<ReplyCategory, string> = { approved: '승인', declined: '거절', question: '질문', other: '기타' };
 
@@ -396,5 +396,6 @@ export function formatWaitingReplyAlert(item: WaitingItem, reply: WaitingReply):
   }
   lines.push(`${escapeHtml(reply.from)} · ${escapeHtml(reply.subject)}`);
   lines.push(escapeHtml(reply.snippet.slice(0, 120)));
+  lines.push(`<i>잘못 잡혔다면 /wait ${item.id} reopen</i>`);
   return lines.join('\n');
 }

@@ -4,7 +4,7 @@ import { eventsFromParsed, type NewEvent } from '@/lib/logic/new-event';
 import type { Candidate } from '@/lib/logic/ax-candidates';
 import type { Intent } from '@/lib/logic/ax-intent';
 import { parseCapture, stripTokens } from '@/lib/logic/capture';
-import { extractEmailOrDomain } from '@/lib/logic/waiting';
+import { extractEmailOrDomain, extractWaitDays } from '@/lib/logic/waiting';
 import { absoluteDateLabel, weekdayOf } from '@/lib/logic/dates';
 import { applyShift, parseKoDateTime, rescheduleBase, stripRequestVerbs, stripSpans } from '@/lib/logic/ko-datetime';
 import { escapeHtml } from '@/lib/telegram/format';
@@ -17,7 +17,7 @@ export type Proposal =
   | { kind: 'deadline_done'; deadlineId: string; title: string }
   | { kind: 'deadline_reschedule'; deadlineId: string; title: string; from: string; to: string; dueTime?: string }
   | { kind: 'calendar_event'; events: NewEvent[] }
-  | { kind: 'waiting_reply'; title: string; projectId: string | null; match: { from?: string; subject?: string }; nudgeAfterDays: number };
+  | { kind: 'waiting_reply'; title: string; projectId: string | null; match: { from?: string; subject?: string }; nudgeAfterDays: number; taskId?: string | null; deadlineId?: string | null };
 
 export type BuildResult = { ok: true; proposal: Proposal } | { ok: false; reason: string /* Korean, user-facing */ };
 
@@ -34,6 +34,7 @@ export interface BuildInput {
 }
 
 const NOT_FOUND = '대상을 찾을 수 없어요';
+const FILLER_ONLY = /^(?:에서|에게|한테|로부터|으로|로|가|이|은|는|을|를|의|도|에|답장|답|오면|오기|오는|기다림|기다려|기다리는|기다릴게|중|대기|알려|주세요|줘|좀|\s)+$/;
 
 export function buildProposal(input: BuildInput): BuildResult {
   const { text, today, nowTime, intent, target, tasks, deadlines } = input;
@@ -91,24 +92,35 @@ export function buildProposal(input: BuildInput): BuildResult {
       return { ok: true, proposal: { kind: 'calendar_event', events: events.map((e) => ({ ...e, title })) } };
     }
     case 'waiting_reply': {
+      // Pull the sender and "N일 기다림" out first: neither may reach the title, date or project detection.
       const from = extractEmailOrDomain(text);
-      let title = stripRequestVerbs(stripTokens(stripSpans(text, parsed.spans)));
-      const at = from ? title.toLowerCase().indexOf(from) : -1;
-      if (from && at >= 0) title = (title.slice(0, at) + title.slice(at + from.length)).replace(/\s+/g, ' ').trim();
-      if (!title) title = from ?? '';
-      if (!title) return fail('제목을 찾지 못했어요');
-      const projectId = parseCapture(text, input.projects).projectId;
+      const at = from ? text.toLowerCase().indexOf(from) : -1;
+      const withoutFrom = from && at >= 0 ? text.slice(0, at) + ' ' + text.slice(at + from.length) : text;
+      const waitDays = extractWaitDays(withoutFrom);
+      const wp = parseKoDateTime(waitDays.text, today);
+      const projectId = parseCapture(waitDays.text, input.projects).projectId ?? null;
       const project = projectId ? input.projects.find((p) => p.id === projectId) : undefined;
-      const paper = projectId ? input.papers.find((p) => p.projectId === projectId) : undefined;
-      const subject = project ? (paper?.shortName ?? project.name) : undefined;
+      const targetDeadline = target?.kind === 'deadline' ? deadlines.find((d) => d.id === target.id) : undefined;
+      const targetTask = target?.kind === 'task' ? tasks.find((t) => t.id === target.id) : undefined;
+      const paper =
+        (targetDeadline?.paperId ? input.papers.find((p) => p.id === targetDeadline.paperId) : undefined) ??
+        (projectId ? input.papers.find((p) => p.projectId === projectId) : undefined);
+      let title = stripRequestVerbs(stripTokens(stripSpans(waitDays.text, wp.spans)));
+      // Only particles/verbs left ("에서 답 오면"): a sender or project name makes a better title.
+      if (!title || FILLER_ONLY.test(title)) title = from ? `${from} 답장` : (paper?.shortName ?? project?.name ?? title);
+      if (!title) return fail('제목을 찾지 못했어요');
+      // Gmail ANDs from+subject: a known sender alone is the safer search, so only guess a subject without one.
+      const subject = from ? undefined : (paper?.shortName ?? project?.name);
       return {
         ok: true,
         proposal: {
           kind: 'waiting_reply',
           title,
-          projectId,
+          projectId: projectId ?? targetTask?.projectId ?? targetDeadline?.projectId ?? null,
           match: { ...(from ? { from } : {}), ...(subject ? { subject } : {}) },
-          nudgeAfterDays: parsed.shift?.unit === 'day' ? parsed.shift.n : 7,
+          nudgeAfterDays: waitDays.days ?? (wp.shift?.unit === 'day' ? wp.shift.n : 7),
+          taskId: targetTask?.id ?? null,
+          deadlineId: targetDeadline?.id ?? null,
         },
       };
     }

@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   applyWaitingMatches,
   extractEmailOrDomain,
+  extractWaitDays,
+  isOwnerSender,
+  parseOwnerEmails,
   newWaitingId,
   openWaitingList,
   parseWaitCommand,
@@ -94,6 +97,9 @@ describe('parseWaitCommand', () => {
     ['w1a2b3 subject:"Major revision"', { kind: 'edit', target: 'w1a2b3', patch: { subject: 'Major revision' } }],
     ['2 days:5', { kind: 'edit', target: '2', patch: { nudgeAfterDays: 5 } }],
     ['2 close', { kind: 'close', target: '2' }],
+    ['2 from:-', { kind: 'edit', target: '2', patch: { from: null } }],
+    ['2 subject:-', { kind: 'edit', target: '2', patch: { subject: null } }],
+    ['w1a2b3 reopen', { kind: 'reopen', target: 'w1a2b3' }],
     ['x', { kind: 'invalid' }],
     ['2 whatever', { kind: 'invalid' }],
   ])('%j', (arg, expected) => expect(parseWaitCommand(arg)).toEqual(expected));
@@ -110,4 +116,28 @@ describe('list helpers', () => {
     expect(resolveWaitTarget([b, a], 'zzzzzzz')).toBeNull();
   });
   it('newWaitingId', () => expect(newWaitingId()).toMatch(/^w[0-9a-z]{6}$/));
+});
+
+describe('owner senders', () => {
+  it('parseOwnerEmails / isOwnerSender', () => {
+    const owners = parseOwnerEmails(' Me@Example.com, other@example.org ;');
+    expect(owners).toEqual(['me@example.com', 'other@example.org']);
+    expect(isOwnerSender('Me <ME@example.com>', owners)).toBe(true);
+    expect(isOwnerSender('editor@journal.org', owners)).toBe(false);
+    expect(parseOwnerEmails(undefined)).toEqual([]);
+  });
+});
+
+describe('extractWaitDays', () => {
+  it.each([
+    ['답장 3일 기다림', 3],
+    ['3일 기다려 볼게', 3],
+    ['답장 대기 10일', 10],
+  ])('%s', (text, days) => {
+    const r = extractWaitDays(text);
+    expect(r.days).toBe(days);
+    expect(r.text).toHaveLength(text.length);
+    expect(r.text).not.toMatch(/\d+\s?일/);
+  });
+  it('no match leaves the text', () => expect(extractWaitDays('내일 3일 뒤')).toEqual({ days: null, text: '내일 3일 뒤' }));
 });

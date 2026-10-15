@@ -100,6 +100,18 @@ describe('POST /api/google/sync with waiting', () => {
     expect(sendMessage).toHaveBeenCalledTimes(1);
   });
 
+  it('mail from the owner (OWNER_EMAILS) is not a reply; a closed item is untouched', async () => {
+    const { POST } = await import('../sync/route');
+    process.env.OWNER_EMAILS = 'me@example.com';
+    meta.set('waiting:replies', [waitItem, { ...waitItem, id: 'w000002', status: 'closed' }]);
+    const own = [{ ...matches[0], from: 'Me <me@example.com>' }];
+    await POST(post({ account: 'main', waiting: [{ id: 'w000001', matches: own }, { id: 'w000002', matches }] }));
+    delete process.env.OWNER_EMAILS;
+    const items = meta.get('waiting:replies') as WaitingItem[];
+    expect(items.map((i) => i.status)).toEqual(['open', 'closed']);
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
   it('leaves waiting untouched when the key is absent', async () => {
     const { POST } = await import('../sync/route');
     meta.set('waiting:replies', [waitItem]);

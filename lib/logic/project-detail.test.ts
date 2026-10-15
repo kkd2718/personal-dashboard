@@ -182,3 +182,17 @@ describe('pruneResolved', () => {
     expect(Object.keys(pruneResolved(map, '2026-10-01'))).toEqual(['b']);
   });
 });
+
+import { hiddenProjectItemKeys } from './project-detail';
+
+describe('hiddenProjectItemKeys', () => {
+  it('hides done/skip always and a snooze only while until is ahead', () => {
+    const map = {
+      k1: { state: 'done' as const, at: '2026-10-01', noteId: null },
+      k2: { state: 'snooze' as const, at: '2026-10-11', noteId: null, until: '2026-10-20' },
+      k3: { state: 'snooze' as const, at: '2026-10-11', noteId: null, until: '2026-10-18' },
+    };
+    expect([...hiddenProjectItemKeys(map, '2026-10-18')].sort()).toEqual(['k1', 'k2']);
+    expect(hiddenProjectItemKeys(null, '2026-10-18').size).toBe(0);
+  });
+});

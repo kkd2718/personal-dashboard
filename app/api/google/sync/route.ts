@@ -21,12 +21,14 @@ import { confident } from '@/lib/logic/ax-intent';
 import {
   REPLY_CATEGORIES,
   applyWaitingMatches,
+  isOwnerSender,
+  parseOwnerEmails,
   replyQuestions,
   replyState,
   type ReplyCategory,
   type WaitingReply,
 } from '@/lib/logic/waiting';
-import { loadWaiting, patchWaitingItem, saveWaiting } from '@/lib/waiting-data';
+import { loadWaiting, patchWaitingItem } from '@/lib/waiting-data';
 import { formatWaitingReplyAlert } from '@/lib/telegram/format';
 import { WORK_SHIFTS_META_KEY, mergeShifts, type WorkShift, type WorkShiftsMeta } from '@/lib/logic/work';
 
@@ -205,13 +207,22 @@ async function processWaiting(
   waiting: NonNullable<z.infer<typeof bodySchema>['waiting']>,
   request: Request
 ) {
-  const { items, replied } = applyWaitingMatches(await loadWaiting(repo), waiting);
+  // Mail from the owner's own accounts (OWNER_EMAILS) is never a reply.
+  const owners = parseOwnerEmails(process.env.OWNER_EMAILS);
+  const input = waiting.map((w) => ({ ...w, matches: w.matches.filter((m) => !isOwnerSender(m.from, owners)) }));
+  const { replied } = applyWaitingMatches(await loadWaiting(repo), input);
   if (replied.length === 0) return;
-  await saveWaiting(repo, items);
 
   const jev = createJev({ token: jevToken(process.env, request.headers) });
   const today = todayKST();
   for (const { item, reply } of replied) {
+    // Re-reads right before writing and only turns an item that is still open into replied, so a
+    // concurrent /wait edit or close is never clobbered and a lost race sends no alert.
+    const marked = await patchWaitingItem(repo, item.id, (it) =>
+      it.status === 'open' ? { ...it, status: 'replied', reply } : it
+    );
+    if (!marked || marked.reply?.messageId !== reply.messageId) continue;
+
     let enriched: WaitingReply = reply;
     if (jev && (await takeJevBudget(repo, 'ax', today, JEV_DAILY_LIMIT_AX))) {
       const answers = await jev.ask(replyState(item.title, reply), replyQuestions());
@@ -224,7 +235,9 @@ async function processWaiting(
           : {}),
         ...(positive?.type === 'noul' ? { positive: positive.p } : {}),
       };
-      if (enriched !== reply) await patchWaitingItem(repo, item.id, (it) => ({ ...it, reply: enriched }));
+      await patchWaitingItem(repo, item.id, (it) =>
+        it.reply?.messageId === reply.messageId ? { ...it, reply: enriched } : it
+      );
     }
     if (telegramConfig()) await sendMessage(formatWaitingReplyAlert(item, enriched));
   }

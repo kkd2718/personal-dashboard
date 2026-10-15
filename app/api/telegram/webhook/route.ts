@@ -153,7 +153,7 @@ async function handle(text: string, deps: AxDeps): Promise<void> {
   }
 }
 
-/** `/wait`: lists, edits (from/subject/days) or closes a reply-wait by list number or id. */
+/** `/wait`: lists, edits (from/subject/days) closes or reopens a reply-wait by list number or id. */
 async function handleWait(arg: string): Promise<string> {
   const repo = getRepo();
   const cmd = parseWaitCommand(arg);
@@ -166,12 +166,26 @@ async function handleWait(arg: string): Promise<string> {
     await patchWaitingItem(repo, item.id, (it) => ({ ...it, status: 'closed' }));
     return `✅ 대기 종료: ${escapeHtml(item.title)}`;
   }
+  if (cmd.kind === 'reopen') {
+    // Fresh createdAt/since so the reply that closed it can't match again.
+    await patchWaitingItem(repo, item.id, (it) => ({
+      ...it,
+      reply: undefined,
+      status: 'open',
+      since: todayKST(),
+      createdAt: new Date().toISOString(),
+    }));
+    return `🔄 다시 대기: ${escapeHtml(item.title)}`;
+  }
   const { from, subject, nudgeAfterDays } = cmd.patch;
-  await patchWaitingItem(repo, item.id, (it) => ({
-    ...it,
-    match: { ...it.match, ...(from ? { from } : {}), ...(subject ? { subject } : {}) },
-    ...(nudgeAfterDays !== undefined ? { nudgeAfterDays } : {}),
-  }));
+  await patchWaitingItem(repo, item.id, (it) => {
+    const match = { ...it.match };
+    if (from === null) delete match.from;
+    else if (from !== undefined) match.from = from;
+    if (subject === null) delete match.subject;
+    else if (subject !== undefined) match.subject = subject;
+    return { ...it, match, ...(nudgeAfterDays !== undefined ? { nudgeAfterDays } : {}) };
+  });
   return `✏️ 수정했어요: ${escapeHtml(item.title)}`;
 }
 

@@ -142,6 +142,10 @@ project's DB password isn't always available/known. Run scripts with
   Slice 4: reply-waiting tracker (`lib/logic/waiting.ts`, `app_meta waiting:replies`): `waiting_reply` intent / `/waits` / `/wait`;
   each account's Apps Script `collectWaiting_` GETs `/api/google/waiting` (Gmail queries), posts matches in `payload.waiting` to
   `/api/google/sync`, which marks replies, classifies via Jev (budgeted) and sends one 📬 alert; digest lists stale waits.
+  Waiting hardening: `OWNER_EMAILS` (comma list, never hardcoded) excludes own mail; `/wait <n|id> reopen`; list writes re-read and
+  merge by id. Slice 5: Sunday weekly review from the evening cron (`lib/telegram/weekly.ts`, `lib/logic/weekly-review.ts`; `?weekly=1`
+  forces): overdue/stale/project items with ✅/+1주/✖ buttons (pending `type:'weekly'`, 72h, per-item claim), project snooze via
+  `ResolvedProjectItem.state:'snooze'` (`lib/project-checklist.ts` is the shared core of the home-lane action).
 
 ## Conventions
 - Opus plans (`docs/PLAN.md`), Sonnet implements. Don't redesign a plan's data model/signatures

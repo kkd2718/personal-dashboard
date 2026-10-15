@@ -227,3 +227,70 @@ describe('handleCallback', () => {
     expect(s.answered.at(-1)).toBe('만료됨');
   });
 });
+
+describe('handleCallback: weekly review', () => {
+  function withWeekly() {
+    const s = setup(taskDone);
+    s.store['telegram:pending:wk1'] = {
+      type: 'weekly',
+      id: 'wk1',
+      createdAt: NOW.toISOString(),
+      today: '2026-10-15',
+      review: {
+        items: [
+          { ref: { kind: 'task', id: '1' }, section: 'overdue', title: '논문 초안 작성', project: null, due: '2026-10-10', state: 'open' },
+          { ref: { kind: 'deadline', id: '1' }, section: 'overdue', title: '학회 제출', project: null, due: '2026-10-09', state: 'open' },
+        ],
+        more: 0,
+        clusters: [],
+      },
+    };
+    return s;
+  }
+
+  it('applies one item, edits the message and keeps the other row', async () => {
+    const s = withWeekly();
+    await handleCallback(s.deps, { callbackId: 'c', messageId: 9, data: 'w:wk1:0:p' });
+    expect(s.repo.updateTask).toHaveBeenCalledWith('1', { dueDate: '2026-10-22' });
+    const edit = s.edits.at(-1)!;
+    expect(edit.text).toContain('1. ⏩');
+    expect((edit.markup as { inline_keyboard: unknown[] }).inline_keyboard).toHaveLength(1);
+  });
+
+  it('the same button twice applies once; another item is still available', async () => {
+    const s = withWeekly();
+    await handleCallback(s.deps, { callbackId: 'a', messageId: 9, data: 'w:wk1:0:d' });
+    await handleCallback(s.deps, { callbackId: 'b', messageId: 9, data: 'w:wk1:0:d' });
+    expect(s.repo.updateTask).toHaveBeenCalledTimes(1);
+    expect(s.answered.at(-1)).toBe('이미 처리됨');
+    await handleCallback(s.deps, { callbackId: 'c', messageId: 9, data: 'w:wk1:1:d' });
+    expect(s.repo.updateDeadline).toHaveBeenCalledWith('1', { done: true });
+    const last = s.edits.at(-1)!;
+    expect((last.markup as { inline_keyboard: unknown[] }).inline_keyboard).toHaveLength(0);
+  });
+
+  it('expired after 72h and unknown ids do nothing', async () => {
+    const s = withWeekly();
+    s.deps.now = () => new Date(NOW.getTime() + 73 * 3600_000);
+    await handleCallback(s.deps, { callbackId: 'c', messageId: 9, data: 'w:wk1:0:d' });
+    expect(s.repo.updateTask).not.toHaveBeenCalled();
+    expect(s.answered.at(-1)).toBe('만료됨');
+    await handleCallback(s.deps, { callbackId: 'c', messageId: 9, data: 'w:nope:0:d' });
+    expect(s.answered.at(-1)).toBe('만료됨');
+  });
+});
+
+describe('weekly callback: unchanged record', () => {
+  it('a missing target answers without writing the pending record back', async () => {
+    const s = setup(taskDone);
+    s.repo.listTasks.mockResolvedValue([]);
+    s.store['telegram:pending:wk2'] = {
+      type: 'weekly', id: 'wk2', createdAt: NOW.toISOString(), today: '2026-10-15',
+      review: { items: [{ ref: { kind: 'task', id: 'gone' }, section: 'overdue', title: 'x', project: null, due: '2026-10-10', state: 'open' }], more: 0, clusters: [] },
+    };
+    const before = s.repo.setMeta.mock.calls.length;
+    await handleCallback(s.deps, { callbackId: 'c', messageId: 9, data: 'w:wk2:0:d' });
+    expect(s.answered.at(-1)).toContain('찾을 수 없어요');
+    expect(s.repo.setMeta.mock.calls.length).toBe(before);
+  });
+});

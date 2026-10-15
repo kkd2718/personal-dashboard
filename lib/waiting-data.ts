@@ -9,12 +9,15 @@ export async function loadWaiting(repo: Pick<Repo, 'getMeta'>): Promise<WaitingI
   return Array.isArray(items) ? items : [];
 }
 
-export async function saveWaiting(repo: Pick<Repo, 'setMeta'>, items: WaitingItem[]): Promise<void> {
-  await repo.setMeta(WAITING_META_KEY, items);
+/** Saves `items`, but re-reads first and keeps any item added meanwhile (matched by id). */
+export async function saveWaiting(repo: Pick<Repo, 'getMeta' | 'setMeta'>, items: WaitingItem[]): Promise<void> {
+  const known = new Set(items.map((i) => i.id));
+  const added = (await loadWaiting(repo)).filter((i) => !known.has(i.id));
+  await repo.setMeta(WAITING_META_KEY, [...items, ...added]);
 }
 
 export async function addWaitingItem(repo: Pick<Repo, 'getMeta' | 'setMeta'>, item: WaitingItem): Promise<void> {
-  await saveWaiting(repo, [...(await loadWaiting(repo)), item]);
+  await repo.setMeta(WAITING_META_KEY, [...(await loadWaiting(repo)), item]);
 }
 
 /** Re-reads the list, applies `fn` to the item with `id` (if still present) and saves. */
@@ -27,6 +30,6 @@ export async function patchWaitingItem(
   const i = items.findIndex((x) => x.id === id);
   if (i < 0) return null;
   items[i] = fn(items[i]);
-  await saveWaiting(repo, items);
+  await repo.setMeta(WAITING_META_KEY, items);
   return items[i];
 }

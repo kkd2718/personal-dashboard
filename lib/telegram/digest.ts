@@ -5,6 +5,7 @@ import { staleGoogleAccounts } from '@/lib/logic/integrations';
 import {
   meChecklistDue,
   projectDetailMetaKey,
+  hiddenProjectItemKeys,
   RESOLVED_PROJECT_ITEMS_META_KEY,
   type DueChecklist,
   type ResolvedProjectItems,
@@ -43,7 +44,8 @@ export type Sender = (text: string) => Promise<SendResult>;
  * checklist (shared by the digest and /today). */
 export async function loadProjectDue(
   repo: Pick<DigestRepo, 'listProjects' | 'getMeta'>,
-  today: string
+  today: string,
+  overdueDays = 7
 ): Promise<DueChecklist> {
   const projects = (await repo.listProjects()).filter((p) => p.status !== 'archived');
   const [details, resolved] = await Promise.all([
@@ -53,8 +55,8 @@ export async function loadProjectDue(
   return meChecklistDue(
     projects.map((p, i) => ({ projectId: p.id, projectName: p.name, status: details[i]?.status ?? null })),
     today,
-    7,
-    new Set(Object.keys(resolved ?? {}))
+    overdueDays,
+    hiddenProjectItemKeys(resolved, today)
   );
 }
 

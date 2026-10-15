@@ -4,7 +4,9 @@
 import { JEV_DAILY_LIMIT_AX, takeJevBudget } from '@/lib/ai/jev-budget';
 import type { Jev } from '@/lib/ai/jev';
 import { applyProposal } from '@/lib/ax/apply';
-import { claimPending, loadPending, savePending, updatePending, type PendingRepo } from '@/lib/ax/pending';
+import { claimPending, loadPending, loadPendingRaw, savePending, updatePending, type PendingRepo } from '@/lib/ax/pending';
+import { formatWeekly, weeklyKeyboard, WEEKLY_TTL_HOURS, type PendingWeekly } from '@/lib/logic/weekly-review';
+import { applyWeeklyAction, type WeeklyRepo } from '@/lib/telegram/weekly';
 import type { ApplyRepo } from '@/lib/ax/apply';
 import type { GoogleCalendarConfig } from '@/lib/google/calendar';
 import { prefilterCandidates } from '@/lib/logic/ax-candidates';
@@ -25,9 +27,7 @@ import type { InlineKeyboard } from '@/lib/telegram/client';
 import { escapeHtml, formatCaptureReply } from '@/lib/telegram/format';
 import type { Note } from '@/lib/types';
 
-export type AxRepo = PendingRepo &
-  ApplyRepo &
-  Pick<Repo, 'listProjects' | 'listPapers'>;
+export type AxRepo = PendingRepo & ApplyRepo & WeeklyRepo & Pick<Repo, 'listProjects' | 'listPapers'>;
 
 export interface AxDeps {
   repo: AxRepo;
@@ -137,7 +137,8 @@ export interface CallbackInput {
 
 export async function handleCallback(deps: AxDeps, cb: CallbackInput): Promise<void> {
   const decoded = decodeCallback(cb.data);
-  if (!decoded || decoded.t !== 'p') return void (await deps.answer(cb.callbackId, '알 수 없는 버튼'));
+  if (!decoded) return void (await deps.answer(cb.callbackId, '알 수 없는 버튼'));
+  if (decoded.t === 'w') return handleWeeklyCallback(deps, cb, decoded);
 
   const record = await loadPending(deps.repo, decoded.id);
   if (!record) return void (await deps.answer(cb.callbackId, '만료됨'));
@@ -177,4 +178,49 @@ export async function handleCallback(deps: AxDeps, cb: CallbackInput): Promise<v
   await updatePending(deps.repo, { ...record, status, result }).catch(() => {});
   await deps.edit(cb.messageId, `${body}\n${result}`, null);
   await deps.answer(cb.callbackId);
+}
+
+async function handleWeeklyCallback(
+  deps: AxDeps,
+  cb: CallbackInput,
+  decoded: Extract<NonNullable<ReturnType<typeof decodeCallback>>, { t: 'w' }>
+): Promise<void> {
+  const raw = await loadPendingRaw(deps.repo, decoded.id);
+  if (!raw || raw.type !== 'weekly') return void (await deps.answer(cb.callbackId, '만료됨'));
+  const record = raw as PendingWeekly;
+
+  const nowDate = deps.now();
+  if (isExpired(record.createdAt, nowDate.toISOString(), WEEKLY_TTL_HOURS)) {
+    await deps.answer(cb.callbackId, '만료됨');
+    await deps.edit(cb.messageId, `${formatWeekly(record.review, record.today)}
+<i>만료됨</i>`, null);
+    return;
+  }
+  // Per-item atomic claim: a double tap on the same button must not apply twice.
+  if (!(await claimPending(deps.repo, `${record.id}:${decoded.i}`, nowDate.toISOString()))) {
+    return void (await deps.answer(cb.callbackId, '이미 처리됨'));
+  }
+
+  const today = kstDateTime(nowDate.toISOString()).date;
+  let next = record;
+  let result: string;
+  try {
+    ({ record: next, result } = await applyWeeklyAction(deps.repo, record, decoded.i, decoded.a, today));
+  } catch {
+    result = '⚠️ 처리하지 못했어요';
+  }
+  if (next === record) {
+    // Nothing changed (already handled / target gone): don't write a stale snapshot back.
+    return void (await deps.answer(cb.callbackId, result));
+  }
+  // Re-read before saving: other items may have been handled since this tap was read.
+  const latest = (await loadPendingRaw(deps.repo, record.id)) as PendingWeekly | null;
+  if (latest?.type === 'weekly') {
+    const items = latest.review.items.map((it, i) => (i === decoded.i ? next.review.items[i] : it));
+    next = { ...latest, review: { ...latest.review, items } };
+  }
+  await updatePending(deps.repo, next).catch(() => {});
+  deps.onApplied?.();
+  await deps.edit(cb.messageId, formatWeekly(next.review, next.today), weeklyKeyboard(next.id, next.review.items));
+  await deps.answer(cb.callbackId, result);
 }

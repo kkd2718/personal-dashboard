@@ -75,8 +75,15 @@ export function decide(
   if (!confident(intentAnswer, threshold)) return { ok: false, reason: 'low_intent' };
   const intent = (INTENTS as readonly string[]).includes(intentAnswer.choice) ? (intentAnswer.choice as Intent) : null;
   if (!intent) return { ok: false, reason: 'low_intent' };
-  if (intent === 'memo' || intent === 'calendar_event' || intent === 'waiting_reply') {
-    return { ok: true, intent, target: null };
+  if (intent === 'memo' || intent === 'calendar_event') return { ok: true, intent, target: null };
+  if (intent === 'waiting_reply') {
+    // A linked task/deadline is optional: use it only when Jev is confident about it.
+    const t = answers?.target;
+    const linked =
+      t?.type === 'choice' && t.choice !== 'none' && confident(t, threshold)
+        ? candidates.find((c) => c.key === t.choice)
+        : undefined;
+    return { ok: true, intent, target: linked ?? null };
   }
 
   const targetAnswer = answers?.target;

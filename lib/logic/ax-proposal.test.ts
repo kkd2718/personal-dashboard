@@ -80,6 +80,10 @@ describe('buildProposal: calendar_event', () => {
       expect(r.ok && r.proposal.kind === 'calendar_event' && r.proposal.events[0].title).toBe('치과');
     }
   });
+  it('알려줘 is a request verb too', () => {
+    const r = build('내일 3시 치과 알려줘', 'calendar_event', { target: null });
+    expect(r.ok && r.proposal.kind === 'calendar_event' && r.proposal.events[0].title).toBe('치과');
+  });
   it('fails without date/time, without a title, or in the past', () => {
     expect(build('미팅', 'calendar_event', { target: null })).toMatchObject({ ok: false });
     expect(build('내일', 'calendar_event', { target: null })).toEqual({ ok: false, reason: '제목을 찾지 못했어요' });
@@ -91,16 +95,42 @@ describe('buildProposal: waiting_reply', () => {
   const projects = [project({ id: 'p1', slug: 'brainct', name: 'BrainCT 연구' })];
   const papers = [paper({ id: 'pp', shortName: 'BrainCT', projectId: 'p1' })];
 
-  it('extracts sender, subject from the mentioned project, nudge days', () => {
+  it('extracts the sender and nudge days; no subject guess when a sender is known (Gmail ANDs them)', () => {
     const r = build('editor@journal.org 답장 기다림 @brainct 10일 미뤄', 'waiting_reply', { target: null, projects, papers });
     expect(r).toMatchObject({
       ok: true,
-      proposal: { kind: 'waiting_reply', projectId: 'p1', match: { from: 'editor@journal.org', subject: 'BrainCT' }, nudgeAfterDays: 10 },
+      proposal: { kind: 'waiting_reply', projectId: 'p1', match: { from: 'editor@journal.org' }, nudgeAfterDays: 10 },
     });
   });
   it('nudge days from a day shift; no sender means no from', () => {
     const r = build('편집자 답장 기다림 5일 뒤로 미뤄', 'waiting_reply', { target: null });
     expect(r).toMatchObject({ ok: true, proposal: { match: {}, nudgeAfterDays: 5 } });
+  });
+  it('the sender stays out of the title, project detection and dates; N일 기다림 is the nudge', () => {
+    const r = build('mdpi.com 논문심사 답장 3일 기다림', 'waiting_reply', { target: null });
+    expect(r).toMatchObject({ ok: true, proposal: { match: { from: 'mdpi.com' }, nudgeAfterDays: 3 } });
+    expect(r.ok && r.proposal.kind === 'waiting_reply' && r.proposal.title).not.toContain('mdpi.com');
+    expect(r.ok && r.proposal.kind === 'waiting_reply' && r.proposal.title).not.toContain('3일');
+  });
+  it('a linked deadline sets deadlineId and prefills the paper short name', () => {
+    const dl = deadline({ id: '1', title: '제출', dueDate: '2026-10-20', paperId: 'pp' });
+    const r = build('편집자 답장 기다림', 'waiting_reply', { target: dCand, deadlines: [dl], papers });
+    expect(r).toMatchObject({ ok: true, proposal: { deadlineId: '1', taskId: null, match: { subject: 'BrainCT' } } });
+  });
+  it('without a sender the subject comes from the project, and a linked deadline is kept', () => {
+    const r = build('@brainct 편집자 답장 기다림', 'waiting_reply', { target: null, projects, papers });
+    expect(r).toMatchObject({ ok: true, proposal: { match: { subject: 'BrainCT' } } });
+    const linked = build('editor@journal.org 답장 기다림', 'waiting_reply', {
+      target: dCand,
+      deadlines: [deadline({ id: '1', title: '제출', dueDate: '2026-10-20', paperId: 'pp' })],
+      papers,
+    });
+    expect(linked).toMatchObject({ ok: true, proposal: { deadlineId: '1', match: { from: 'editor@journal.org' } } });
+    expect(linked.ok && 'subject' in (linked.proposal as { match: object }).match).toBe(false);
+  });
+  it('a title of only particles/verbs falls back to the sender', () => {
+    const r = build('mdpi.com 에서 답 오면', 'waiting_reply', { target: null });
+    expect(r).toMatchObject({ ok: true, proposal: { title: 'mdpi.com 답장' } });
   });
   it('formatProposal flags a missing sender', () => {
     const r = build('편집자 답장 기다림', 'waiting_reply', { target: null });

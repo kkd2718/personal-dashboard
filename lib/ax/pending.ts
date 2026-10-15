@@ -14,7 +14,13 @@ export function claimPending(repo: PendingRepo, id: string, now: string): Promis
 
 const KEEP_HOURS = 7 * 24;
 
-export async function savePending(repo: PendingRepo, record: PendingProposal, now: string): Promise<void> {
+/** Any pending record (proposal or weekly review) keyed by id. */
+export interface PendingRecord {
+  id: string;
+  createdAt: string;
+}
+
+export async function savePending<T extends PendingRecord>(repo: PendingRepo, record: T, now: string): Promise<void> {
   try {
     for (const [key, value] of Object.entries(await repo.listMetaByPrefix(PENDING_PREFIX))) {
       const createdAt = (value as { createdAt?: unknown } | null)?.createdAt;
@@ -29,11 +35,16 @@ export async function savePending(repo: PendingRepo, record: PendingProposal, no
   await repo.setMeta(PENDING_PREFIX + record.id, record);
 }
 
+/** Raw record by id, whatever its type (callers narrow on `type`). */
+export async function loadPendingRaw(repo: PendingRepo, id: string): Promise<(PendingRecord & { type?: string }) | null> {
+  return repo.getMeta<PendingRecord & { type?: string }>(PENDING_PREFIX + id);
+}
+
 export async function loadPending(repo: PendingRepo, id: string): Promise<PendingProposal | null> {
   const record = await repo.getMeta<PendingProposal>(PENDING_PREFIX + id);
   return record && record.type === 'proposal' ? record : null;
 }
 
-export async function updatePending(repo: PendingRepo, record: PendingProposal): Promise<void> {
+export async function updatePending<T extends PendingRecord>(repo: PendingRepo, record: T): Promise<void> {
   await repo.setMeta(PENDING_PREFIX + record.id, record);
 }

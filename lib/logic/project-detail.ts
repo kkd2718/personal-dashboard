@@ -91,15 +91,25 @@ export interface DueChecklist {
 export const RESOLVED_PROJECT_ITEMS_META_KEY = 'project-checklist:resolved';
 
 export interface ResolvedProjectItem {
-  state: 'done' | 'skip';
+  state: 'done' | 'skip' | 'snooze';
   at: string; // 'YYYY-MM-DD' (KST) when resolved
   noteId: string | null; // memo sent to the project's session inbox
+  until?: string; // snooze only: hidden while until > today
 }
 
 export type ResolvedProjectItems = Record<string, ResolvedProjectItem>;
 
 export function resolvedItemKey(projectId: string, text: string): string {
   return `${projectId}::${text}`;
+}
+
+/** Keys of resolved items to hide: done/skip always, a snooze only while `until` is still ahead. */
+export function hiddenProjectItemKeys(map: ResolvedProjectItems | null, today: string): Set<string> {
+  const hidden = new Set<string>();
+  for (const [key, item] of Object.entries(map ?? {})) {
+    if (item.state !== 'snooze' || (item.until !== undefined && item.until > today)) hidden.add(key);
+  }
+  return hidden;
 }
 
 /** Drops entries resolved more than `keepDays` ago — by then the project's session has

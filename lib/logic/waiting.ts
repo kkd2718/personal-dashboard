@@ -53,8 +53,8 @@ export function newWaitingItem(
     id,
     title: p.title,
     projectId: p.projectId,
-    taskId: null,
-    deadlineId: null,
+    taskId: p.taskId ?? null,
+    deadlineId: p.deadlineId ?? null,
     match: p.match,
     since: today,
     createdAt: now,
@@ -140,10 +140,18 @@ export function extractEmailOrDomain(text: string): string | null {
   return domain ? domain[0].toLowerCase() : null;
 }
 
+/** `null` clears the field (`from:-` / `subject:-`). */
+export interface WaitPatch {
+  from?: string | null;
+  subject?: string | null;
+  nudgeAfterDays?: number;
+}
+
 export type WaitCommand =
   | { kind: 'list' }
-  | { kind: 'edit'; target: string; patch: { from?: string; subject?: string; nudgeAfterDays?: number } }
+  | { kind: 'edit'; target: string; patch: WaitPatch }
   | { kind: 'close'; target: string }
+  | { kind: 'reopen'; target: string }
   | { kind: 'invalid' };
 
 /** `/wait` argument: '' | '<n|id> from:x subject:"y" days:5' | '<n|id> close'. */
@@ -154,15 +162,37 @@ export function parseWaitCommand(arg: string): WaitCommand {
   if (!m || !/^(?:\d+|w[0-9a-z]{5,7})$/.test(m[1])) return { kind: 'invalid' };
   const [, target, rest] = m;
   if (rest.trim() === 'close') return { kind: 'close', target };
+  if (rest.trim() === 'reopen') return { kind: 'reopen', target };
 
-  const patch: { from?: string; subject?: string; nudgeAfterDays?: number } = {};
+  const patch: WaitPatch = {};
   const from = /(?:^|\s)from:(\S+)/.exec(rest);
-  if (from) patch.from = from[1];
+  if (from) patch.from = from[1] === '-' ? null : from[1];
   const subject = /(?:^|\s)subject:(?:"([^"]+)"|(\S+))/.exec(rest);
-  if (subject) patch.subject = subject[1] ?? subject[2];
+  if (subject) patch.subject = subject[1] ?? (subject[2] === '-' ? null : subject[2]);
   const days = /(?:^|\s)days:(\d{1,3})(?!\d)/.exec(rest);
   if (days) patch.nudgeAfterDays = Number(days[1]);
   return Object.keys(patch).length > 0 ? { kind: 'edit', target, patch } : { kind: 'invalid' };
+}
+
+/** Lower-cased addresses from OWNER_EMAILS (comma/space separated): mail from these is never a reply. */
+export function parseOwnerEmails(raw: string | undefined): string[] {
+  return (raw ?? '')
+    .split(/[\s,;]+/)
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+export function isOwnerSender(from: string, owners: string[]): boolean {
+  const f = from.toLowerCase();
+  return owners.some((o) => f.includes(o));
+}
+
+/** "3일 기다림" / "대기 3일": the number of days to wait, not a date. Returns the text with that span blanked. */
+export function extractWaitDays(text: string): { days: number | null; text: string } {
+  const re = /(\d{1,3})\s?일\s?(?:째|간|동안|정도)?\s?(?=기다|대기)|(?<=(?:기다림?|기다려|대기)\s{0,2})(\d{1,3})\s?일/;
+  const m = re.exec(text);
+  if (!m) return { days: null, text };
+  return { days: Number(m[1] ?? m[2]), text: text.slice(0, m.index) + ' '.repeat(m[0].length) + text.slice(m.index + m[0].length) };
 }
 
 /** 1-based index into the open list, or an item id. */

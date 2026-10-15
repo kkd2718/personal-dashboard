@@ -67,6 +67,13 @@ describe('decide', () => {
     expect(decide({ intent }, cands)).toEqual({ ok: false, reason: 'low_target' });
   });
 
+  it('waiting_reply keeps a confident target and tolerates an unsure one', () => {
+    const intent = choice('waiting_reply', { waiting_reply: 0.9, memo: 0.1 });
+    expect(decide({ intent, target: choice('d:1', { 'd:1': 0.8, none: 0.2 }) }, cands)).toMatchObject({ ok: true, target: { key: 'd:1' } });
+    expect(decide({ intent, target: choice('d:1', { 'd:1': 0.5, none: 0.5 }) }, cands)).toEqual({ ok: true, intent: 'waiting_reply', target: null });
+    expect(decide({ intent }, cands)).toEqual({ ok: true, intent: 'waiting_reply', target: null });
+  });
+
   it('calendar_event ignores the target', () => {
     const intent = choice('calendar_event', { calendar_event: 0.9, memo: 0.1 });
     expect(decide({ intent }, [])).toEqual({ ok: true, intent: 'calendar_event', target: null });
