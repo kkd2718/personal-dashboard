@@ -13,6 +13,7 @@ import { SESSION_COOKIE, shouldRefresh, verifySessionToken, createSessionToken }
 function isPublicPath(pathname: string): boolean {
   return (
     pathname === '/login' ||
+    pathname === '/privacy' ||
     pathname.startsWith('/api/capture') ||
     pathname.startsWith('/api/ingest') ||
     pathname.startsWith('/api/cron/') ||
