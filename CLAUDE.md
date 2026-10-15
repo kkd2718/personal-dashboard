@@ -139,6 +139,9 @@ project's DB password isn't always available/known. Run scripts with
   call, accepted only at top prob >= 0.6 and margin >= 0.2, 200 calls/day via `lib/ai/jev-budget.ts`) and become
   confirmable proposals with inline buttons (`lib/telegram/ax.ts`, `lib/logic/ax-*.ts`, pending in
   `app_meta telegram:pending:<id>`, update_id dedupe). Nothing changes until 적용; any doubt/failure/no key => plain memo.
+  Slice 4: reply-waiting tracker (`lib/logic/waiting.ts`, `app_meta waiting:replies`): `waiting_reply` intent / `/waits` / `/wait`;
+  each account's Apps Script `collectWaiting_` GETs `/api/google/waiting` (Gmail queries), posts matches in `payload.waiting` to
+  `/api/google/sync`, which marks replies, classifies via Jev (budgeted) and sends one 📬 alert; digest lists stale waits.
 
 ## Conventions
 - Opus plans (`docs/PLAN.md`), Sonnet implements. Don't redesign a plan's data model/signatures

@@ -104,6 +104,8 @@ function sync() {
     trashedMessageIds: trashedMessageIds,
   };
   if (work !== null) payload.work = work;
+  var waiting = collectWaiting_(props);
+  if (waiting !== null) payload.waiting = waiting;
 
   var response = UrlFetchApp.fetch(props.ccUrl.replace(/\/$/, '') + '/api/google/sync', {
     method: 'post',
@@ -121,7 +123,53 @@ function sync() {
   // Log status only — never the token or the payload body.
   Logger.log('sync() -> HTTP ' + code + ', events=' + events.length + ', mails=' + mails.length +
     ', trashed=' + trashedMessageIds.length + ', deadlines=' + written +
-    (work !== null ? ', work=' + work.shifts.length : ''));
+    (work !== null ? ', work=' + work.shifts.length : '') +
+    (waiting !== null ? ', waiting=' + waiting.length : ''));
+}
+
+/** Reply-waits: asks the app which Gmail searches to run (GET /api/google/waiting), then
+ * sends back up to 3 matching messages per item (received after the item was created,
+ * not sent by this account). Returns null on any error so the payload is unchanged.
+ * Never logs mail content. */
+function collectWaiting_(props) {
+  try {
+    var res = UrlFetchApp.fetch(props.ccUrl.replace(/\/$/, '') + '/api/google/waiting', {
+      method: 'get',
+      headers: { Authorization: 'Bearer ' + props.ccToken },
+      muteHttpExceptions: true,
+    });
+    if (res.getResponseCode() !== 200) return null;
+    var items = JSON.parse(res.getContentText()).items;
+    if (!items || !items.length) return [];
+    var me = Session.getActiveUser().getEmail();
+    var out = [];
+    for (var i = 0; i < items.length; i++) {
+      var since = new Date(items[i].after);
+      var matches = [];
+      var threads = GmailApp.search(items[i].query, 0, 5);
+      for (var t = 0; t < threads.length && matches.length < 3; t++) {
+        var messages = threads[t].getMessages();
+        for (var m = 0; m < messages.length && matches.length < 3; m++) {
+          var msg = messages[m];
+          if (msg.getDate() < since) continue;
+          var from = msg.getFrom();
+          if (me && from.indexOf(me) !== -1) continue;
+          matches.push({
+            messageId: msg.getId(),
+            from: from.slice(0, 300),
+            subject: (msg.getSubject() || '').slice(0, 500),
+            snippet: (msg.getPlainBody() || '').replace(/\s+/g, ' ').trim().slice(0, 300),
+            receivedAt: msg.getDate().toISOString(),
+          });
+        }
+      }
+      if (matches.length > 0) out.push({ id: items[i].id, matches: matches });
+    }
+    return out;
+  } catch (e) {
+    Logger.log('waiting: error ' + e.name);
+    return null;
+  }
 }
 
 var WORK_TAB_RE = /^(\d{2})\.(\d{1,2})$/;

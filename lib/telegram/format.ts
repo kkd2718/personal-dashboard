@@ -5,7 +5,8 @@ import type { StatusItem } from '@/lib/status/types';
 import type { Checklist, ChecklistItem } from '@/lib/logic/checklist';
 import type { UpcomingItem } from '@/lib/logic/upcoming';
 import { dueReminders, reviewReminders } from '@/lib/logic/upcoming';
-import { ddayLabel, weekdayOf } from '@/lib/logic/dates';
+import { ddayLabel, dday, weekdayOf } from '@/lib/logic/dates';
+import type { ReplyCategory, WaitingItem, WaitingReply } from '@/lib/logic/waiting';
 import { todayCalendarEvents } from '@/lib/logic/calendar';
 import { parseShift, type WorkShift } from '@/lib/logic/work';
 import type { DueChecklist, DueChecklistItem } from '@/lib/logic/project-detail';
@@ -224,6 +225,7 @@ export interface DigestInput {
   workShift?: WorkShift | null; // today's own shift, if synced
   projectDue?: DueChecklist; // my dated items from each project's docs/cc-status.json
   routines?: RoutineStatus[]; // active routines today; count as content
+  waiting?: Array<{ title: string; days: number }>; // open reply-waits past their nudge age; count as content
   staleSyncs?: string[]; // Google accounts whose sync stopped, e.g. 'main (10일 전)'
 }
 
@@ -247,9 +249,11 @@ export function formatDigest(input: DigestInput): string | null {
   const todayEvents = todayCalendarEvents(input.todayEvents ?? []);
   const routines = input.routines ?? [];
   const staleSyncs = input.staleSyncs ?? [];
+  const waiting = input.waiting ?? [];
 
   if (
     staleSyncs.length === 0 &&
+    waiting.length === 0 &&
     routines.length === 0 &&
     reminders.length === 0 &&
     !hasOverdue &&
@@ -272,6 +276,11 @@ export function formatDigest(input: DigestInput): string | null {
   if (hasTomorrow) sections.push([header('🔜 내일 (미리)'), ...projectLines(pd.tomorrow, input.today)]);
   if (hasOverdue)
     sections.push([header('🔴 지연'), ...input.checklist.overdue.map(taskLine), ...projectLines(pd.overdue, input.today)]);
+  if (waiting.length > 0)
+    sections.push([
+      header('⏳ 답장 대기'),
+      ...waiting.map((w) => `• ${escapeHtml(clip(w.title))} — 답장 없음 ${w.days}일 — 재문의?`),
+    ]);
   if (statusItems.length > 0) sections.push([header('⚠️ 상태'), ...statusItems.map(statusLine)]);
   if (staleSyncs.length > 0)
     sections.push([
@@ -330,11 +339,11 @@ export function parseTelegramUpdate(update: unknown): TelegramUpdate | null {
   return { kind: 'callback', updateId, chatId: chat.id, callbackId: c.id, messageId: msg.message_id, data: c.data };
 }
 
-export type CommandName = 'today' | 'deadlines' | 'done' | 'cal' | 'help' | 'start' | 'unknown';
+export type CommandName = 'today' | 'deadlines' | 'done' | 'cal' | 'waits' | 'wait' | 'help' | 'start' | 'unknown';
 
 export type Route = { kind: 'command'; name: CommandName; arg: string } | { kind: 'capture'; text: string };
 
-const COMMAND_NAMES: ReadonlySet<string> = new Set(['today', 'deadlines', 'done', 'cal', 'help', 'start']);
+const COMMAND_NAMES: ReadonlySet<string> = new Set(['today', 'deadlines', 'done', 'cal', 'waits', 'wait', 'help', 'start']);
 
 /** Routes incoming text to a command or a plain capture. Commands may carry a
  * `@BotName` suffix (`/today@my_bot`); anything else is a memo to capture. */
@@ -361,4 +370,31 @@ export function formatCalReply(events: Array<{ title: string; date: string; star
       return `📅 ${when} ${time} ${escapeHtml(e.title)} — 캘린더에 추가`;
     })
     .join('\n');
+}
+
+/** `/waits`: numbered open reply-waits, oldest first (same order `/wait <n>` indexes). */
+export function formatWaitList(open: WaitingItem[], today: string): string {
+  if (open.length === 0) return '대기 중인 답장이 없어요';
+  const lines = open.map((w, i) => {
+    const days = dday(today, w.since);
+    const parts = [escapeHtml(clip(w.title)), w.match.from ? `from:${escapeHtml(w.match.from)}` : '보낸이 미지정', days > 0 ? `${days}일째` : '오늘 등록'];
+    return `${i + 1}. ${parts.join(' · ')}`;
+  });
+  return [`<b>⏳ 답장 대기 ${open.length}건</b>`, ...lines].join('\n');
+}
+
+export const WAIT_USAGE = '사용법: /waits · /wait 2 from:주소 · /wait 2 subject:"키워드" · /wait 2 days:5 · /wait 2 close';
+
+const CATEGORY_LABEL: Record<ReplyCategory, string> = { approved: '승인', declined: '거절', question: '질문', other: '기타' };
+
+/** Alert for a freshly matched reply; classification is shown only when Jev produced one. */
+export function formatWaitingReplyAlert(item: WaitingItem, reply: WaitingReply): string {
+  const lines = [`📬 답장 도착: ${escapeHtml(item.title)}`];
+  if (reply.category) {
+    const pct = reply.positive !== undefined ? ` (긍정 ${Math.round(reply.positive * 100)}%)` : '';
+    lines.push(`분류: ${CATEGORY_LABEL[reply.category]}${pct}`);
+  }
+  lines.push(`${escapeHtml(reply.from)} · ${escapeHtml(reply.subject)}`);
+  lines.push(escapeHtml(reply.snippet.slice(0, 120)));
+  return lines.join('\n');
 }

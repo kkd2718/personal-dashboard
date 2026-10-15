@@ -92,6 +92,8 @@ async function main() {
       { command: 'deadlines', description: '14일 내 마감' },
       { command: 'done', description: '루틴 완료 (/done 1)' },
       { command: 'cal', description: '캘린더에 일정 추가 (/cal 내일 3시 치과)' },
+      { command: 'waits', description: '답장 대기 목록' },
+      { command: 'wait', description: '대기 수정/종료 (/wait 2 close)' },
       { command: 'help', description: '사용법' },
     ],
   });

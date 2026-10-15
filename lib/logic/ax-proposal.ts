@@ -3,7 +3,8 @@
 import { eventsFromParsed, type NewEvent } from '@/lib/logic/new-event';
 import type { Candidate } from '@/lib/logic/ax-candidates';
 import type { Intent } from '@/lib/logic/ax-intent';
-import { stripTokens } from '@/lib/logic/capture';
+import { parseCapture, stripTokens } from '@/lib/logic/capture';
+import { extractEmailOrDomain } from '@/lib/logic/waiting';
 import { absoluteDateLabel, weekdayOf } from '@/lib/logic/dates';
 import { applyShift, parseKoDateTime, rescheduleBase, stripRequestVerbs, stripSpans } from '@/lib/logic/ko-datetime';
 import { escapeHtml } from '@/lib/telegram/format';
@@ -89,8 +90,28 @@ export function buildProposal(input: BuildInput): BuildResult {
       if (events.some((e) => e.date < today)) return fail('과거 날짜예요');
       return { ok: true, proposal: { kind: 'calendar_event', events: events.map((e) => ({ ...e, title })) } };
     }
-    case 'waiting_reply':
-      return fail('답장 대기 기능은 아직 준비 중이에요');
+    case 'waiting_reply': {
+      const from = extractEmailOrDomain(text);
+      let title = stripRequestVerbs(stripTokens(stripSpans(text, parsed.spans)));
+      const at = from ? title.toLowerCase().indexOf(from) : -1;
+      if (from && at >= 0) title = (title.slice(0, at) + title.slice(at + from.length)).replace(/\s+/g, ' ').trim();
+      if (!title) title = from ?? '';
+      if (!title) return fail('제목을 찾지 못했어요');
+      const projectId = parseCapture(text, input.projects).projectId;
+      const project = projectId ? input.projects.find((p) => p.id === projectId) : undefined;
+      const paper = projectId ? input.papers.find((p) => p.projectId === projectId) : undefined;
+      const subject = project ? (paper?.shortName ?? project.name) : undefined;
+      return {
+        ok: true,
+        proposal: {
+          kind: 'waiting_reply',
+          title,
+          projectId,
+          match: { ...(from ? { from } : {}), ...(subject ? { subject } : {}) },
+          nudgeAfterDays: parsed.shift?.unit === 'day' ? parsed.shift.n : 7,
+        },
+      };
+    }
   }
 }
 
@@ -116,7 +137,13 @@ export function formatProposal(p: Proposal, today: string): string {
     case 'calendar_event':
       return `📅 캘린더에 추가\n${p.events.map((e) => `• ${eventLine(e)}`).join('\n')}`;
     case 'waiting_reply':
-      return `⏳ 답장 대기 등록\n<b>${escapeHtml(p.title)}</b>`;
+      return [
+        '⏳ 답장 대기 등록',
+        `<b>${escapeHtml(p.title)}</b>`,
+        `보낸이: ${p.match.from ? escapeHtml(p.match.from) : '(미지정 — /wait n from:주소 로 설정)'}`,
+        ...(p.match.subject ? [`제목 키워드: ${escapeHtml(p.match.subject)}`] : []),
+        `${p.nudgeAfterDays}일 지나도 답이 없으면 알려드려요`,
+      ].join('\n');
   }
 }
 

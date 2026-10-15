@@ -17,6 +17,8 @@ import { WORK_SHIFTS_META_KEY, type WorkShiftsMeta } from '@/lib/logic/work';
 import { routineStatus } from '@/lib/logic/routines';
 import { loadRoutineCounts, loadRoutineDone, loadRoutineItems } from '@/lib/routines-data';
 import { formatDigest } from '@/lib/telegram/format';
+import { waitingNudges } from '@/lib/logic/waiting';
+import { loadWaiting } from '@/lib/waiting-data';
 import type { SendResult } from '@/lib/telegram/client';
 
 export type DigestResult = 'sent' | 'skipped-empty' | 'skipped-already' | 'failed';
@@ -85,10 +87,12 @@ export async function runDigest(
   ]);
   const me = checklist(tasks, deadlines, reviews, today).me;
   const routines = routineStatus(routineItems, routineDone, today, await loadRoutineCounts(repo, today));
+  const waiting = waitingNudges(await loadWaiting(repo), today).map((n) => ({ title: n.item.title, days: n.days }));
   const googleMeta = repo.listMetaByPrefix ? await repo.listMetaByPrefix('integration:google:') : {};
   const message = formatDigest({
     staleSyncs: staleGoogleAccounts(googleMeta, new Date().toISOString()),
     routines,
+    waiting,
     projectDue,
     today,
     deadlines,

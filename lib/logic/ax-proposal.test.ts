@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Candidate } from './ax-candidates';
-import { deadline, task } from './ax-fixtures';
+import { deadline, paper, project, task } from './ax-fixtures';
 import {
   buildProposal,
   decodeCallback,
@@ -84,6 +84,27 @@ describe('buildProposal: calendar_event', () => {
     expect(build('미팅', 'calendar_event', { target: null })).toMatchObject({ ok: false });
     expect(build('내일', 'calendar_event', { target: null })).toEqual({ ok: false, reason: '제목을 찾지 못했어요' });
     expect(build('10월 3일 미팅', 'calendar_event', { target: null })).toEqual({ ok: false, reason: '과거 날짜예요' });
+  });
+});
+
+describe('buildProposal: waiting_reply', () => {
+  const projects = [project({ id: 'p1', slug: 'brainct', name: 'BrainCT 연구' })];
+  const papers = [paper({ id: 'pp', shortName: 'BrainCT', projectId: 'p1' })];
+
+  it('extracts sender, subject from the mentioned project, nudge days', () => {
+    const r = build('editor@journal.org 답장 기다림 @brainct 10일 미뤄', 'waiting_reply', { target: null, projects, papers });
+    expect(r).toMatchObject({
+      ok: true,
+      proposal: { kind: 'waiting_reply', projectId: 'p1', match: { from: 'editor@journal.org', subject: 'BrainCT' }, nudgeAfterDays: 10 },
+    });
+  });
+  it('nudge days from a day shift; no sender means no from', () => {
+    const r = build('편집자 답장 기다림 5일 뒤로 미뤄', 'waiting_reply', { target: null });
+    expect(r).toMatchObject({ ok: true, proposal: { match: {}, nudgeAfterDays: 5 } });
+  });
+  it('formatProposal flags a missing sender', () => {
+    const r = build('편집자 답장 기다림', 'waiting_reply', { target: null });
+    expect(r.ok && formatProposal(r.proposal, TODAY)).toContain('미지정');
   });
 });
 

@@ -369,3 +369,34 @@ describe('parseTelegramUpdate', () => {
     expect(parseTelegramUpdate({ callback_query: { id: 'x' } })).toBeNull();
   });
 });
+
+import { formatWaitList, formatWaitingReplyAlert } from './format';
+
+describe('reply-waiting formatting', () => {
+  const emptyChecklist = { overdue: [], today: [], upcoming: [] } as unknown as Parameters<typeof formatDigest>[0]['checklist'];
+
+  it('a digest with only waiting nudges is not empty', () => {
+    const out = formatDigest({
+      today: '2026-10-15',
+      deadlines: [],
+      reviews: [],
+      checklist: emptyChecklist,
+      statusItems: [],
+      waiting: [{ title: '편집자 답장', days: 7 }],
+    });
+    expect(out).toContain('답장 없음 7일');
+  });
+
+  it('list numbering and alert escaping', () => {
+    const item = {
+      id: 'w1', title: 'a<b', projectId: null, taskId: null, deadlineId: null, match: {}, since: '2026-10-10',
+      createdAt: 't', nudgeAfterDays: 7, status: 'open' as const,
+    };
+    expect(formatWaitList([item], '2026-10-15')).toContain('1. a&lt;b · 보낸이 미지정 · 5일째');
+    expect(formatWaitList([], '2026-10-15')).toBe('대기 중인 답장이 없어요');
+    const alert = formatWaitingReplyAlert(item, {
+      messageId: 'm', from: 'x@y.z', subject: 's', snippet: 'hi', date: 't', category: 'approved', positive: 0.87,
+    });
+    expect(alert).toContain('분류: 승인 (긍정 87%)');
+  });
+});

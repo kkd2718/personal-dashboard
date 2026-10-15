@@ -15,6 +15,19 @@ import { sendMessage, telegramConfig } from '@/lib/telegram/client';
 import { escapeHtml } from '@/lib/telegram/format';
 import { todayKST } from '@/lib/logic/dates';
 import { findMatchingPaper } from '@/lib/logic/review-candidates';
+import { createJev, jevToken } from '@/lib/ai/jev';
+import { JEV_DAILY_LIMIT_AX, takeJevBudget } from '@/lib/ai/jev-budget';
+import { confident } from '@/lib/logic/ax-intent';
+import {
+  REPLY_CATEGORIES,
+  applyWaitingMatches,
+  replyQuestions,
+  replyState,
+  type ReplyCategory,
+  type WaitingReply,
+} from '@/lib/logic/waiting';
+import { loadWaiting, patchWaitingItem, saveWaiting } from '@/lib/waiting-data';
+import { formatWaitingReplyAlert } from '@/lib/telegram/format';
 import { WORK_SHIFTS_META_KEY, mergeShifts, type WorkShift, type WorkShiftsMeta } from '@/lib/logic/work';
 
 export const dynamic = 'force-dynamic';
@@ -59,6 +72,26 @@ const bodySchema = z.object({
   mails: z.array(mailSchema).max(200).optional(),
   // Message ids of recent review-ish mail now in Gmail trash (declined invitations).
   trashedMessageIds: z.array(z.string().min(1)).max(1000).optional(),
+  // Reply-waiting matches found by this account's Gmail searches (see /api/google/waiting).
+  waiting: z
+    .array(
+      z.object({
+        id: z.string().min(1).max(40),
+        matches: z
+          .array(
+            z.object({
+              messageId: z.string().min(1),
+              from: z.string().max(300),
+              subject: z.string().max(500),
+              snippet: z.string().max(300),
+              receivedAt: z.string().min(1),
+            })
+          )
+          .max(3),
+      })
+    )
+    .max(30)
+    .optional(),
   // Owner's own shifts only (docs/PLAN_WORK_SCHEDULE.md); absent = no change.
   work: z
     .object({
@@ -98,7 +131,7 @@ export async function POST(request: Request) {
 
   const repo = getRepo();
   const now = new Date().toISOString();
-  const { account, calendar, mails, trashedMessageIds, work } = parsed.data;
+  const { account, calendar, mails, trashedMessageIds, work, waiting } = parsed.data;
   if (work) await saveWorkShifts(repo, work, now);
 
   let eventCount = 0;
@@ -145,6 +178,8 @@ export async function POST(request: Request) {
     }
   }
 
+  if (waiting && waiting.length > 0) await processWaiting(repo, waiting, request);
+
   // Settings §5.8 연동 상태 rows read this back (PLAN_UX.md decision 3).
   await repo.setMeta(`integration:google:${account}`, {
     at: now,
@@ -160,6 +195,39 @@ export async function POST(request: Request) {
     candidates: { new: newCandidates.length, total: totalCandidates },
     deadlines: deadlinesForCalendar(deadlines, reviews, todayKST()),
   });
+}
+
+/** Marks matched reply-waits as replied (re-reading the list first), classifies each reply
+ * with Jev when the daily budget allows, and sends one Telegram alert per new reply. A
+ * reply already marked replied is never alerted again. */
+async function processWaiting(
+  repo: ReturnType<typeof getRepo>,
+  waiting: NonNullable<z.infer<typeof bodySchema>['waiting']>,
+  request: Request
+) {
+  const { items, replied } = applyWaitingMatches(await loadWaiting(repo), waiting);
+  if (replied.length === 0) return;
+  await saveWaiting(repo, items);
+
+  const jev = createJev({ token: jevToken(process.env, request.headers) });
+  const today = todayKST();
+  for (const { item, reply } of replied) {
+    let enriched: WaitingReply = reply;
+    if (jev && (await takeJevBudget(repo, 'ax', today, JEV_DAILY_LIMIT_AX))) {
+      const answers = await jev.ask(replyState(item.title, reply), replyQuestions());
+      const category = answers?.category;
+      const positive = answers?.positive;
+      enriched = {
+        ...reply,
+        ...(category?.type === 'choice' && confident(category) && REPLY_CATEGORIES.includes(category.choice as ReplyCategory)
+          ? { category: category.choice as ReplyCategory }
+          : {}),
+        ...(positive?.type === 'noul' ? { positive: positive.p } : {}),
+      };
+      if (enriched !== reply) await patchWaitingItem(repo, item.id, (it) => ({ ...it, reply: enriched }));
+    }
+    if (telegramConfig()) await sendMessage(formatWaitingReplyAlert(item, enriched));
+  }
 }
 
 /** Merges the owner's shifts into app_meta 'work:shifts' and records the sync time. */

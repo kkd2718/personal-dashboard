@@ -18,8 +18,8 @@ export type Intent = (typeof INTENTS)[number];
 /** Accept a choice only when its probability is at least this and leads the runner-up by AX_MARGIN. */
 export const AX_THRESHOLD = 0.6;
 export const AX_MARGIN = 0.2;
-/** Slice 4 (reply tracker) flips this; until then waiting_reply is never offered. */
-export const WAITING_ENABLED = false;
+/** Whether the reply tracker (waiting_reply intent) is offered to Jev. */
+export const WAITING_ENABLED = true;
 
 const WEEKDAY_KO = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -60,7 +60,8 @@ export type Decision =
 
 type ChoiceAnswer = Extract<JevAnswer, { type: 'choice' }>;
 
-function confident(a: ChoiceAnswer, threshold: number): boolean {
+/** True when a choice clears both the probability threshold and the runner-up margin. */
+export function confident(a: ChoiceAnswer, threshold = AX_THRESHOLD): boolean {
   return a.top !== null && a.margin !== null && a.top >= threshold && a.margin >= AX_MARGIN;
 }
 

@@ -74,12 +74,12 @@ describe('decide', () => {
 });
 
 describe('questions and gates', () => {
-  it('target question only with candidates; waiting_reply not offered yet', () => {
+  it('target question only with candidates; waiting_reply is offered', () => {
     expect(Object.keys(axQuestions([]))).toEqual(['intent']);
     const q = axQuestions([cand('t:1')]);
     expect(Object.keys(q)).toEqual(['intent', 'target']);
     const intent = q.intent as { criteria: Record<string, string> };
-    expect(Object.keys(intent.criteria)).not.toContain('waiting_reply');
+    expect(Object.keys(intent.criteria)).toContain('waiting_reply');
     expect(Object.keys((q.target as { criteria: Record<string, string> }).criteria)).toEqual(['t:1', 'none']);
   });
 

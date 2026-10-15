@@ -2,12 +2,16 @@ import { NextResponse } from 'next/server';
 import { constantTimeEqual } from '@/lib/auth/bearer';
 import { answerCallbackQuery, editMessageText, sendMessage, telegramConfig } from '@/lib/telegram/client';
 import { handleCallback, handleFreeText, type AxDeps } from '@/lib/telegram/ax';
+import { openWaitingList, parseWaitCommand, resolveWaitTarget } from '@/lib/logic/waiting';
+import { loadWaiting, patchWaitingItem } from '@/lib/waiting-data';
 import { createJev, jevToken } from '@/lib/ai/jev';
 import { rememberUpdate } from '@/lib/logic/ax-proposal';
 import { WORK_SHIFTS_META_KEY, type WorkShiftsMeta } from '@/lib/logic/work';
 import {
   escapeHtml,
+  WAIT_USAGE,
   formatCalReply,
+  formatWaitList,
   formatRoutineList,
   formatToday,
   formatUpcomingList,
@@ -48,7 +52,7 @@ export const maxDuration = 30;
 
 const RECENT_UPDATES_KEY = 'telegram:updates:recent';
 
-const HELP_TEXT = '메모는 그냥 보내면 저장돼요. @프로젝트 #태그 지원 · /today · /deadlines · /done 1 (루틴 완료, /done 알렌 5 = 개수) · /cal 내일 오후 3시 치과 (캘린더에 바로 추가)';
+const HELP_TEXT = '메모는 그냥 보내면 저장돼요. @프로젝트 #태그 지원 · /today · /deadlines · /done 1 (루틴 완료, /done 알렌 5 = 개수) · /cal 내일 오후 3시 치과 (캘린더에 바로 추가) · /waits (답장 대기 목록)';
 
 /** Telegram Bot API webhook (phase 2b). Always 200s (Telegram retries non-2xx) —
  * failures are reported to the chat, not via the HTTP status. */
@@ -136,11 +140,39 @@ async function handle(text: string, deps: AxDeps): Promise<void> {
     case 'cal':
       await sendMessage(await handleCal(parsed.arg));
       return;
+    case 'waits':
+      await sendMessage(formatWaitList(openWaitingList(await loadWaiting(getRepo())), todayKST()));
+      return;
+    case 'wait':
+      await sendMessage(await handleWait(parsed.arg));
+      return;
     case 'help':
     case 'start':
     case 'unknown':
       await sendMessage(HELP_TEXT);
   }
+}
+
+/** `/wait`: lists, edits (from/subject/days) or closes a reply-wait by list number or id. */
+async function handleWait(arg: string): Promise<string> {
+  const repo = getRepo();
+  const cmd = parseWaitCommand(arg);
+  if (cmd.kind === 'invalid') return escapeHtml(WAIT_USAGE);
+  if (cmd.kind === 'list') return formatWaitList(openWaitingList(await loadWaiting(repo)), todayKST());
+
+  const item = resolveWaitTarget(await loadWaiting(repo), cmd.target);
+  if (!item) return '그 번호/ID의 대기 항목을 찾을 수 없어요';
+  if (cmd.kind === 'close') {
+    await patchWaitingItem(repo, item.id, (it) => ({ ...it, status: 'closed' }));
+    return `✅ 대기 종료: ${escapeHtml(item.title)}`;
+  }
+  const { from, subject, nudgeAfterDays } = cmd.patch;
+  await patchWaitingItem(repo, item.id, (it) => ({
+    ...it,
+    match: { ...it.match, ...(from ? { from } : {}), ...(subject ? { subject } : {}) },
+    ...(nudgeAfterDays !== undefined ? { nudgeAfterDays } : {}),
+  }));
+  return `✏️ 수정했어요: ${escapeHtml(item.title)}`;
 }
 
 /** `/cal <text>`: parses a Korean date/time phrase and inserts the event into Google

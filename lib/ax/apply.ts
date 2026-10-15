@@ -4,11 +4,20 @@ import type { GoogleCalendarConfig } from '@/lib/google/calendar';
 import type { Proposal } from '@/lib/logic/ax-proposal';
 import { absoluteDateLabel } from '@/lib/logic/dates';
 import { escapeHtml, formatCalReply } from '@/lib/telegram/format';
+import { newWaitingId, newWaitingItem } from '@/lib/logic/waiting';
+import { addWaitingItem } from '@/lib/waiting-data';
 import type { Repo } from '@/lib/repo';
 
 export type ApplyRepo = Pick<
   Repo,
-  'listTasks' | 'updateTask' | 'listDeadlines' | 'updateDeadline' | 'listCalendarEvents' | 'upsertCalendarEvent'
+  | 'listTasks'
+  | 'updateTask'
+  | 'listDeadlines'
+  | 'updateDeadline'
+  | 'listCalendarEvents'
+  | 'upsertCalendarEvent'
+  | 'getMeta'
+  | 'setMeta'
 >;
 
 export interface ApplyDeps {
@@ -58,7 +67,9 @@ export async function applyProposal(repo: ApplyRepo, deps: ApplyDeps, p: Proposa
         .filter(Boolean)
         .join('\n');
     }
-    case 'waiting_reply':
-      return '답장 대기 기능은 아직 준비 중이에요';
+    case 'waiting_reply': {
+      await addWaitingItem(repo, newWaitingItem(p, deps.today, new Date().toISOString(), newWaitingId()));
+      return '⏳ 답장 대기에 등록했어요 (/waits)';
+    }
   }
 }
