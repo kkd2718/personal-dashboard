@@ -14,6 +14,7 @@ function isPublicPath(pathname: string): boolean {
   return (
     pathname === '/login' ||
     pathname === '/privacy' ||
+    pathname === '/terms' ||
     pathname.startsWith('/api/capture') ||
     pathname.startsWith('/api/ingest') ||
     pathname.startsWith('/api/cron/') ||
