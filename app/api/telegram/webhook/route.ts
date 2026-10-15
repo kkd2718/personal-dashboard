@@ -2,6 +2,12 @@ import { NextResponse } from 'next/server';
 import { constantTimeEqual } from '@/lib/auth/bearer';
 import { answerCallbackQuery, editMessageText, sendMessage, telegramConfig } from '@/lib/telegram/client';
 import { handleCallback, handleFreeText, type AxDeps } from '@/lib/telegram/ax';
+import {
+  MAIL_TRIAGE_CONFIG_KEY,
+  applyMailRule,
+  normalizeTriageConfig,
+  parseMailRule,
+} from '@/lib/logic/mail-triage';
 import { openWaitingList, parseWaitCommand, resolveWaitTarget } from '@/lib/logic/waiting';
 import { loadWaiting, patchWaitingItem } from '@/lib/waiting-data';
 import { createJev, jevToken } from '@/lib/ai/jev';
@@ -146,11 +152,32 @@ async function handle(text: string, deps: AxDeps): Promise<void> {
     case 'wait':
       await sendMessage(await handleWait(parsed.arg));
       return;
+    case 'mailrule':
+      await sendMessage(await handleMailRule(parsed.arg));
+      return;
     case 'help':
     case 'start':
     case 'unknown':
       await sendMessage(HELP_TEXT);
   }
+}
+
+const MAIL_RULE_USAGE = '사용법: /mailrule list · /mailrule allow a@b.com · /mailrule deny @b.com · /mailrule remove a@b.com';
+
+/** `/mailrule`: edits the mail-triage allow/deny lists (always alert / never alert). */
+async function handleMailRule(arg: string): Promise<string> {
+  const repo = getRepo();
+  const cmd = parseMailRule(arg);
+  if (cmd.kind === 'invalid') return escapeHtml(MAIL_RULE_USAGE);
+  let cfg = normalizeTriageConfig(await repo.getMeta(MAIL_TRIAGE_CONFIG_KEY));
+  if (cmd.kind !== 'list') {
+    cfg = applyMailRule(cfg, cmd);
+    await repo.setMeta(MAIL_TRIAGE_CONFIG_KEY, cfg);
+  }
+  const show = (list: string[]) => (list.length > 0 ? list.map(escapeHtml).join(', ') : '(없음)');
+  return `<b>📧 메일 규칙</b>
+항상 알림: ${show(cfg.allow)}
+알림 안 함: ${show(cfg.deny)}`;
 }
 
 /** `/wait`: lists, edits (from/subject/days) closes or reopens a reply-wait by list number or id. */

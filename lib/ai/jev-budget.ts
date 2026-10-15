@@ -6,6 +6,13 @@ import type { Repo } from '@/lib/repo';
 export type MetaRepo = Pick<Repo, 'getMeta' | 'setMeta' | 'listMetaByPrefix' | 'deleteMeta'>;
 
 export const JEV_DAILY_LIMIT_AX = 200;
+export const JEV_DAILY_LIMIT_MAIL = 300;
+
+/** Mail-triage cap: `JEV_DAILY_LIMIT_MAIL` env override, else 300/day. */
+export function jevMailLimit(env: Record<string, string | undefined> = process.env): number {
+  const n = Number(env.JEV_DAILY_LIMIT_MAIL);
+  return Number.isInteger(n) && n > 0 ? n : JEV_DAILY_LIMIT_MAIL;
+}
 const PREFIX = 'jev:count:';
 
 /** Takes one unit of today's `bucket` budget; false when exhausted or on error. */

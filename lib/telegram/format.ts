@@ -6,6 +6,8 @@ import type { Checklist, ChecklistItem } from '@/lib/logic/checklist';
 import type { UpcomingItem } from '@/lib/logic/upcoming';
 import { dueReminders, reviewReminders } from '@/lib/logic/upcoming';
 import { ddayLabel, dday, weekdayOf } from '@/lib/logic/dates';
+import { MAX_ALERTS_PER_MESSAGE, senderAddress, type TriageMail } from '@/lib/logic/mail-triage';
+import type { ShiftMonthSummary } from '@/lib/logic/work-announce';
 import type { ReplyCategory, WaitingItem, WaitingReply } from '@/lib/logic/waiting';
 import { todayCalendarEvents } from '@/lib/logic/calendar';
 import { parseShift, type WorkShift } from '@/lib/logic/work';
@@ -339,11 +341,11 @@ export function parseTelegramUpdate(update: unknown): TelegramUpdate | null {
   return { kind: 'callback', updateId, chatId: chat.id, callbackId: c.id, messageId: msg.message_id, data: c.data };
 }
 
-export type CommandName = 'today' | 'deadlines' | 'done' | 'cal' | 'waits' | 'wait' | 'help' | 'start' | 'unknown';
+export type CommandName = 'today' | 'deadlines' | 'done' | 'cal' | 'waits' | 'wait' | 'mailrule' | 'help' | 'start' | 'unknown';
 
 export type Route = { kind: 'command'; name: CommandName; arg: string } | { kind: 'capture'; text: string };
 
-const COMMAND_NAMES: ReadonlySet<string> = new Set(['today', 'deadlines', 'done', 'cal', 'waits', 'wait', 'help', 'start']);
+const COMMAND_NAMES: ReadonlySet<string> = new Set(['today', 'deadlines', 'done', 'cal', 'waits', 'wait', 'mailrule', 'help', 'start']);
 
 /** Routes incoming text to a command or a plain capture. Commands may carry a
  * `@BotName` suffix (`/today@my_bot`); anything else is a memo to capture. */
@@ -399,3 +401,42 @@ export function formatWaitingReplyAlert(item: WaitingItem, reply: WaitingReply):
   lines.push(`<i>잘못 잡혔다면 /wait ${item.id} reopen</i>`);
   return lines.join('\n');
 }
+
+const dayOfMonth = (d: string) => `${Number(d.slice(8))}(${WEEKDAY_SHORT[weekdayOf(d)]})`;
+
+/** One-time alert when a month's shifts first reach the server; empty lines are omitted. */
+export function formatShiftMonth(s: ShiftMonthSummary): string {
+  const lines = [`<b>📋 ${Number(s.month.slice(5))}월 근무표 나왔어요</b>`, `근무 ${s.workDays}일 · 휴무 ${s.offDays.length}일`];
+  const counts = Object.entries(s.byShort).sort(([a], [b]) => a.localeCompare(b));
+  if (counts.length > 0) lines.push(counts.map(([k, n]) => `${escapeHtml(k)} ${n}`).join(' · '));
+  if (s.offDays.length > 0) lines.push(`휴무: ${s.offDays.map(dayOfMonth).join(' ')}`);
+  if (s.weekendWork.length > 0) {
+    lines.push(`주말 근무: ${s.weekendWork.map((w) => `${Number(w.date.slice(5, 7))}/${dayOfMonth(w.date)} ${escapeHtml(w.short)}`).join(', ')}`);
+  }
+  if (s.other.length > 0) {
+    lines.push(`기타: ${s.other.map((o) => `${Number(o.date.slice(5, 7))}/${Number(o.date.slice(8))} ${escapeHtml(o.label)}`).join(', ')}`);
+  }
+  return lines.join('\n');
+}
+
+/** Display name of a `From:` header: the quoted/plain name part, else the address. */
+function senderLabel(from: string): string {
+  const name = from.replace(/<[^>]*>/, '').replace(/^["'\s]+|["'\s]+$/g, '');
+  return name || senderAddress(from);
+}
+
+/** One message batching up to MAX_ALERTS_PER_MESSAGE mails: sender, subject, a short snippet line, link. */
+export function formatMailAlert(mails: TriageMail[]): string {
+  const shown = mails.slice(0, MAX_ALERTS_PER_MESSAGE);
+  const blocks = shown.map((m) => {
+    const lines = [`📧 <b>${escapeHtml(senderLabel(m.from))}</b> · ${escapeHtml(clip(m.subject, 80))}`];
+    const first = m.snippet?.split('\n')[0].trim();
+    if (first) lines.push(escapeHtml(clip(first, 80)));
+    lines.push(escapeHtml(m.link));
+    return lines.join('\n');
+  });
+  if (mails.length > shown.length) blocks.push(`…외 ${mails.length - shown.length}건`);
+  return blocks.join('\n\n');
+}
+
+export const MAIL_CAP_NOTICE = '📧 메일 분류 한도 도달 — 허용 목록만 알림';

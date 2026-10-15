@@ -24,6 +24,7 @@ function isPublicPath(pathname: string): boolean {
     pathname.startsWith('/api/telegram/webhook') ||
     pathname.startsWith('/api/google/sync') ||
     pathname.startsWith('/api/google/waiting') ||
+    pathname.startsWith('/api/google/mail-triage') ||
     pathname === '/manifest.webmanifest' ||
     pathname === '/favicon.ico' ||
     pathname === '/apple-icon' ||

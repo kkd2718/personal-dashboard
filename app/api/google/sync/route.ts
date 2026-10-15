@@ -28,8 +28,17 @@ import {
   type ReplyCategory,
   type WaitingReply,
 } from '@/lib/logic/waiting';
+import { createOffDayEvents } from '@/lib/google/calendar-write';
+import { googleCalendarConfig } from '@/lib/google/calendar';
+import {
+  WORK_ANNOUNCED_META_KEY,
+  monthsToAnnounce,
+  seedMonths,
+  summarizeShiftMonth,
+  type WorkAnnounced,
+} from '@/lib/logic/work-announce';
 import { loadWaiting, patchWaitingItem } from '@/lib/waiting-data';
-import { formatWaitingReplyAlert } from '@/lib/telegram/format';
+import { formatShiftMonth, formatWaitingReplyAlert } from '@/lib/telegram/format';
 import { WORK_SHIFTS_META_KEY, mergeShifts, type WorkShift, type WorkShiftsMeta } from '@/lib/logic/work';
 
 export const dynamic = 'force-dynamic';
@@ -249,10 +258,29 @@ async function saveWorkShifts(
   work: { from: string; to: string; shifts: WorkShift[] },
   now: string
 ) {
+  const today = todayKST();
+  const announced = await repo.getMeta<WorkAnnounced>(WORK_ANNOUNCED_META_KEY);
+  const months = monthsToAnnounce(work.shifts, announced?.months ?? null, today);
   const existing = await repo.getMeta<WorkShiftsMeta>(WORK_SHIFTS_META_KEY);
-  const merged = mergeShifts(existing, work, todayKST(), now);
+  const merged = mergeShifts(existing, work, today, now);
   await repo.setMeta(WORK_SHIFTS_META_KEY, merged);
   await repo.setMeta('integration:work', { at: now, detail: `${merged.shifts.length}일` });
+
+  if (!announced) {
+    // First run after deploy: remember every month already present so nothing is announced retroactively.
+    await repo.setMeta(WORK_ANNOUNCED_META_KEY, { months: seedMonths(merged.shifts), seededAt: now });
+    return;
+  }
+  const done = [...announced.months];
+  for (const month of months) {
+    const summary = summarizeShiftMonth(month, merged.shifts);
+    // Recorded only after a successful send, so a failed send is retried on the next hourly sync.
+    if (!(await sendMessage(formatShiftMonth(summary))).ok) continue;
+    done.push(month);
+    await repo.setMeta(WORK_ANNOUNCED_META_KEY, { ...announced, months: done });
+    const cfg = googleCalendarConfig();
+    if (process.env.WORK_OFF_EVENTS === '1' && cfg) await createOffDayEvents(repo, cfg, summary);
+  }
 }
 
 /** A stored candidate whose due date wasn't found the first time (e.g. before the

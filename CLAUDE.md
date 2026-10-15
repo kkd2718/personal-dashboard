@@ -146,6 +146,11 @@ project's DB password isn't always available/known. Run scripts with
   merge by id. Slice 5: Sunday weekly review from the evening cron (`lib/telegram/weekly.ts`, `lib/logic/weekly-review.ts`; `?weekly=1`
   forces): overdue/stale/project items with ✅/+1주/✖ buttons (pending `type:'weekly'`, 72h, per-item claim), project snooze via
   `ResolvedProjectItem.state:'snooze'` (`lib/project-checklist.ts` is the shared core of the home-lane action).
+  Slice 6: first time a month's shifts (>= 20 days) reach `/api/google/sync` => one Telegram summary (`lib/logic/work-announce.ts`,
+  `app_meta work:announced`, first run only seeds); `WORK_OFF_EVENTS=1` also creates timed `off` events. Slice 7: mail triage —
+  Code.gs `triage` (5-min trigger, `setupTriage`) posts new inbox mail (<=300-char snippet, attachment names stripped, never
+  attachments) to `POST /api/google/mail-triage` (`lib/logic/mail-triage.ts`): allow/deny in `app_meta mail:triage:config`
+  (`/mailrule`), others via Jev noul >= 0.7 under the `mail` budget (300/day), dedupe by message id, 502 on Telegram failure.
 
 ## Conventions
 - Opus plans (`docs/PLAN.md`), Sonnet implements. Don't redesign a plan's data model/signatures

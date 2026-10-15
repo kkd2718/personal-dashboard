@@ -53,14 +53,15 @@ function setup() {
   requireProps_();
   sync();
   installTrigger_();
-  Logger.log('Setup complete: ran one sync and installed the hourly trigger.');
+  Logger.log('Setup complete: ran one sync and installed the hourly trigger. (Mail alerts: run setupTriage once.)');
 }
 
-/** Removes every trigger created by this script. */
+/** Removes every trigger created by this script (hourly sync and the 5-minute triage). */
 function teardown() {
   var triggers = ScriptApp.getProjectTriggers();
   for (var i = 0; i < triggers.length; i++) {
-    if (triggers[i].getHandlerFunction() === 'sync') ScriptApp.deleteTrigger(triggers[i]);
+    var handler = triggers[i].getHandlerFunction();
+    if (handler === 'sync' || handler === 'triage') ScriptApp.deleteTrigger(triggers[i]);
   }
   Logger.log('Removed ' + triggers.length + ' trigger(s).');
 }
@@ -169,6 +170,101 @@ function collectWaiting_(props) {
   } catch (e) {
     Logger.log('waiting: error ' + e.name);
     return null;
+  }
+}
+
+// --- Mail triage (docs/PLAN_AX.md §8b): a separate 5-minute trigger, independent of sync() ---
+//
+// Script Properties (all optional):
+//   TRIAGE_BODY   'snippet' (default) | 'none' (kill switch: no body text is sent)
+//   TRIAGE_QUERY  Gmail search for mail worth triaging (default below)
+//   TRIAGE_LAST   managed by the script: epoch seconds of the newest message already sent
+// Never reads attachments (no getAttachments()) and never logs mail content.
+
+var DEFAULT_TRIAGE_QUERY = 'in:inbox -category:promotions -category:social -category:forums';
+var ATTACHMENT_NAME_RE = /\S+\.(pdf|hwpx?|docx?|xlsx?|pptx?|csv|zip|7z|dcm|jpe?g|png|tiff?)\b/gi;
+
+/** Removes file names such as "report.pdf" from text, then collapses whitespace. */
+function stripAttachmentNames_(text) {
+  return text.replace(ATTACHMENT_NAME_RE, '').replace(/\s+/g, ' ').trim();
+}
+
+/** Validates properties, installs the 5-minute triage trigger (idempotent) and runs triage() once. */
+function setupTriage() {
+  requireProps_();
+  installMailTrigger_();
+  triage();
+  Logger.log('Triage setup complete: installed the 5-minute trigger and ran one pass.');
+}
+
+function installMailTrigger_() {
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'triage') ScriptApp.deleteTrigger(triggers[i]);
+  }
+  ScriptApp.newTrigger('triage').timeBased().everyMinutes(5).create();
+}
+
+/** Sends new inbox mail (since TRIAGE_LAST) to POST /api/google/mail-triage. No fetch when nothing is new. */
+function triage() {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(0)) return; // a previous run is still going
+  try {
+    var props = requireProps_();
+    var nowSec = Math.floor(Date.now() / 1000);
+    var last = Number(getProp_('TRIAGE_LAST', '')) || nowSec - 10 * 60; // first run: last 10 minutes only
+    var me = Session.getActiveUser().getEmail();
+    var withBody = getProp_('TRIAGE_BODY', 'snippet') !== 'none';
+
+    var threads = GmailApp.search(getProp_('TRIAGE_QUERY', DEFAULT_TRIAGE_QUERY) + ' after:' + last, 0, 20);
+    var entries = [];
+    var scannedNewest = last;
+    for (var t = 0; t < threads.length; t++) {
+      var msgs = threads[t].getMessages();
+      for (var m = 0; m < msgs.length; m++) {
+        var msg = msgs[m];
+        var sec = Math.floor(msg.getDate().getTime() / 1000);
+        if (sec <= last) continue;
+        if (sec > scannedNewest) scannedNewest = sec;
+        var from = msg.getFrom();
+        if (me && from.indexOf(me) !== -1) continue;
+        var item = {
+          messageId: msg.getId(),
+          threadId: threads[t].getId(),
+          from: from.slice(0, 300),
+          subject: (msg.getSubject() || '').slice(0, 500),
+          receivedAt: msg.getDate().toISOString(),
+          link: 'https://mail.google.com/mail/?authuser=' + encodeURIComponent(me) + '#all/' + threads[t].getId(),
+        };
+        if (withBody) item.snippet = stripAttachmentNames_(msg.getPlainBody() || '').slice(0, 300);
+        entries.push({ sec: sec, item: item });
+      }
+    }
+    if (entries.length === 0) {
+      // Nothing to send (e.g. only mail from this account itself): skip the request, but move on.
+      if (scannedNewest > last) PropertiesService.getScriptProperties().setProperty('TRIAGE_LAST', String(scannedNewest));
+      return;
+    }
+    // Oldest first, at most 50: TRIAGE_LAST only advances to the newest message actually sent, so
+    // any overflow is picked up by the next run instead of being skipped.
+    entries.sort(function (a, b) { return a.sec - b.sec; });
+    entries = entries.slice(0, 50);
+    var newest = entries[entries.length - 1].sec;
+    var messages = entries.map(function (e) { return e.item; });
+
+    var response = UrlFetchApp.fetch(props.ccUrl.replace(/\/$/, '') + '/api/google/mail-triage', {
+      method: 'post',
+      contentType: 'application/json',
+      headers: { Authorization: 'Bearer ' + props.ccToken },
+      payload: JSON.stringify({ account: props.account, messages: messages }),
+      muteHttpExceptions: true,
+    });
+    var code = response.getResponseCode();
+    // Advance only on success; on failure the next run resends and the server dedupes by message id.
+    if (code === 200) PropertiesService.getScriptProperties().setProperty('TRIAGE_LAST', String(newest));
+    Logger.log('triage() -> HTTP ' + code + ', messages=' + messages.length);
+  } finally {
+    lock.releaseLock();
   }
 }
 

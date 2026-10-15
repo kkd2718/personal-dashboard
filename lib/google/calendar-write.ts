@@ -1,6 +1,7 @@
 // Orchestration for /cal: insert into Google, then drop an optimistic row into the
 // dashboard so the event shows immediately (docs/PLAN_AX.md §5).
 import { addDaysStr, todayKST } from '@/lib/logic/dates';
+import { offDayEvents, type ShiftMonthSummary } from '@/lib/logic/work-announce';
 import type { Repo } from '@/lib/repo';
 import {
   insertCalendarEvent,
@@ -43,4 +44,20 @@ export async function createCalendarEvents(
     }
   }
   return { created, error: null };
+}
+
+/** One timed `off` event per day off of an announced month, skipping a date that already has an
+ * event titled `off` (the owner may have made it by hand). */
+export async function createOffDayEvents(
+  repo: Pick<Repo, 'listCalendarEvents' | 'upsertCalendarEvent'>,
+  cfg: GoogleCalendarConfig,
+  summary: ShiftMonthSummary,
+  fetchImpl: typeof fetch = fetch
+): Promise<{ created: number; error: string | null }> {
+  const events = offDayEvents(summary);
+  if (events.length === 0) return { created: 0, error: null };
+  const existing = await repo.listCalendarEvents(events[0].date, events[events.length - 1].date);
+  const taken = new Set(existing.filter((e) => e.title.trim().toLowerCase() === 'off').map((e) => e.startDate));
+  const result = await createCalendarEvents(repo, cfg, events.filter((e) => !taken.has(e.date)), fetchImpl);
+  return { created: result.created.length, error: result.error };
 }

@@ -27,6 +27,7 @@ const TIMEOUT_MS = 5000;
 export interface SendResult {
   ok: boolean;
   error?: string;
+  status?: number; // HTTP status of a failed Bot API call
   messageId?: number;
 }
 
@@ -48,7 +49,7 @@ async function call(method: string, body: Record<string, unknown>): Promise<Send
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
-    if (!res.ok) return { ok: false, error: `telegram http ${res.status}` };
+    if (!res.ok) return { ok: false, error: `telegram http ${res.status}`, status: res.status };
     const json = (await res.json().catch(() => null)) as { result?: { message_id?: unknown } } | null;
     const id = json?.result?.message_id;
     return { ok: true, messageId: typeof id === 'number' ? id : undefined };
