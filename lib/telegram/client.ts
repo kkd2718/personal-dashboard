@@ -27,10 +27,13 @@ const TIMEOUT_MS = 5000;
 export interface SendResult {
   ok: boolean;
   error?: string;
+  messageId?: number;
 }
 
-/** Sends `text` to the configured chat (or `chatId` override). Never throws. */
-export async function sendMessage(text: string, opts?: { chatId?: string }): Promise<SendResult> {
+export type InlineKeyboard = { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+
+/** Shared Bot API call: config check, dev guard, 5 s timeout, never throws. */
+async function call(method: string, body: Record<string, unknown>): Promise<SendResult> {
   const config = telegramConfig();
   if (!config) return { ok: false, error: 'not configured' };
   // `next dev` reads the same .env.local as production, so local test posts once sent
@@ -38,23 +41,56 @@ export async function sendMessage(text: string, opts?: { chatId?: string }): Pro
   if (process.env.NODE_ENV === 'development' && process.env.TELEGRAM_DEV_SEND !== '1') {
     return { ok: false, error: 'dev: not sent (set TELEGRAM_DEV_SEND=1)' };
   }
-
-  const body = text.length > MAX_LEN ? `${text.slice(0, TRUNCATE_TO)}…` : text;
   try {
-    const res = await fetch(`https://api.telegram.org/bot${config.token}/sendMessage`, {
+    const res = await fetch(`https://api.telegram.org/bot${config.token}/${method}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: opts?.chatId ?? config.chatId,
-        text: body,
-        parse_mode: 'HTML',
-        disable_web_page_preview: true,
-      }),
+      body: JSON.stringify(body),
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
     if (!res.ok) return { ok: false, error: `telegram http ${res.status}` };
-    return { ok: true };
+    const json = (await res.json().catch(() => null)) as { result?: { message_id?: unknown } } | null;
+    const id = json?.result?.message_id;
+    return { ok: true, messageId: typeof id === 'number' ? id : undefined };
   } catch {
     return { ok: false, error: 'network error' };
   }
+}
+
+const clip = (text: string) => (text.length > MAX_LEN ? `${text.slice(0, TRUNCATE_TO)}…` : text);
+
+/** Sends `text` to the configured chat (or `chatId` override). Never throws. */
+export async function sendMessage(
+  text: string,
+  opts?: { chatId?: string; replyMarkup?: InlineKeyboard }
+): Promise<SendResult> {
+  const config = telegramConfig();
+  return call('sendMessage', {
+    chat_id: opts?.chatId ?? config?.chatId,
+    text: clip(text),
+    parse_mode: 'HTML',
+    disable_web_page_preview: true,
+    ...(opts?.replyMarkup ? { reply_markup: opts.replyMarkup } : {}),
+  });
+}
+
+/** Edits a message sent to the configured chat; `replyMarkup` null/omitted removes the keyboard. */
+export async function editMessageText(
+  messageId: number,
+  text: string,
+  replyMarkup?: InlineKeyboard | null
+): Promise<SendResult> {
+  const config = telegramConfig();
+  return call('editMessageText', {
+    chat_id: config?.chatId,
+    message_id: messageId,
+    text: clip(text),
+    parse_mode: 'HTML',
+    disable_web_page_preview: true,
+    reply_markup: replyMarkup ?? { inline_keyboard: [] },
+  });
+}
+
+export async function answerCallbackQuery(callbackId: string, text?: string): Promise<SendResult> {
+  return call('answerCallbackQuery', { callback_query_id: callbackId, ...(text ? { text } : {}) });
 }

@@ -16,7 +16,7 @@ function fakeRepo(initial: Record<string, unknown> = {}): EveningRepo & { meta: 
   };
 }
 
-const ok = () => vi.fn(async (_text: string) => ({ ok: true }));
+const ok = () => vi.fn<(text: string) => Promise<{ ok: boolean; error?: string }>>(async () => ({ ok: true }));
 
 describe('runEvening', () => {
   it('sends only the not-yet-done routines, with a /done hint, and records lastSent', async () => {
@@ -58,7 +58,7 @@ describe('runEvening', () => {
 
   it('reports failed and does not record lastSent when the sender fails', async () => {
     const repo = fakeRepo();
-    const sender = vi.fn(async (_text: string) => ({ ok: false, error: 'boom' }));
+    const sender = vi.fn<(text: string) => Promise<{ ok: boolean; error?: string }>>(async () => ({ ok: false, error: 'boom' }));
     expect(await runEvening(repo, sender, TODAY, false)).toBe('failed');
     expect(repo.meta.has('telegram:evening:lastSent')).toBe(false);
   });

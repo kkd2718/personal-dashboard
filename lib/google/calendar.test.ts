@@ -193,6 +193,14 @@ describe('LocalRepo calendar upsert + deleteMeta', () => {
     expect(after.some((r) => r.id === e.id)).toBe(false);
   });
 
+  it('claimMeta is insert-if-absent', async () => {
+    const { LocalRepo } = await import('@/lib/repo/local');
+    const repo = new LocalRepo();
+    expect(await repo.claimMeta('c', 'first')).toBe(true);
+    expect(await repo.claimMeta('c', 'second')).toBe(false);
+    expect(await repo.getMeta('c')).toBe('first');
+  });
+
   it('deleteMeta removes the key', async () => {
     const { LocalRepo } = await import('@/lib/repo/local');
     const repo = new LocalRepo();

@@ -117,6 +117,8 @@ export interface Repo {
   /** Every key (and parsed value) starting with `prefix` — used by /settings to list
    * dynamic per-account keys like `integration:google:<account>` (slice 4). */
   listMetaByPrefix(prefix: string): Promise<Record<string, unknown>>;
+  /** Inserts `key` only if absent; true when this call created it (atomic claim, e.g. idempotency keys). */
+  claimMeta(key: string, value: unknown): Promise<boolean>;
   /** Removes `key` (no-op when absent). */
   deleteMeta(key: string): Promise<void>;
 

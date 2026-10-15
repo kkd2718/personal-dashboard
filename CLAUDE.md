@@ -135,6 +135,10 @@ project's DB password isn't always available/known. Run scripts with
   slice 2 Telegram `/cal <text>` inserts straight into Google Calendar via OAuth refresh token
   (`lib/google/calendar.ts`, `scripts/google-oauth.mjs`, `GOOGLE_OAUTH_*` — unset => memo; optimistic row
   via `Repo.upsertCalendarEvent` when `GOOGLE_OAUTH_ACCOUNT` = the Apps Script `ACCOUNT`). `Repo.deleteMeta` added.
+  Slice 3: free-text Telegram messages go through Jev (`lib/ai/jev.ts`, `AI_GATEWAY_API_KEY`; intent+target in one
+  call, accepted only at top prob >= 0.6 and margin >= 0.2, 200 calls/day via `lib/ai/jev-budget.ts`) and become
+  confirmable proposals with inline buttons (`lib/telegram/ax.ts`, `lib/logic/ax-*.ts`, pending in
+  `app_meta telegram:pending:<id>`, update_id dedupe). Nothing changes until 적용; any doubt/failure/no key => plain memo.
 
 ## Conventions
 - Opus plans (`docs/PLAN.md`), Sonnet implements. Don't redesign a plan's data model/signatures

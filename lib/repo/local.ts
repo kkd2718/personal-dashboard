@@ -533,6 +533,14 @@ export class LocalRepo implements Repo {
     });
   }
 
+  claimMeta(key: string, value: unknown): Promise<boolean> {
+    return this.withLock((db) => {
+      if (key in db.meta) return false;
+      db.meta[key] = value;
+      return true;
+    });
+  }
+
   deleteMeta(key: string): Promise<void> {
     return this.withLock((db) => {
       delete db.meta[key];

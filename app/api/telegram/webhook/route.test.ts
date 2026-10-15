@@ -45,6 +45,8 @@ beforeEach(() => {
   process.env.TELEGRAM_BOT_TOKEN = 'test-token';
   process.env.TELEGRAM_CHAT_ID = String(CHAT_ID);
   process.env.TELEGRAM_WEBHOOK_SECRET = SECRET;
+  delete process.env.AI_GATEWAY_API_KEY; // keep the suite offline: no Jev token => plain memo
+  delete process.env.VERCEL_OIDC_TOKEN;
 });
 
 afterEach(() => {

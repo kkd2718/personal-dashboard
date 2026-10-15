@@ -329,3 +329,10 @@ export function addMinutesKst(date: string, time: string, minutes: number): { da
   const rem = total - dayOffset * 1440;
   return { date: addDaysStr(date, dayOffset), time: `${pad(Math.floor(rem / 60))}:${pad(rem % 60)}` };
 }
+
+const REQUEST_TAIL_RE = /\s*(?:잡아|추가해|넣어|등록해|해)\s?(?:줘요?|주세요|줄래)[.!]?$/;
+
+/** Drops a trailing request verb ("치과 잡아줘" -> "치과") from an event title. */
+export function stripRequestVerbs(title: string): string {
+  return title.replace(REQUEST_TAIL_RE, '').trim();
+}

@@ -307,16 +307,27 @@ export function parseUpdate(update: unknown): TelegramMessage | null {
   return { chatId, text };
 }
 
-/** Telegram's `update_id` (monotonic per bot), or null. */
-export function parseUpdateId(update: unknown): number | null {
-  const id = update && typeof update === 'object' ? (update as Record<string, unknown>).update_id : undefined;
-  return typeof id === 'number' ? id : null;
-}
+export type TelegramUpdate =
+  | { kind: 'message'; updateId: number | null; chatId: number; text: string }
+  | { kind: 'callback'; updateId: number | null; chatId: number; callbackId: string; messageId: number; data: string };
 
-/** Ring buffer of recently handled update ids: Telegram retries slow webhooks, and a retry must be a no-op. */
-export function rememberUpdate(recent: number[], updateId: number, keep = 50): { seen: boolean; next: number[] } {
-  if (recent.includes(updateId)) return { seen: true, next: recent };
-  return { seen: false, next: [...recent, updateId].slice(-keep) };
+/** Parses a message or inline-button callback update (chat id of a callback is that of its message). */
+export function parseTelegramUpdate(update: unknown): TelegramUpdate | null {
+  if (!update || typeof update !== 'object') return null;
+  const u = update as Record<string, unknown>;
+  const updateId = typeof u.update_id === 'number' ? u.update_id : null;
+
+  const message = parseUpdate(update);
+  if (message) return { kind: 'message', updateId, ...message };
+
+  const cb = u.callback_query;
+  if (!cb || typeof cb !== 'object') return null;
+  const c = cb as Record<string, unknown>;
+  const msg = c.message && typeof c.message === 'object' ? (c.message as Record<string, unknown>) : null;
+  const chat = msg?.chat && typeof msg.chat === 'object' ? (msg.chat as Record<string, unknown>) : null;
+  if (typeof c.id !== 'string' || typeof c.data !== 'string') return null;
+  if (typeof chat?.id !== 'number' || typeof msg?.message_id !== 'number') return null;
+  return { kind: 'callback', updateId, chatId: chat.id, callbackId: c.id, messageId: msg.message_id, data: c.data };
 }
 
 export type CommandName = 'today' | 'deadlines' | 'done' | 'cal' | 'help' | 'start' | 'unknown';

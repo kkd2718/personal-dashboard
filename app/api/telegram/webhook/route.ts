@@ -1,17 +1,17 @@
 import { NextResponse } from 'next/server';
 import { constantTimeEqual } from '@/lib/auth/bearer';
-import { telegramConfig, sendMessage } from '@/lib/telegram/client';
+import { answerCallbackQuery, editMessageText, sendMessage, telegramConfig } from '@/lib/telegram/client';
+import { handleCallback, handleFreeText, type AxDeps } from '@/lib/telegram/ax';
+import { createJev, jevToken } from '@/lib/ai/jev';
+import { rememberUpdate } from '@/lib/logic/ax-proposal';
 import { WORK_SHIFTS_META_KEY, type WorkShiftsMeta } from '@/lib/logic/work';
 import {
   escapeHtml,
   formatCalReply,
-  formatCaptureReply,
   formatRoutineList,
   formatToday,
   formatUpcomingList,
-  parseUpdate,
-  parseUpdateId,
-  rememberUpdate,
+  parseTelegramUpdate,
   route,
 } from '@/lib/telegram/format';
 import {
@@ -37,7 +37,7 @@ import { checklist } from '@/lib/logic/checklist';
 import { upcoming } from '@/lib/logic/upcoming';
 import { nowKstTime, todayKST } from '@/lib/logic/dates';
 import { stripTokens } from '@/lib/logic/capture';
-import { parseKoDateTime, stripSpans } from '@/lib/logic/ko-datetime';
+import { parseKoDateTime, stripRequestVerbs, stripSpans } from '@/lib/logic/ko-datetime';
 import { eventsFromParsed, googleCalendarConfig } from '@/lib/google/calendar';
 import { createCalendarEvents } from '@/lib/google/calendar-write';
 import { revalidateAll } from '@/app/actions/revalidate';
@@ -70,14 +70,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true });
   }
 
-  const update = parseUpdate(json);
+  const update = parseTelegramUpdate(json);
   // Wrong chat: silence — never reveal the bot exists to anyone else.
   if (!update || String(update.chatId) !== config.chatId) {
     return NextResponse.json({ ok: true });
   }
 
   // Telegram re-sends an update when the webhook is slow; handle each update_id once.
-  const updateId = parseUpdateId(json);
+  const updateId = update.updateId;
   if (updateId !== null) {
     try {
       const repo = getRepo();
@@ -90,7 +90,9 @@ export async function POST(request: Request) {
   }
 
   try {
-    await handle(update.text);
+    const deps = axDeps(request);
+    if (update.kind === 'callback') await handleCallback(deps, update);
+    else await handle(update.text, deps);
     // Settings §5.8 연동 상태 rows read this back (PLAN_UX.md decision 3).
     await getRepo().setMeta('integration:telegram', { at: new Date().toISOString(), detail: '메시지 수신' });
   } catch {
@@ -99,14 +101,25 @@ export async function POST(request: Request) {
   return NextResponse.json({ ok: true });
 }
 
-async function handle(text: string): Promise<void> {
+function axDeps(request: Request): AxDeps {
+  return {
+    repo: getRepo(),
+    jev: createJev({ token: jevToken(process.env, request.headers) }),
+    send: sendMessage,
+    sendWithMarkup: (text, markup) => sendMessage(text, { replyMarkup: markup }),
+    edit: editMessageText,
+    answer: answerCallbackQuery,
+    createNote: (text) => createNoteFromText(text, null, 'telegram'),
+    calendarCfg: googleCalendarConfig(),
+    now: () => new Date(),
+    onApplied: revalidateAll,
+  };
+}
+
+async function handle(text: string, deps: AxDeps): Promise<void> {
   const parsed = route(text);
   if (parsed.kind === 'capture') {
-    const note = await createNoteFromText(parsed.text, null, 'telegram');
-    const projectName = note.projectId
-      ? (await getRepo().listProjects()).find((p) => p.id === note.projectId)?.name ?? null
-      : null;
-    await sendMessage(formatCaptureReply(note, projectName));
+    await handleFreeText(deps, parsed.text);
     return;
   }
 
@@ -144,7 +157,7 @@ async function handleCal(arg: string): Promise<string> {
   const parsed = parseKoDateTime(text, today);
   const events = eventsFromParsed(parsed, today, nowKstTime());
   if ('error' in events) return events.error;
-  const title = stripTokens(stripSpans(text, parsed.spans)).trim();
+  const title = stripRequestVerbs(stripTokens(stripSpans(text, parsed.spans)));
   if (!title) return '제목을 찾지 못했어요';
   const { created, error } = await createCalendarEvents(
     getRepo(),

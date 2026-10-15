@@ -521,6 +521,15 @@ export class SupabaseRepo implements Repo {
     if (error) throw new Error(`setMeta: ${error.message}`);
   }
 
+  async claimMeta(key: string, value: unknown): Promise<boolean> {
+    const { data, error } = await this.sb
+      .from('app_meta')
+      .upsert({ key, value, updated_at: now() }, { onConflict: 'key', ignoreDuplicates: true })
+      .select('key');
+    if (error) throw new Error(`claimMeta: ${error.message}`);
+    return (data ?? []).length > 0;
+  }
+
   async deleteMeta(key: string): Promise<void> {
     const { error } = await this.sb.from('app_meta').delete().eq('key', key);
     if (error) throw new Error(`deleteMeta: ${error.message}`);

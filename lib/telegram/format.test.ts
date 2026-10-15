@@ -345,21 +345,27 @@ describe('formatDigest — project checklist items', () => {
   });
 });
 
-import { parseUpdateId, rememberUpdate } from './format';
+import { parseTelegramUpdate } from './format';
 
-describe('rememberUpdate', () => {
-  it('flags a seen update id', () => {
-    expect(rememberUpdate([1, 2], 2)).toEqual({ seen: true, next: [1, 2] });
+describe('parseTelegramUpdate', () => {
+  it('message with update_id', () => {
+    expect(parseTelegramUpdate({ update_id: 7, message: { chat: { id: 5 }, text: 'hi' } })).toEqual({
+      kind: 'message',
+      updateId: 7,
+      chatId: 5,
+      text: 'hi',
+    });
   });
-  it('keeps the last 50', () => {
-    const ids = Array.from({ length: 50 }, (_, i) => i + 1);
-    const { seen, next } = rememberUpdate(ids, 99);
-    expect(seen).toBe(false);
-    expect(next).toHaveLength(50);
-    expect(next.at(-1)).toBe(99);
+  it('callback query', () => {
+    expect(
+      parseTelegramUpdate({
+        update_id: 8,
+        callback_query: { id: 'cb1', data: 'p:abc:ok', message: { message_id: 42, chat: { id: 5 } } },
+      })
+    ).toEqual({ kind: 'callback', updateId: 8, chatId: 5, callbackId: 'cb1', messageId: 42, data: 'p:abc:ok' });
   });
-  it('parseUpdateId', () => {
-    expect(parseUpdateId({ update_id: 7, message: {} })).toBe(7);
-    expect(parseUpdateId({})).toBeNull();
+  it('rejects other shapes', () => {
+    expect(parseTelegramUpdate({})).toBeNull();
+    expect(parseTelegramUpdate({ callback_query: { id: 'x' } })).toBeNull();
   });
 });
