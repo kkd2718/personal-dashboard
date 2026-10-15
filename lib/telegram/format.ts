@@ -5,7 +5,7 @@ import type { StatusItem } from '@/lib/status/types';
 import type { Checklist, ChecklistItem } from '@/lib/logic/checklist';
 import type { UpcomingItem } from '@/lib/logic/upcoming';
 import { dueReminders, reviewReminders } from '@/lib/logic/upcoming';
-import { ddayLabel } from '@/lib/logic/dates';
+import { ddayLabel, weekdayOf } from '@/lib/logic/dates';
 import { todayCalendarEvents } from '@/lib/logic/calendar';
 import { parseShift, type WorkShift } from '@/lib/logic/work';
 import type { DueChecklist, DueChecklistItem } from '@/lib/logic/project-detail';
@@ -307,11 +307,23 @@ export function parseUpdate(update: unknown): TelegramMessage | null {
   return { chatId, text };
 }
 
-export type CommandName = 'today' | 'deadlines' | 'done' | 'help' | 'start' | 'unknown';
+/** Telegram's `update_id` (monotonic per bot), or null. */
+export function parseUpdateId(update: unknown): number | null {
+  const id = update && typeof update === 'object' ? (update as Record<string, unknown>).update_id : undefined;
+  return typeof id === 'number' ? id : null;
+}
+
+/** Ring buffer of recently handled update ids: Telegram retries slow webhooks, and a retry must be a no-op. */
+export function rememberUpdate(recent: number[], updateId: number, keep = 50): { seen: boolean; next: number[] } {
+  if (recent.includes(updateId)) return { seen: true, next: recent };
+  return { seen: false, next: [...recent, updateId].slice(-keep) };
+}
+
+export type CommandName = 'today' | 'deadlines' | 'done' | 'cal' | 'help' | 'start' | 'unknown';
 
 export type Route = { kind: 'command'; name: CommandName; arg: string } | { kind: 'capture'; text: string };
 
-const COMMAND_NAMES: ReadonlySet<string> = new Set(['today', 'deadlines', 'done', 'help', 'start']);
+const COMMAND_NAMES: ReadonlySet<string> = new Set(['today', 'deadlines', 'done', 'cal', 'help', 'start']);
 
 /** Routes incoming text to a command or a plain capture. Commands may carry a
  * `@BotName` suffix (`/today@my_bot`); anything else is a memo to capture. */
@@ -324,4 +336,18 @@ export function route(text: string): Route {
     return { kind: 'command', name: (COMMAND_NAMES.has(name) ? name : 'unknown') as CommandName, arg };
   }
   return { kind: 'capture', text };
+}
+
+const WEEKDAY_SHORT = ['일', '월', '화', '수', '목', '금', '토'];
+
+/** `/cal` confirmation, one line per created event: `📅 10/16(금) 14:00–15:00 치과 — 캘린더에 추가`. */
+export function formatCalReply(events: Array<{ title: string; date: string; startTime: string | null; endTime: string | null }>): string {
+  return events
+    .map((e) => {
+      const [, m, d] = e.date.split('-').map(Number);
+      const when = `${m}/${d}(${WEEKDAY_SHORT[weekdayOf(e.date)]})`;
+      const time = e.startTime && e.endTime ? `${e.startTime}–${e.endTime}` : '종일';
+      return `📅 ${when} ${time} ${escapeHtml(e.title)} — 캘린더에 추가`;
+    })
+    .join('\n');
 }

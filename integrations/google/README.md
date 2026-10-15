@@ -1,6 +1,7 @@
 # Google 연동 (Apps Script)
 
-Command Center 앱에는 Google OAuth 클라이언트가 없습니다. 대신 **각 Google 계정 안에서
+Command Center 앱은 읽기에 Google OAuth 클라이언트를 쓰지 않습니다(텔레그램 `/cal` 쓰기만 별도
+OAuth, `docs/SETUP.md` §10). 대신 **각 Google 계정 안에서
 직접 실행되는 Apps Script**가 캘린더 일정과 리뷰어 메일 후보를 앱의 `POST /api/google/sync`
 로 보내는 방식입니다 (단방향, 계정당 1개 스크립트).
 

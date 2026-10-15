@@ -117,11 +117,15 @@ export interface Repo {
   /** Every key (and parsed value) starting with `prefix` — used by /settings to list
    * dynamic per-account keys like `integration:google:<account>` (slice 4). */
   listMetaByPrefix(prefix: string): Promise<Record<string, unknown>>;
+  /** Removes `key` (no-op when absent). */
+  deleteMeta(key: string): Promise<void>;
 
   // --- calendar events (phase 3: one-way Google Calendar mirror) ---
   listCalendarEvents(from: string, to: string): Promise<CalendarEvent[]>;
   /** Deletes `account`'s events overlapping [from, to] and inserts `events` — atomic. */
   replaceCalendarEvents(account: string, from: string, to: string, events: CalendarEvent[]): Promise<void>;
+  /** Inserts or replaces one event by id (optimistic row for a just-written Google event). */
+  upsertCalendarEvent(event: CalendarEvent): Promise<void>;
 
   // --- review candidates (phase 3: Gmail reviewer-mail detection) ---
   listReviewCandidates(status?: ReviewCandidate['status']): Promise<ReviewCandidate[]>;

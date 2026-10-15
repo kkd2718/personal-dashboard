@@ -8,18 +8,28 @@
 //
 // Usage:
 //   node cc-inbox.mjs hook            # SessionStart: reads {cwd, session_id} from stdin
+//   node cc-inbox.mjs prompt          # UserPromptSubmit: local cache only (no network); prints items not yet shown
+//   node cc-inbox.mjs refresh <sid> <cwd>  # internal: detached by `prompt`, refetches the inbox into the cache
 //   node cc-inbox.mjs stop            # Stop: reads {session_id, cwd, stop_hook_active} from stdin
 //   node cc-inbox.mjs list [path]     # manual: same lookup as hook, always prints (for debugging)
 //   node cc-inbox.mjs done <id>       # marks a task or note done
 import path from 'node:path';
 import os from 'node:os';
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
-import { readFile, writeFile, stat } from 'node:fs/promises';
+import { readFile, writeFile, stat, rename, unlink } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { loadEnvFile } from './lib/env.mjs';
 import { parseCcStatus } from './lib/cc-status.mjs';
-import { protocolBlock, shouldRemind, statusStateText } from './lib/cc-hook.mjs';
+import {
+  cacheIsStale,
+  inboxIds,
+  newInboxItems,
+  promptHookOutput,
+  protocolBlock,
+  shouldRemind,
+  statusStateText,
+} from './lib/cc-hook.mjs';
 
 // import.meta.dirname/filename need Node >=20.11 — this script must run on Node 18
 // (WSL), so derive both from import.meta.url instead.
@@ -28,6 +38,8 @@ const SCRIPT_PATH = path.resolve(process.argv[1] ?? THIS_FILE);
 const ROOT = path.resolve(path.dirname(THIS_FILE), '..');
 const HOOK_TIMEOUT_MS = 3000;
 const GIT_TIMEOUT_MS = 2000;
+const REFRESH_FETCH_MS = 5000;
+const REFRESH_LOCK_MS = 15000;
 
 const execFileAsync = promisify(execFile);
 
@@ -41,13 +53,13 @@ async function readStdin() {
   return Buffer.concat(chunks).toString('utf-8');
 }
 
-async function fetchInbox(cwd) {
+async function fetchInbox(cwd, timeoutMs = HOOK_TIMEOUT_MS) {
   const { CLOUD_URL, AGENT_TOKEN } = env();
   if (!CLOUD_URL || !AGENT_TOKEN) return null;
   const url = `${CLOUD_URL.replace(/\/$/, '')}/api/agent-inbox?path=${encodeURIComponent(cwd)}`;
   const res = await fetch(url, {
     headers: { authorization: `Bearer ${AGENT_TOKEN}` },
-    signal: AbortSignal.timeout(HOOK_TIMEOUT_MS),
+    signal: AbortSignal.timeout(timeoutMs),
   });
   if (!res.ok) return null;
   return res.json();
@@ -59,8 +71,8 @@ function formatDue(dueDate) {
   return ` (마감 ${m}-${d})`;
 }
 
-function renderBlock(data) {
-  const lines = ['## Command Center — 이 프로젝트에 전달된 항목'];
+function renderBlock(data, title = '## Command Center — 이 프로젝트에 전달된 항목') {
+  const lines = [title];
   if (data.tasks.length > 0) {
     lines.push('에이전트 할 일:');
     for (const t of data.tasks) {
@@ -141,6 +153,33 @@ async function writeMarker(sessionId, marker) {
   }
 }
 
+function cachePath(sessionId) {
+  return path.join(os.tmpdir(), `cc-inbox-cache-${sessionId}.json`);
+}
+
+function lockPath(sessionId) {
+  return path.join(os.tmpdir(), `cc-inbox-refresh-${sessionId}.lock`);
+}
+
+async function readCache(sessionId) {
+  try {
+    return JSON.parse(await readFile(cachePath(sessionId), 'utf-8'));
+  } catch {
+    return null;
+  }
+}
+
+/** Atomic (temp + rename) so a prompt never reads a half-written cache. */
+async function writeCache(sessionId, cwd, data) {
+  const tmp = `${cachePath(sessionId)}.${process.pid}.tmp`;
+  try {
+    await writeFile(tmp, JSON.stringify({ fetchedAt: new Date().toISOString(), cwd, data }), 'utf-8');
+    await rename(tmp, cachePath(sessionId));
+  } catch {
+    // best-effort — the next refresh retries
+  }
+}
+
 /** Whether `git -C root log` has any commit since `sinceIso`. */
 async function hasCommitsSince(root, sinceIso) {
   try {
@@ -186,6 +225,10 @@ async function runHookOrList({ verbose }) {
 
   if (!data || !data.project) {
     if (verbose) console.log(`No agent inbox items for ${cwd}.`);
+    // Unmanaged dir (successful fetch): remember it so the prompt hook skips it and Stop stays silent.
+    if (data && sessionId) {
+      await writeMarker(sessionId, { startedAt: new Date().toISOString(), projectId: null, reminded: true, shownIds: [] });
+    }
     return;
   }
 
@@ -202,7 +245,80 @@ async function runHookOrList({ verbose }) {
       root,
       projectId: data.project.id,
       reminded: false,
+      shownIds: inboxIds(data),
     });
+    await writeCache(sessionId, cwd, data); // baseline so the first prompt injects only newer items
+  }
+}
+
+/** UserPromptSubmit: file I/O only — injects inbox items from the local cache that
+ * SessionStart/`refresh` wrote and weren't shown yet, then (when the cache is stale)
+ * spawns a detached `refresh`. An item therefore arrives one prompt after the refresh
+ * that saw it. Never prints on error; the server is never awaited here. */
+async function runPrompt() {
+  try {
+    const { session_id: sessionId, cwd = process.cwd() } = JSON.parse(await readStdin());
+    if (!sessionId) return;
+    const marker = await readMarker(sessionId);
+    if (marker && marker.projectId === null) return;
+
+    const cache = await readCache(sessionId);
+    if (cache?.data?.project) {
+      const base = marker ?? {
+        startedAt: new Date().toISOString(),
+        root: cwd,
+        projectId: cache.data.project.id,
+        reminded: false,
+        shownIds: [],
+      };
+      const shownIds = base.shownIds ?? [];
+      const fresh = newInboxItems(cache.data, shownIds);
+      if (fresh.tasks.length > 0 || fresh.memos.length > 0) {
+        console.log(promptHookOutput(renderBlock(fresh, '## Command Center — 새로 전달된 항목')));
+        await writeMarker(sessionId, { ...base, shownIds: [...shownIds, ...inboxIds(fresh)] });
+      } else if (!marker) {
+        await writeMarker(sessionId, base);
+      }
+    }
+
+    if (cacheIsStale(cache?.fetchedAt, Date.now())) await spawnRefresh(sessionId, cwd);
+  } catch {
+    // never block or slow a prompt
+  }
+}
+
+async function spawnRefresh(sessionId, cwd) {
+  try {
+    const lock = lockPath(sessionId);
+    const st = await stat(lock).catch(() => null);
+    if (st && Date.now() - st.mtimeMs < REFRESH_LOCK_MS) return;
+    await writeFile(lock, String(Date.now()), 'utf-8');
+    spawn(process.execPath, [SCRIPT_PATH, 'refresh', sessionId, cwd], {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+    }).unref();
+  } catch {
+    // best-effort
+  }
+}
+
+/** Internal: runs detached from `prompt`; always silent, always removes its lock. */
+async function runRefresh(sessionId, cwd) {
+  if (!sessionId || !cwd) return;
+  try {
+    const data = await fetchInbox(cwd, REFRESH_FETCH_MS);
+    if (!data) return;
+    if (data.project) {
+      await writeCache(sessionId, cwd, data);
+    } else if (!(await readMarker(sessionId))) {
+      await writeMarker(sessionId, { startedAt: new Date().toISOString(), projectId: null, reminded: true, shownIds: [] });
+    }
+  } catch {
+    // network error / timeout — the next prompt retries
+  } finally {
+    await unlink(lockPath(sessionId)).catch(() => {});
+    process.exit(0);
   }
 }
 
@@ -219,7 +335,7 @@ async function runStop() {
     if (!sessionId) return;
 
     const marker = await readMarker(sessionId);
-    if (!marker || marker.reminded) return;
+    if (!marker || !marker.projectId || marker.reminded) return;
 
     const root = marker.root || cwd || process.cwd();
     const hasCommits = await hasCommitsSince(root, marker.startedAt);
@@ -268,6 +384,10 @@ async function runDone(id) {
 const [, , cmd, arg] = process.argv;
 if (cmd === 'hook') {
   await runHookOrList({ verbose: false });
+} else if (cmd === 'prompt') {
+  await runPrompt();
+} else if (cmd === 'refresh') {
+  await runRefresh(arg, process.argv[4]);
 } else if (cmd === 'stop') {
   await runStop();
 } else if (cmd === 'list') {
@@ -275,6 +395,6 @@ if (cmd === 'hook') {
 } else if (cmd === 'done') {
   await runDone(arg);
 } else {
-  console.error('Usage: node cc-inbox.mjs hook|stop|list [path]|done <id>');
+  console.error('Usage: node cc-inbox.mjs hook|prompt|refresh|stop|list [path]|done <id>');
   process.exit(1);
 }

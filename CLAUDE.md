@@ -130,6 +130,11 @@ project's DB password isn't always available/known. Run scripts with
   Count routines (`kind: 'count'`, 2026-10-13): per-day tally in `routine:count:<date>`, done when > 0 (kept
   in sync with `routine:done:<date>`); home ± stepper, `/done 알렌 5` (add) / `=12` (set), and
   `POST /api/routine/count` (`AGENT_TOKEN`) via `scripts/routine-count.mjs <id> +N` for other sessions.
+- **AX (`docs/PLAN_AX.md`, in progress)**: slice 0 `lib/logic/ko-datetime.ts` (Korean date/time parser),
+  slice 1 UserPromptSubmit hook (`cc-inbox.mjs prompt`, injects inbox items that arrived mid-session),
+  slice 2 Telegram `/cal <text>` inserts straight into Google Calendar via OAuth refresh token
+  (`lib/google/calendar.ts`, `scripts/google-oauth.mjs`, `GOOGLE_OAUTH_*` — unset => memo; optimistic row
+  via `Repo.upsertCalendarEvent` when `GOOGLE_OAUTH_ACCOUNT` = the Apps Script `ACCOUNT`). `Repo.deleteMeta` added.
 
 ## Conventions
 - Opus plans (`docs/PLAN.md`), Sonnet implements. Don't redesign a plan's data model/signatures

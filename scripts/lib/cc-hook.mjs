@@ -46,3 +46,34 @@ export function shouldRemind({ marker, hasCommits, statusMtimeMs }) {
   if (!Number.isFinite(startedAtMs)) return false;
   return statusMtimeMs == null || statusMtimeMs < startedAtMs;
 }
+
+/** Tasks/memos in `data` whose id is not in `shownIds`. */
+export function newInboxItems(data, shownIds) {
+  const shown = new Set(shownIds ?? []);
+  return {
+    tasks: (data.tasks ?? []).filter((t) => !shown.has(t.id)),
+    memos: (data.memos ?? []).filter((n) => !shown.has(n.id)),
+  };
+}
+
+/** All ids of tasks then memos (what SessionStart printed). */
+export function inboxIds(data) {
+  return [...(data.tasks ?? []).map((t) => t.id), ...(data.memos ?? []).map((n) => n.id)];
+}
+
+/** Stdout JSON for a UserPromptSubmit hook. */
+export function promptHookOutput(text) {
+  return JSON.stringify({ hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: text } });
+}
+
+/** True when `lastCheckIso` is within `ms` of `nowMs` (prompt-hook throttle). */
+export function recentlyChecked(lastCheckIso, nowMs, ms = 30000) {
+  if (!lastCheckIso) return false;
+  const last = Date.parse(lastCheckIso);
+  return Number.isFinite(last) && nowMs - last < ms;
+}
+
+/** True when the cache is absent or older than `ms` (prompt hook refresh trigger). */
+export function cacheIsStale(fetchedAtIso, nowMs, ms = 30000) {
+  return !recentlyChecked(fetchedAtIso, nowMs, ms);
+}

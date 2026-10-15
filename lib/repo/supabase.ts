@@ -521,6 +521,11 @@ export class SupabaseRepo implements Repo {
     if (error) throw new Error(`setMeta: ${error.message}`);
   }
 
+  async deleteMeta(key: string): Promise<void> {
+    const { error } = await this.sb.from('app_meta').delete().eq('key', key);
+    if (error) throw new Error(`deleteMeta: ${error.message}`);
+  }
+
   async listMetaByPrefix(prefix: string): Promise<Record<string, unknown>> {
     const { data, error } = await this.sb.from('app_meta').select('key, value').like('key', `${prefix}%`);
     if (error) throw new Error(`listMetaByPrefix: ${error.message}`);
@@ -550,6 +555,11 @@ export class SupabaseRepo implements Repo {
       p_now: now(),
     });
     if (error) throw new Error(`replaceCalendarEvents: ${error.message}`);
+  }
+
+  async upsertCalendarEvent(event: CalendarEvent): Promise<void> {
+    const { error } = await this.sb.from('calendar_events').upsert(calendarEventToRow(event), { onConflict: 'id' });
+    if (error) throw new Error(`upsertCalendarEvent: ${error.message}`);
   }
 
   // --- review candidates (phase 3) ---

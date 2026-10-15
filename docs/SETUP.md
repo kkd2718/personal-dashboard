@@ -176,3 +176,49 @@ WSL `~/.claude/settings.json` (같은 파일을 WSL 쪽 경로로):
 전달할 항목이 없거나 `CLOUD_URL`/`AGENT_TOKEN` 미설정·타임아웃(3초)이면 아무것도 출력하지
 않습니다 — 세션 시작을 막거나 늦추지 않습니다. 완료 처리는 훅이 출력해 준 명령을 그대로
 실행: `node "<스크립트 경로>" done <id>`.
+
+### 프롬프트 훅 (UserPromptSubmit)
+
+세션 도중에 대시보드에서 보낸 메모/에이전트 할 일을 다음 프롬프트에 바로 전달합니다
+(`cc-inbox.mjs prompt`). SessionStart에서 이미 보여준 항목은 다시 출력하지 않고, 30초 이내
+재확인은 건너뛰며, 실패하면 아무것도 출력하지 않습니다 (최대 1.5초). 환경(Windows/WSL)마다
+`os.tmpdir()`가 달라 각자 마커 파일을 따로 가집니다. `hooks.SessionStart`와 같은 파일에 추가:
+
+```json
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"C:\\Users\\<user>\\Desktop\\Work\\personal-dashboard\\scripts\\cc-inbox.mjs\" prompt",
+            "timeout": 3
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+WSL은 `"command": "node /mnt/c/Users/<user>/Desktop/Work/personal-dashboard/scripts/cc-inbox.mjs prompt"`.
+
+## 10. 구글 캘린더 즉시 쓰기 (`/cal`)
+
+텔레그램 `/cal 내일 오후 3시 치과` 처럼 보내면 구글 캘린더에 바로 일정이 생깁니다
+(10분 전 팝업 알림). 환경 변수가 없으면 `/cal` 은 메모로 저장됩니다.
+
+1. Google Cloud Console에서 새 프로젝트를 만들고 **Google Calendar API**를 사용 설정합니다.
+2. OAuth 동의 화면: 사용자 유형 **외부**, 본인 계정을 테스트 사용자로 추가한 뒤
+   **앱 게시 → 프로덕션**으로 바꿉니다 (테스트 모드의 리프레시 토큰은 7일 뒤 만료됩니다.
+   개인용 앱이라 "확인되지 않은 앱" 경고는 정상).
+3. 사용자 인증 정보 → OAuth 클라이언트 ID → 유형 **데스크톱 앱**. ID/시크릿을 `.env.local`의
+   `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET`에 넣습니다.
+4. `node --env-file=.env.local scripts/google-oauth.mjs` 실행 → 브라우저에서 동의하면 리프레시
+   토큰이 출력됩니다. 파일에는 아무것도 쓰지 않으니 **Vercel 환경 변수**
+   `GOOGLE_OAUTH_REFRESH_TOKEN`에만 붙여 넣습니다.
+5. `GOOGLE_OAUTH_ACCOUNT` = 그 구글 계정의 Apps Script `ACCOUNT` 값과 정확히 같게 설정합니다
+   (다음 시간별 동기화가 임시 행을 지우고 실제 일정으로 교체하기 위한 키). 비워 두면 구글에만
+   추가되고 대시보드에는 다음 동기화 때 나타납니다. 기본 캘린더가 아니면 `GOOGLE_CALENDAR_ID`.
+6. 인증이 만료되면 `/cal` 이 "구글 인증 만료"라고 알려 줍니다 — 4번을 다시 실행하세요.

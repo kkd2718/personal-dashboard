@@ -4,11 +4,14 @@ import { telegramConfig, sendMessage } from '@/lib/telegram/client';
 import { WORK_SHIFTS_META_KEY, type WorkShiftsMeta } from '@/lib/logic/work';
 import {
   escapeHtml,
+  formatCalReply,
   formatCaptureReply,
   formatRoutineList,
   formatToday,
   formatUpcomingList,
   parseUpdate,
+  parseUpdateId,
+  rememberUpdate,
   route,
 } from '@/lib/telegram/format';
 import {
@@ -32,12 +35,20 @@ import { createNoteFromText } from '@/lib/create-note';
 import { getRepo } from '@/lib/repo';
 import { checklist } from '@/lib/logic/checklist';
 import { upcoming } from '@/lib/logic/upcoming';
-import { todayKST } from '@/lib/logic/dates';
+import { nowKstTime, todayKST } from '@/lib/logic/dates';
+import { stripTokens } from '@/lib/logic/capture';
+import { parseKoDateTime, stripSpans } from '@/lib/logic/ko-datetime';
+import { eventsFromParsed, googleCalendarConfig } from '@/lib/google/calendar';
+import { createCalendarEvents } from '@/lib/google/calendar-write';
+import { revalidateAll } from '@/app/actions/revalidate';
 import { CALENDAR_VISIBLE_META_KEY, filterVisibleEvents } from '@/lib/logic/calendar';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 30;
 
-const HELP_TEXT = '메모는 그냥 보내면 저장돼요. @프로젝트 #태그 지원 · /today · /deadlines · /done 1 (루틴 완료, /done 알렌 5 = 개수)';
+const RECENT_UPDATES_KEY = 'telegram:updates:recent';
+
+const HELP_TEXT = '메모는 그냥 보내면 저장돼요. @프로젝트 #태그 지원 · /today · /deadlines · /done 1 (루틴 완료, /done 알렌 5 = 개수) · /cal 내일 오후 3시 치과 (캘린더에 바로 추가)';
 
 /** Telegram Bot API webhook (phase 2b). Always 200s (Telegram retries non-2xx) —
  * failures are reported to the chat, not via the HTTP status. */
@@ -63,6 +74,19 @@ export async function POST(request: Request) {
   // Wrong chat: silence — never reveal the bot exists to anyone else.
   if (!update || String(update.chatId) !== config.chatId) {
     return NextResponse.json({ ok: true });
+  }
+
+  // Telegram re-sends an update when the webhook is slow; handle each update_id once.
+  const updateId = parseUpdateId(json);
+  if (updateId !== null) {
+    try {
+      const repo = getRepo();
+      const { seen, next } = rememberUpdate((await repo.getMeta<number[]>(RECENT_UPDATES_KEY)) ?? [], updateId);
+      if (seen) return NextResponse.json({ ok: true });
+      await repo.setMeta(RECENT_UPDATES_KEY, next);
+    } catch {
+      // dedupe is best-effort — never drop a message because the ring failed
+    }
   }
 
   try {
@@ -96,11 +120,41 @@ async function handle(text: string): Promise<void> {
     case 'done':
       await sendMessage(await handleDone(parsed.arg));
       return;
+    case 'cal':
+      await sendMessage(await handleCal(parsed.arg));
+      return;
     case 'help':
     case 'start':
     case 'unknown':
       await sendMessage(HELP_TEXT);
   }
+}
+
+/** `/cal <text>`: parses a Korean date/time phrase and inserts the event into Google
+ * Calendar immediately. Without OAuth config the text is saved as a memo instead. */
+async function handleCal(arg: string): Promise<string> {
+  const text = arg.trim();
+  if (!text) return '사용법: /cal 내일 오후 3시 치과';
+  const cfg = googleCalendarConfig();
+  if (!cfg) {
+    await createNoteFromText(text, null, 'telegram');
+    return '캘린더 연동 미설정 — 메모로 저장했어요';
+  }
+  const today = todayKST();
+  const parsed = parseKoDateTime(text, today);
+  const events = eventsFromParsed(parsed, today, nowKstTime());
+  if ('error' in events) return events.error;
+  const title = stripTokens(stripSpans(text, parsed.spans)).trim();
+  if (!title) return '제목을 찾지 못했어요';
+  const { created, error } = await createCalendarEvents(
+    getRepo(),
+    cfg,
+    events.map((e) => ({ ...e, title }))
+  );
+  if (created.length > 0) revalidateAll();
+  return [created.length > 0 ? formatCalReply(created) : null, error ? escapeHtml(error) : null]
+    .filter(Boolean)
+    .join('\n');
 }
 
 /** `/done <n|이름> [개수]`: marks today's matching routine done (count routines: adds

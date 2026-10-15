@@ -21,6 +21,11 @@ export function addDaysStr(dateStr: string, n: number): string {
   return fromUtcDate(d);
 }
 
+/** Day of week of a 'YYYY-MM-DD' string: 0=Sun..6=Sat. */
+export function weekdayOf(dateStr: string): number {
+  return toUtcDate(dateStr).getUTCDay();
+}
+
 /** Monday of the ISO week (Mon-Sun) containing dateStr. */
 export function startOfIsoWeek(dateStr: string): string {
   const d = toUtcDate(dateStr);
@@ -148,4 +153,9 @@ export function kstDateTime(iso: string): { date: string; time: string } {
     hourCycle: 'h23',
   }).format(d);
   return { date, time };
+}
+
+/** Current clock time in Asia/Seoul as 'HH:mm'. */
+export function nowKstTime(now: Date = new Date()): string {
+  return kstDateTime(now.toISOString()).time;
 }

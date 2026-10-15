@@ -533,6 +533,12 @@ export class LocalRepo implements Repo {
     });
   }
 
+  deleteMeta(key: string): Promise<void> {
+    return this.withLock((db) => {
+      delete db.meta[key];
+    });
+  }
+
   listMetaByPrefix(prefix: string): Promise<Record<string, unknown>> {
     return this.withLock((db) => {
       const out: Record<string, unknown> = {};
@@ -555,6 +561,14 @@ export class LocalRepo implements Repo {
         (e) => !(e.account === account && e.startDate <= to && e.endDate >= from)
       );
       db.calendarEvents.push(...events);
+    });
+  }
+
+  upsertCalendarEvent(event: CalendarEvent): Promise<void> {
+    return this.withLock((db) => {
+      const i = db.calendarEvents.findIndex((e) => e.id === event.id);
+      if (i >= 0) db.calendarEvents[i] = event;
+      else db.calendarEvents.push(event);
     });
   }
 

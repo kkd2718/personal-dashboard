@@ -81,7 +81,7 @@ async function main() {
   await call('setWebhook', {
     url: webhookUrl,
     secret_token: secret,
-    allowed_updates: ['message'],
+    allowed_updates: ['message', 'callback_query'],
     drop_pending_updates: true,
   });
   console.log(`Webhook set: ${webhookUrl}`);
@@ -91,6 +91,7 @@ async function main() {
       { command: 'today', description: '오늘 할 일·마감 요약' },
       { command: 'deadlines', description: '14일 내 마감' },
       { command: 'done', description: '루틴 완료 (/done 1)' },
+      { command: 'cal', description: '캘린더에 일정 추가 (/cal 내일 3시 치과)' },
       { command: 'help', description: '사용법' },
     ],
   });

@@ -3,9 +3,10 @@
  *
  * One copy of this script per Google account (each tagged with its own ACCOUNT
  * label in Script Properties). Pushes calendar events + candidate reviewer mail
- * to POST /api/google/sync. No OAuth client lives in the app — this script runs
+ * to POST /api/google/sync. Reading needs no OAuth client — this script runs
  * entirely inside the user's own Google account using CalendarApp/GmailApp, and
- * only ever sends data outward over HTTPS with a bearer token.
+ * only ever sends data outward over HTTPS with a bearer token. (Only Telegram's
+ * /cal writes to Google Calendar, via a separate OAuth client — docs/SETUP.md §10.)
  *
  * Never logs CC_TOKEN or any mail/event body — only the HTTP response status.
  *

@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { protocolBlock, shouldRemind, statusStateText } from './cc-hook.mjs';
+import {
+  cacheIsStale,
+  inboxIds,
+  newInboxItems,
+  promptHookOutput,
+  protocolBlock,
+  recentlyChecked,
+  shouldRemind,
+  statusStateText,
+} from './cc-hook.mjs';
 
 describe('statusStateText', () => {
   const now = new Date('2026-09-27T12:00:00.000Z').getTime();
@@ -54,5 +63,41 @@ describe('shouldRemind', () => {
   it('false when status file was updated after session start', () => {
     const newer = Date.parse('2026-09-27T10:00:00.000Z');
     expect(shouldRemind({ marker, hasCommits: true, statusMtimeMs: newer })).toBe(false);
+  });
+});
+
+describe('prompt hook helpers', () => {
+  const data = { tasks: [{ id: 't1' }, { id: 't2' }], memos: [{ id: 'n1' }] };
+
+  it('newInboxItems drops already shown ids', () => {
+    expect(newInboxItems(data, ['t1', 'n1'])).toEqual({ tasks: [{ id: 't2' }], memos: [] });
+    expect(newInboxItems(data, [])).toEqual(data);
+  });
+
+  it('inboxIds lists tasks then memos', () => {
+    expect(inboxIds(data)).toEqual(['t1', 't2', 'n1']);
+  });
+
+  it('promptHookOutput shape', () => {
+    expect(JSON.parse(promptHookOutput('a')).hookSpecificOutput).toEqual({
+      hookEventName: 'UserPromptSubmit',
+      additionalContext: 'a',
+    });
+  });
+
+  it('recentlyChecked throttles', () => {
+    const iso = new Date(0).toISOString();
+    expect(recentlyChecked(iso, 10000)).toBe(true);
+    expect(recentlyChecked(iso, 40000)).toBe(false);
+    expect(recentlyChecked(undefined, 10000)).toBe(false);
+  });
+});
+
+describe('cacheIsStale', () => {
+  it('absent or old is stale, recent is fresh', () => {
+    const iso = new Date(0).toISOString();
+    expect(cacheIsStale(undefined, 10000)).toBe(true);
+    expect(cacheIsStale(iso, 10000)).toBe(false);
+    expect(cacheIsStale(iso, 40000)).toBe(true);
   });
 });

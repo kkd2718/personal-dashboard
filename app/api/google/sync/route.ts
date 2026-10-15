@@ -70,7 +70,7 @@ const bodySchema = z.object({
 });
 
 /** For the Google Apps Script installed per account (integrations/google/Code.gs).
- * Bearer-token auth (GOOGLE_SYNC_TOKEN). No OAuth client lives in this app. */
+ * Bearer-token auth (GOOGLE_SYNC_TOKEN). Reading needs no OAuth client (the optional /cal write path does, see lib/google/calendar.ts). */
 export async function POST(request: Request) {
   const auth = checkBearer(request, process.env.GOOGLE_SYNC_TOKEN);
   if (auth === 'missing-config') {

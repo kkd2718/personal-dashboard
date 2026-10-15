@@ -344,3 +344,22 @@ describe('formatDigest — project checklist items', () => {
     expect(result).toContain('<i>Amgi</i>\n  • 콘솔 확인 (~9/28) (막힘)');
   });
 });
+
+import { parseUpdateId, rememberUpdate } from './format';
+
+describe('rememberUpdate', () => {
+  it('flags a seen update id', () => {
+    expect(rememberUpdate([1, 2], 2)).toEqual({ seen: true, next: [1, 2] });
+  });
+  it('keeps the last 50', () => {
+    const ids = Array.from({ length: 50 }, (_, i) => i + 1);
+    const { seen, next } = rememberUpdate(ids, 99);
+    expect(seen).toBe(false);
+    expect(next).toHaveLength(50);
+    expect(next.at(-1)).toBe(99);
+  });
+  it('parseUpdateId', () => {
+    expect(parseUpdateId({ update_id: 7, message: {} })).toBe(7);
+    expect(parseUpdateId({})).toBeNull();
+  });
+});
