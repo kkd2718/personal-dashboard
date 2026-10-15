@@ -1,6 +1,7 @@
 // Daily digest orchestration (phase 2b), extracted from app/api/cron/daily so it
 // can be unit-tested with a fake repo + fake sender (no Next.js route needed).
 import type { CalendarEvent, Deadline, Project, ProjectDetail, ReviewJob, Task, TradingSummary } from '@/lib/types';
+import { staleGoogleAccounts } from '@/lib/logic/integrations';
 import {
   meChecklistDue,
   projectDetailMetaKey,
@@ -31,6 +32,7 @@ export interface DigestRepo {
   listCalendarEvents(from: string, to: string): Promise<CalendarEvent[]>;
   getMeta<T>(key: string): Promise<T | null>;
   setMeta(key: string, value: unknown): Promise<void>;
+  listMetaByPrefix?(prefix: string): Promise<Record<string, unknown>>;
 }
 
 export type Sender = (text: string) => Promise<SendResult>;
@@ -83,7 +85,9 @@ export async function runDigest(
   ]);
   const me = checklist(tasks, deadlines, reviews, today).me;
   const routines = routineStatus(routineItems, routineDone, today, await loadRoutineCounts(repo, today));
+  const googleMeta = repo.listMetaByPrefix ? await repo.listMetaByPrefix('integration:google:') : {};
   const message = formatDigest({
+    staleSyncs: staleGoogleAccounts(googleMeta, new Date().toISOString()),
     routines,
     projectDue,
     today,

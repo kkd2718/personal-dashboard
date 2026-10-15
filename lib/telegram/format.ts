@@ -224,6 +224,7 @@ export interface DigestInput {
   workShift?: WorkShift | null; // today's own shift, if synced
   projectDue?: DueChecklist; // my dated items from each project's docs/cc-status.json
   routines?: RoutineStatus[]; // active routines today; count as content
+  staleSyncs?: string[]; // Google accounts whose sync stopped, e.g. 'main (10일 전)'
 }
 
 function headerDate(dateStr: string): string {
@@ -245,8 +246,10 @@ export function formatDigest(input: DigestInput): string | null {
   const hasTomorrow = pd.tomorrow.length > 0;
   const todayEvents = todayCalendarEvents(input.todayEvents ?? []);
   const routines = input.routines ?? [];
+  const staleSyncs = input.staleSyncs ?? [];
 
   if (
+    staleSyncs.length === 0 &&
     routines.length === 0 &&
     reminders.length === 0 &&
     !hasOverdue &&
@@ -270,6 +273,11 @@ export function formatDigest(input: DigestInput): string | null {
   if (hasOverdue)
     sections.push([header('🔴 지연'), ...input.checklist.overdue.map(taskLine), ...projectLines(pd.overdue, input.today)]);
   if (statusItems.length > 0) sections.push([header('⚠️ 상태'), ...statusItems.map(statusLine)]);
+  if (staleSyncs.length > 0)
+    sections.push([
+      header('🔌 구글 동기화 멈춤'),
+      ...staleSyncs.map((s) => `• ${escapeHtml(s)} — Apps Script 에서 setup 다시 실행`),
+    ]);
 
   const lines = joinSections(sections);
   if (input.cloudUrl) lines.push('', `대시보드: ${input.cloudUrl}`);

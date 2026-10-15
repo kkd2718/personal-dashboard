@@ -55,3 +55,18 @@ export function googleAccountsFromMeta(prefixed: Record<string, unknown>): Recor
   }
   return out;
 }
+
+/** Google accounts whose Apps Script hasn't synced for `hours` (it runs in Google's cloud
+ * hourly, so a gap means a missing trigger or expired authorization — 2026-10: unnoticed
+ * for 10 days). Returns e.g. `['main (10일 전)']`, oldest first. */
+export function staleGoogleAccounts(
+  prefixed: Record<string, unknown>,
+  nowIso: string,
+  hours = 6
+): string[] {
+  const now = new Date(nowIso).getTime();
+  return Object.entries(googleAccountsFromMeta(prefixed))
+    .filter(([, m]) => m?.at && now - new Date(m.at).getTime() > hours * 3_600_000)
+    .sort(([, a], [, b]) => a.at.localeCompare(b.at))
+    .map(([account, m]) => `${account} (${relTime(m.at, nowIso)})`);
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { googleAccountsFromMeta, integrationRowInfo } from './integrations';
+import { googleAccountsFromMeta, integrationRowInfo, staleGoogleAccounts } from './integrations';
 
 const NOW = '2026-09-26T12:00:00.000Z';
 
@@ -41,5 +41,21 @@ describe('googleAccountsFromMeta', () => {
       main: { at: NOW, detail: '캘린더 3개' },
       amc: { at: NOW },
     });
+  });
+});
+
+describe('staleGoogleAccounts', () => {
+  const now = '2026-10-15T08:00:00.000Z';
+  it('lists accounts silent for more than 6h, oldest first', () => {
+    const meta = {
+      'integration:google:amc': { at: '2026-10-15T07:40:00.000Z' },
+      'integration:google:main': { at: '2026-10-05T05:34:00.000Z' },
+      'integration:google:old': { at: '2026-10-15T01:00:00.000Z' },
+    };
+    const out = staleGoogleAccounts(meta, now);
+    expect(out.map((s) => s.split(' ')[0])).toEqual(['main', 'old']);
+  });
+  it('empty when all fresh', () => {
+    expect(staleGoogleAccounts({ 'integration:google:main': { at: '2026-10-15T07:00:00.000Z' } }, now)).toEqual([]);
   });
 });
