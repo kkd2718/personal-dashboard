@@ -1,12 +1,10 @@
 {
-  "updatedAt": "2026-10-18T20:17:06+09:00",
+  "updatedAt": "2026-10-18T20:22:45+09:00",
   "focus": "메일 요약·VM 매크로/매매 점검 브리핑 배포 후 첫 실수신 확인",
   "next": [
+    "trading 세션: VM 수동 전송 1회 + 크론 확인(사용자 전달)",
     "VM brief_push 첫 실전송(평일 15:45·06:30) 수신 확인 → 아침 브리핑 📈·🩺 점검",
-    "trading 세션: allow_redirects=False 반영(사용자 전달)",
-    "다이제스트 sent 마크를 본문 전송 직후 기록(ax-impl 진행 중)",
     "/send·/remind 예약",
-    "kiduk.amc Apps Script 새 Code.gs + setupTriage(사용자)",
     "논문 알림(PubMed)은 나중에"
   ],
   "blockers": [],
@@ -241,8 +239,8 @@
       "owner": "me"
     },
     {
-      "text": "두 Apps Script(main 완료·amc 남음)에 새 Code.gs 붙여넣고 sync·setupTriage 실행",
-      "status": "doing",
+      "text": "두 Apps Script(main·amc)에 새 Code.gs + sync·setupTriage — 둘 다 완료(amc triage 10/17 확인)",
+      "status": "done",
       "section": "운영",
       "owner": "me"
     },
