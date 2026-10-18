@@ -1,13 +1,18 @@
 {
-  "updatedAt": "2026-10-15T18:28:01+09:00",
-  "focus": "AX 자동화(텔레그램 자연어·캘린더·답장 대기·주간 정리·메일 알림) 배포 후 안착",
+  "updatedAt": "2026-10-18T18:56:02+09:00",
+  "focus": "AX 안착 + 맥스 플랜 API 크레딧(Haiku) 연동 검토",
   "next": [
-    "두 Apps Script에 새 Code.gs 붙여넣기 + setupTriage 실행(사용자)",
-    "텔레그램 자연어 판단 정확도 실사용 피드백 반영",
-    "Amgi 수집 누락 재발 여부 관찰"
+    "맥스 플랜 API 크레딧 연결·API 키 등록(사용자) → Haiku로 새 할 일 제목 정리",
+    "텔레그램 /ask 챗봇(대시보드 데이터 기반, 변경은 [적용] 제안)",
+    "/send @프로젝트 전달·/remind 시각 알림(5분 단위)",
+    "kiduk.amc Apps Script 새 Code.gs + setupTriage(사용자)"
   ],
   "blockers": [],
   "done": [
+    {
+      "date": "2026-10-18",
+      "text": "텔레그램 새 할 일(task_create) 제안 추가 — 할 일:/todo: 접두사, 프로젝트 Jev 추정, 마감 날짜"
+    },
     {
       "date": "2026-10-15",
       "text": "AX 6–7단계: 새 근무표 알림, 5분 메일 즉시 확인 알림(/mailrule, Jev, 계정 간 중복 제거)"
@@ -43,10 +48,6 @@
     {
       "date": "2026-10-06",
       "text": "홈 프로젝트 체크리스트 항목: ✓완료/✕안 함(대시보드에서 숨김 + 프로젝트 세션에 메모 전달), 지남 기간 7일로"
-    },
-    {
-      "date": "2026-10-06",
-      "text": "홈 오늘 체크리스트에 프로젝트 체크리스트(내 할 일: 지남·오늘·내일) 표시 — 텔레그램 요약과 같은 기준"
     }
   ],
   "checklist": [
@@ -238,10 +239,28 @@
       "owner": "me"
     },
     {
-      "text": "두 Apps Script(main·amc)에 새 Code.gs 붙여넣고 sync·setupTriage 실행",
+      "text": "두 Apps Script(main 완료·amc 남음)에 새 Code.gs 붙여넣고 sync·setupTriage 실행",
+      "status": "doing",
+      "section": "운영",
+      "owner": "me"
+    },
+    {
+      "text": "맥스 플랜 API 크레딧 콘솔 조직 연결 + 대시보드 workspace API 키 전달",
       "status": "todo",
       "section": "운영",
       "owner": "me"
+    },
+    {
+      "text": "Haiku 연동: 새 할 일 제목 정리 → 메일 알림 요약",
+      "status": "todo",
+      "section": "AX",
+      "owner": "agent"
+    },
+    {
+      "text": "텔레그램 /ask 챗봇, /send·/remind 예약",
+      "status": "todo",
+      "section": "AX",
+      "owner": "agent"
     }
   ]
 }
