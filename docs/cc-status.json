@@ -1,15 +1,20 @@
 {
-  "updatedAt": "2026-10-18T19:40:53+09:00",
-  "focus": "/ask 배포 후 안착 · 메일 요약 버튼 · VM 매크로·매매 점검 수신",
+  "updatedAt": "2026-10-18T20:17:06+09:00",
+  "focus": "메일 요약·VM 매크로/매매 점검 브리핑 배포 후 첫 실수신 확인",
   "next": [
-    "메일 알림 Haiku 요약 + [작업 준비 요청][답장 초안] 버튼",
-    "POST /api/trading/brief 수신(VM 푸시) + 아침 브리핑 📈·🩺 블록, /macro",
-    "trading 세션: VM brief_push 구현(사용자가 지시문 전달함)",
+    "VM brief_push 첫 실전송(평일 15:45·06:30) 수신 확인 → 아침 브리핑 📈·🩺 점검",
+    "trading 세션: allow_redirects=False 반영(사용자 전달)",
+    "다이제스트 sent 마크를 본문 전송 직후 기록(ax-impl 진행 중)",
+    "/send·/remind 예약",
     "kiduk.amc Apps Script 새 Code.gs + setupTriage(사용자)",
     "논문 알림(PubMed)은 나중에"
   ],
   "blockers": [],
   "done": [
+    {
+      "date": "2026-10-18",
+      "text": "메일 알림 Haiku 요약+[작업 준비 요청][답장 초안](48h 보관), VM→/api/trading/brief 매크로·섹터·전략·경제지표·매매 점검 아침 브리핑, /macro, /ask 한 화면 길이"
+    },
     {
       "date": "2026-10-18",
       "text": "/ask 챗봇 배포 — 읽기 도구 13개, [적용] 제안(세션 전달·마감 추가), Jev 라우팅, 주기별 예산 장부·/budget, 할 일 제목 Haiku 정리"
@@ -45,10 +50,6 @@
     {
       "date": "2026-10-11",
       "text": "할 일 일정 재조정(자기소개서 10/18·19, BrainCT 검토 10/24·curation 10/31·미팅 슬라이드 보류), 케어노트 부위별 지남 처리 반영 확인"
-    },
-    {
-      "date": "2026-10-11",
-      "text": "할 일 정리: 중복 마감(MS EM)·중복 Amgi 할 일 정리, 강릉아산 접수 시작 마감 완료 처리; 계좌 줄 입금 제외 수익률 반영 확인"
     }
   ],
   "checklist": [
@@ -252,8 +253,8 @@
       "owner": "me"
     },
     {
-      "text": "Haiku 연동: 새 할 일 제목 정리(완료) → 메일 알림 요약",
-      "status": "doing",
+      "text": "Haiku 연동: 새 할 일 제목 정리·메일 알림 요약",
+      "status": "done",
       "section": "AX",
       "owner": "agent"
     },
@@ -264,7 +265,7 @@
       "owner": "agent"
     },
     {
-      "text": "VM → /api/trading/brief 매크로·섹터·전략·경제지표·매매 점검 아침 브리핑",
+      "text": "VM → /api/trading/brief 아침 브리핑 (배포 완료, 첫 VM 실전송 확인 남음)",
       "status": "doing",
       "section": "AX",
       "owner": "agent"
