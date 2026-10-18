@@ -34,12 +34,16 @@ import {
 import { kstDateTime } from '@/lib/logic/dates';
 import type { AskClient } from '@/lib/ask/client';
 import { handleMailCallback } from '@/lib/telegram/mail-actions';
+import { handleRemindCallback, handleSendCallback } from '@/lib/telegram/send-remind';
 import type { Repo } from '@/lib/repo';
 import type { InlineKeyboard } from '@/lib/telegram/client';
 import { escapeHtml, formatCaptureReply } from '@/lib/telegram/format';
 import type { Note } from '@/lib/types';
 
-export type AxRepo = PendingRepo & ApplyRepo & WeeklyRepo & Pick<Repo, 'listProjects' | 'listPapers'>;
+export type AxRepo = PendingRepo &
+  ApplyRepo &
+  WeeklyRepo &
+  Pick<Repo, 'listProjects' | 'listPapers' | 'listNotes' | 'listProjectActivity' | 'listCalendarEvents' | 'replaceCalendarEvents' | 'upsertCalendarEvent'>;
 
 export interface AxDeps {
   repo: AxRepo;
@@ -176,6 +180,8 @@ export async function handleCallback(deps: AxDeps, cb: CallbackInput): Promise<v
   if (!decoded) return void (await deps.answer(cb.callbackId, '알 수 없는 버튼'));
   if (decoded.t === 'w') return handleWeeklyCallback(deps, cb, decoded);
   if (decoded.t === 'm') return handleMailCallback(deps, cb, decoded);
+  if (decoded.t === 's') return handleSendCallback(deps, cb, decoded);
+  if (decoded.t === 'r') return handleRemindCallback(deps, cb, decoded);
 
   const record = await loadPending(deps.repo, decoded.id);
   if (!record) return void (await deps.answer(cb.callbackId, '만료됨'));

@@ -8,6 +8,8 @@ export interface NewEvent {
   date: string;
   startTime: string | null;
   endTime: string | null;
+  /** Popup reminder lead in minutes; absent = 10 (a /remind event uses 0 so the phone buzzes at the event time). */
+  popupMinutes?: number;
 }
 
 /** Turns a parsed phrase into events (titles left empty for the caller). */

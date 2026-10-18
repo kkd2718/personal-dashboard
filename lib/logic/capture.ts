@@ -16,7 +16,7 @@ function normalize(s: string): string {
 }
 
 /** First project whose slug, name, or an alias (normalized) starts with/contains the token. */
-function matchProject(token: string, projects: Project[]): Project | null {
+export function matchProject(token: string, projects: Project[]): Project | null {
   const norm = normalize(token);
   if (!norm) return null;
   return (

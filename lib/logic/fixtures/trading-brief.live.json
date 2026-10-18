@@ -1,0 +1,294 @@
+{
+  "as_of": "2026-10-18",
+  "cached": true,
+  "econ": [
+    {
+      "consensus": "",
+      "date": "2026-10-29",
+      "importance": "high",
+      "name": "FOMC 금리 결정",
+      "previous": "",
+      "time_kst": "03:00"
+    },
+    {
+      "consensus": "",
+      "date": "2026-10-29",
+      "importance": "mid",
+      "name": "미국 GDP 3분기 속보치 (예정일 확인)",
+      "previous": "2.2%",
+      "time_kst": "21:30"
+    },
+    {
+      "consensus": "",
+      "date": "2026-10-30",
+      "importance": "high",
+      "name": "미국 PCE 물가 (예정일 확인)",
+      "previous": "3.0%",
+      "time_kst": "21:30"
+    }
+  ],
+  "econ_source": "static schedule (FOMC/ISM rules + BLS/BEA dates); previous = FRED keyless CSV; consensus unavailable (no key-less free source)",
+  "generated_at": "2026-10-18T19:56:25+09:00",
+  "macro": {
+    "as_of": {
+      "curve": "2026-10-16",
+      "fear_greed": "2026-10-18",
+      "hy": "2026-10-15",
+      "rsi": "2026-10-16",
+      "vix": "2026-10-18"
+    },
+    "brk_dist_pct": 0.0,
+    "composite": "warning",
+    "crypto": {
+      "btc_below_200d": false,
+      "btc_dist_200d_pct": 12.4,
+      "eth_below_200d": false,
+      "eth_dist_200d_pct": 11.8
+    },
+    "curve": {
+      "current": 0.83,
+      "inverted_12m": true
+    },
+    "dxy": {
+      "change_pct": -0.06,
+      "current": 101.78
+    },
+    "europe_dist_pct": -6.1,
+    "fear_greed": {
+      "score": 17.94,
+      "zone_label": "극단적 공포"
+    },
+    "hy": {
+      "rise_bp": 63,
+      "state": "경계"
+    },
+    "japan": {
+      "jgb10y": 2.948,
+      "jgb30y": 4.024,
+      "jpy_chg20d_pct": 1.19,
+      "usdjpy": 157.99
+    },
+    "leader": {
+      "kr": "삼성전자",
+      "kr_reign_days": 117,
+      "us": "NVDA",
+      "us_gap_pct": 3.2
+    },
+    "liquidity": {
+      "ffr": 3.88,
+      "ffr_chg13w": 0.25,
+      "netliq_chg13w_pct": -1.91,
+      "quadrant": "R^L="
+    },
+    "monthly_overheat": {
+      "latest": 71.8,
+      "overheat": true
+    },
+    "ndx_rsi": {
+      "daily": 35.23,
+      "monthly": 71.84,
+      "weekly": 51.89
+    },
+    "rsiwatch": {
+      "dual_oversold": false,
+      "flags": {
+        "bull_div_confluence": false,
+        "concentration_overheat": false,
+        "dual_oversold": false,
+        "persistent_pattern": false,
+        "schd_overheat": false
+      },
+      "ignition_count": 0,
+      "qqqe_z": 0.5,
+      "schd_wrsi": 65.2,
+      "spx_wrsi": 57.4
+    },
+    "sahm": {
+      "state": "무신호",
+      "value": 0.0
+    },
+    "schd_dist_pct": -1.7,
+    "us10y": {
+      "change_bp": 0.0,
+      "current": 5.1
+    },
+    "us30y": {
+      "change_bp": 0.0,
+      "current": 5.44
+    },
+    "usdkrw": {
+      "change_pct": -0.85,
+      "current": 1329.6
+    },
+    "vix": {
+      "value": 19.99,
+      "zone_label": "보통"
+    }
+  },
+  "sectors": [
+    {
+      "above_200d": true,
+      "chg1d_pct": -2.5,
+      "dist_200d_pct": 5.23,
+      "dist_52wh_pct": -6.52,
+      "label": "나스닥100",
+      "note": "스나이퍼: 주봉 RSI 75↑ 방어 / 40↓ 공격; 예비금 레벨 ATH -20/-30/-40%",
+      "price": 29187.55,
+      "rs_vs_ndx_20d_pct": 0.0,
+      "ticker": "^NDX",
+      "wrsi": 51.89
+    },
+    {
+      "above_200d": true,
+      "chg1d_pct": -3.02,
+      "dist_200d_pct": 9.74,
+      "dist_52wh_pct": -9.17,
+      "label": "기술",
+      "note": "",
+      "price": 183.47,
+      "rs_vs_ndx_20d_pct": -1.58,
+      "ticker": "XLK",
+      "wrsi": 53.08
+    },
+    {
+      "above_200d": true,
+      "chg1d_pct": -3.83,
+      "dist_200d_pct": 5.09,
+      "dist_52wh_pct": -23.9,
+      "label": "반도체",
+      "note": "SOXL 사다리 ON 조건 = NDX ATH -10% (반도체 자체 레벨 아님)",
+      "price": 11137.29,
+      "rs_vs_ndx_20d_pct": -5.04,
+      "ticker": "^SOX",
+      "wrsi": 47.55
+    },
+    {
+      "above_200d": true,
+      "chg1d_pct": 0.73,
+      "dist_200d_pct": 8.84,
+      "dist_52wh_pct": -1.66,
+      "label": "배당",
+      "note": "방어 온도계: 신고가=워시아웃 전, 주봉 RSI<40=총투매",
+      "price": 34.35,
+      "rs_vs_ndx_20d_pct": 4.34,
+      "ticker": "SCHD",
+      "wrsi": 65.19
+    },
+    {
+      "above_200d": true,
+      "chg1d_pct": -2.5,
+      "dist_200d_pct": 5.36,
+      "dist_52wh_pct": -6.56,
+      "label": "나스닥 ETF",
+      "note": "",
+      "price": 709.8,
+      "rs_vs_ndx_20d_pct": 0.03,
+      "ticker": "QQQ",
+      "wrsi": 52.02
+    }
+  ],
+  "strategy": [
+    {
+      "detail": "NDX 고점 대비 -6.5%, ON 조건 -10% / OFF = 신고가·방어·-25%",
+      "id": "soxl_ladder",
+      "label": "SOXL 사다리",
+      "since": "",
+      "state": "OFF"
+    },
+    {
+      "detail": "NDX 고점 대비 -6.5%, 다음 레벨 -20%",
+      "id": "reserve_deploy",
+      "label": "예비금 투입 레벨",
+      "since": "",
+      "state": "대기"
+    },
+    {
+      "detail": "T=12/40, 잔여 회차 28",
+      "id": "sniper_ib",
+      "label": "스나이퍼 IB",
+      "since": "",
+      "state": "정상"
+    },
+    {
+      "detail": "주봉 RSI 75↑ 방어, 40↓ 공격",
+      "id": "sniper_vr",
+      "label": "스나이퍼 VR (G값)",
+      "since": "",
+      "state": "G 초기(15)"
+    },
+    {
+      "detail": "해제일 2026-10-22",
+      "id": "soxl_lockout",
+      "label": "SOXL 리밸런싱 잠금",
+      "since": "2026-10-12",
+      "state": "잠금"
+    },
+    {
+      "detail": "V 갱신 2026-10-12 (10일 주기, 다음 2026-10-22)",
+      "id": "tecl_ladder",
+      "label": "TECL 사다리",
+      "since": "2026-10-12",
+      "state": "ON"
+    }
+  ],
+  "trades": {
+    "checks": [
+      {
+        "cycle_date": "2026-10-16",
+        "detail": "주문 2건 접수 · 체결 2 · 실패 0 · 미체결 0",
+        "id": "ibvr",
+        "label": "IB+VR (해외, 실전)",
+        "status": "ok"
+      },
+      {
+        "cycle_date": "2026-10-16",
+        "detail": "예정 사이클 없음",
+        "id": "isa_live",
+        "label": "ISA (국내)",
+        "status": "ok"
+      },
+      {
+        "cycle_date": "2026-10-16",
+        "detail": "예정 사이클 없음",
+        "id": "pension",
+        "label": "연금저축 (국내)",
+        "status": "ok"
+      },
+      {
+        "cycle_date": "2026-10-16",
+        "detail": "알림 전용 · 예정 사이클 없음",
+        "id": "irp",
+        "label": "IRP (국내)",
+        "status": "ok"
+      }
+    ],
+    "overall": "ok"
+  },
+  "upcoming": [
+    {
+      "d_day": 4,
+      "date": "2026-10-22",
+      "name": "SOXL 리밸런싱 잠금 해제"
+    },
+    {
+      "d_day": 4,
+      "date": "2026-10-22",
+      "name": "TECL V 갱신"
+    },
+    {
+      "d_day": 8,
+      "date": "2026-10-26",
+      "name": "자동이체"
+    },
+    {
+      "d_day": 12,
+      "date": "2026-10-30",
+      "name": "DCA 매매(US 거래일 기준)"
+    },
+    {
+      "d_day": 12,
+      "date": "2026-10-30",
+      "name": "KRX 매매(월말)"
+    }
+  ]
+}

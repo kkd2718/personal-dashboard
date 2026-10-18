@@ -35,17 +35,17 @@ export function googleCalendarConfig(env: Record<string, string | undefined> = p
 export type { NewEvent };
 export { eventsFromParsed };
 
-const REMINDERS = { useDefault: false, overrides: [{ method: 'popup', minutes: 10 }] };
+const remindersFor = (minutes = 10) => ({ useDefault: false, overrides: [{ method: 'popup', minutes }] });
 
 export function buildEventBody(ev: NewEvent): Record<string, unknown> {
   if (ev.startTime === null || ev.endTime === null) {
-    return { summary: ev.title, start: { date: ev.date }, end: { date: addDaysStr(ev.date, 1) }, reminders: REMINDERS };
+    return { summary: ev.title, start: { date: ev.date }, end: { date: addDaysStr(ev.date, 1) }, reminders: remindersFor(ev.popupMinutes) };
   }
   return {
     summary: ev.title,
     start: { dateTime: `${ev.date}T${ev.startTime}:00`, timeZone: 'Asia/Seoul' },
     end: { dateTime: `${ev.date}T${ev.endTime}:00`, timeZone: 'Asia/Seoul' },
-    reminders: REMINDERS,
+    reminders: remindersFor(ev.popupMinutes),
   };
 }
 
@@ -117,6 +117,25 @@ export async function insertCalendarEvent(
     if (typeof json.id !== 'string') return { ok: false, error: 'http' };
     const email = json.organizer?.email;
     return { ok: true, value: { eventId: json.id, organizerEmail: typeof email === 'string' ? email : null } };
+  } catch {
+    return { ok: false, error: 'network' };
+  }
+}
+
+/** Deletes one event by its Google id; an already-deleted event (410) counts as done. */
+export async function deleteCalendarEvent(
+  cfg: GoogleCalendarConfig,
+  eventId: string,
+  fetchImpl: typeof fetch = fetch
+): Promise<CalResult<null>> {
+  const token = await getAccessToken(cfg, fetchImpl);
+  if (!token.ok) return token;
+  try {
+    const res = await fetchImpl(
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cfg.calendarId)}/events/${encodeURIComponent(eventId)}`,
+      { method: 'DELETE', headers: { authorization: `Bearer ${token.value}` }, signal: AbortSignal.timeout(8000) }
+    );
+    return res.ok || res.status === 410 ? { ok: true, value: null } : { ok: false, error: 'http' };
   } catch {
     return { ok: false, error: 'network' };
   }

@@ -53,58 +53,71 @@ export function stripForbiddenKeys(value) {
 
 const cur = (o, chgKey) => ({ current: num(o?.current), [chgKey]: num(o?.[chgKey]) });
 
-/** @param {any} market @param {any} fx @param {any} rsi */
+/** rsiwatch.flags -> { name: boolean } (the wire shape is an object of booleans; a list of names is folded into one). */
+function flagMap(flags) {
+  if (Array.isArray(flags)) return Object.fromEntries(flags.filter((f) => typeof f === 'string').slice(0, 10).map((f) => [f, true]));
+  if (flags && typeof flags === 'object') {
+    return Object.fromEntries(Object.entries(flags).filter(([, v]) => typeof v === 'boolean').slice(0, 10));
+  }
+  return undefined;
+}
+
+/**
+ * FLAT macro (the contract of the VM push, lib/logic/market-brief.ts macroSchema), assembled from the
+ * dashboard's /api/market, /api/fx and /api/rsi. Only used when /api/brief carries no `macro` of its own.
+ * @param {any} market @param {any} fx @param {any} rsi
+ */
 export function buildMacro(market, fx, rsi) {
   const mr = market?.macro_regime;
   return compact({
-    macro_regime: mr && {
-      composite: strnum(mr.composite),
-      curve: { current: num(mr.curve?.current), inverted_12m: bool(mr.curve?.inverted_12m) },
-      hy: { state: str(mr.hy?.state), rise_bp: num(mr.hy?.rise_bp) },
-      sahm: { state: str(mr.sahm?.state), value: num(mr.sahm?.value) },
-      monthly_overheat: { latest: num(mr.monthly_overheat?.latest), overheat: bool(mr.monthly_overheat?.overheat) },
-    },
+    composite: strnum(mr?.composite),
+    curve: mr?.curve && { current: num(mr.curve.current), inverted_12m: bool(mr.curve.inverted_12m) },
+    hy: mr?.hy && { state: str(mr.hy.state), rise_bp: num(mr.hy.rise_bp) },
+    sahm: mr?.sahm && { state: str(mr.sahm.state), value: num(mr.sahm.value) },
+    monthly_overheat: mr?.monthly_overheat && { latest: num(mr.monthly_overheat.latest), overheat: bool(mr.monthly_overheat.overheat) },
     fear_greed: market?.fear_greed && { score: num(market.fear_greed.score), zone_label: str(market.fear_greed.zone_label) },
     vix: market?.vix && { value: num(market.vix.value), zone_label: str(market.vix.zone_label) },
     ndx_rsi: { daily: num(rsi?.daily?.value), weekly: num(market?.ndx_rsi?.weekly?.value), monthly: num(market?.ndx_rsi?.monthly?.value) },
     rsiwatch: market?.rsiwatch && {
-      flags: Array.isArray(market.rsiwatch.flags) ? market.rsiwatch.flags.filter((f) => typeof f === 'string').slice(0, 10) : undefined,
+      flags: flagMap(market.rsiwatch.flags),
       qqqe_z: num(market.rsiwatch.qqqe_z),
       spx_wrsi: num(market.rsiwatch.spx_wrsi),
       schd_wrsi: num(market.rsiwatch.schd_wrsi),
       dual_oversold: bool(market.rsiwatch.dual_oversold),
       ignition_count: num(market.rsiwatch.ignition_count),
     },
-    fx: fx && {
-      usdkrw: cur(fx.usdkrw, 'change_pct'),
-      dxy: cur(fx.dxy, 'change_pct'),
-      us10y: cur(fx.us10y, 'change_bp'),
-      us30y: cur(fx.us30y, 'change_bp'),
-      japan: {
-        jgb10y: num(fx.japan?.jgb10y?.value),
-        jgb30y: num(fx.japan?.jgb30y?.value),
-        usdjpy: num(fx.japan?.jpy?.usdjpy),
-        jpy_chg20d_pct: num(fx.japan?.jpy?.chg20d_pct),
-      },
-      liquidity: {
-        ffr: num(fx.liquidity?.ffr),
-        ffr_chg13w: num(fx.liquidity?.ffr_chg13w),
-        netliq_chg13w_pct: num(fx.liquidity?.netliq_chg13w_pct),
-        quadrant: str(fx.liquidity?.quadrant),
-      },
-      crypto: {
-        btc: { dist_200d_pct: num(fx.crypto?.btc?.dist_200d_pct), below_200d: bool(fx.crypto?.btc?.below_200d) },
-        eth: { dist_200d_pct: num(fx.crypto?.eth?.dist_200d_pct), below_200d: bool(fx.crypto?.eth?.below_200d) },
-      },
-      europe: { dist_pct: num(fx.europe?.dist_pct) },
-      brk: { dist_pct: num(fx.brk?.dist_pct) },
-      schd_pole: { dist_pct: num(fx.schd_pole?.dist_pct) },
-      leader: {
-        us: { leader: str(fx.leader?.us?.leader), gap_pct: num(fx.leader?.us?.gap_pct) },
-        kr: { leader: str(fx.leader?.kr?.leader), reign_days: num(fx.leader?.kr?.reign_days) },
-      },
+    usdkrw: fx && cur(fx.usdkrw, 'change_pct'),
+    dxy: fx && cur(fx.dxy, 'change_pct'),
+    us10y: fx && cur(fx.us10y, 'change_bp'),
+    us30y: fx && cur(fx.us30y, 'change_bp'),
+    japan: fx && {
+      jgb10y: num(fx.japan?.jgb10y?.value),
+      jgb30y: num(fx.japan?.jgb30y?.value),
+      usdjpy: num(fx.japan?.jpy?.usdjpy),
+      jpy_chg20d_pct: num(fx.japan?.jpy?.chg20d_pct),
     },
-    as_of: { market: str(market?.as_of), fx: str(fx?.as_of), rsi: str(rsi?.as_of) },
+    liquidity: fx && {
+      ffr: num(fx.liquidity?.ffr),
+      ffr_chg13w: num(fx.liquidity?.ffr_chg13w),
+      netliq_chg13w_pct: num(fx.liquidity?.netliq_chg13w_pct),
+      quadrant: str(fx.liquidity?.quadrant),
+    },
+    crypto: fx && {
+      btc_dist_200d_pct: num(fx.crypto?.btc?.dist_200d_pct),
+      btc_below_200d: bool(fx.crypto?.btc?.below_200d),
+      eth_dist_200d_pct: num(fx.crypto?.eth?.dist_200d_pct),
+      eth_below_200d: bool(fx.crypto?.eth?.below_200d),
+    },
+    europe_dist_pct: num(fx?.europe?.dist_pct),
+    brk_dist_pct: num(fx?.brk?.dist_pct),
+    schd_dist_pct: num(fx?.schd_pole?.dist_pct),
+    leader: fx?.leader && {
+      us: str(fx.leader.us?.leader),
+      us_gap_pct: num(fx.leader.us?.gap_pct),
+      kr: str(fx.leader.kr?.leader),
+      kr_reign_days: num(fx.leader.kr?.reign_days),
+    },
+    as_of: { curve: str(market?.as_of), fear_greed: str(market?.as_of), rsi: str(rsi?.as_of), vix: str(market?.as_of) },
   });
 }
 
@@ -117,7 +130,8 @@ const arr = (v, max) => (Array.isArray(v) ? v.slice(0, max) : []);
 export function buildMarketBrief(raw, collectedAt) {
   const { market, fx, rsi, brief } = raw;
   if (!market && !fx && !rsi && !brief) return null;
-  const macro = buildMacro(market, fx, rsi);
+  // The VM-side /api/brief already carries the flat macro: forward it as-is (the cloud allow-list filters again).
+  const macro = brief?.macro && typeof brief.macro === 'object' ? compact(stripForbiddenKeys(brief.macro)) : buildMacro(market, fx, rsi);
   const body = {
     as_of: str(brief?.as_of) ?? str(market?.as_of) ?? collectedAt.slice(0, 10),
     macro,

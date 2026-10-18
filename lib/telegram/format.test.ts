@@ -357,12 +357,13 @@ describe('parseTelegramUpdate', () => {
       text: 'hi',
       messageId: null,
       replyToMessageId: null,
+      replyToText: null,
     });
   });
   it('message ids and reply-to', () => {
     expect(
-      parseTelegramUpdate({ update_id: 7, message: { message_id: 11, chat: { id: 5 }, text: 'hi', reply_to_message: { message_id: 9 } } })
-    ).toMatchObject({ messageId: 11, replyToMessageId: 9 });
+      parseTelegramUpdate({ update_id: 7, message: { message_id: 11, chat: { id: 5 }, text: 'hi', reply_to_message: { message_id: 9, text: '원문' } } })
+    ).toMatchObject({ messageId: 11, replyToMessageId: 9, replyToText: '원문' });
   });
   it('callback query', () => {
     expect(

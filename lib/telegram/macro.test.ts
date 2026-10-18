@@ -140,8 +140,8 @@ describe('quadrantLabel', () => {
 
   it('renders in the rates line of the block and /macro, raw when unknown', () => {
     const mk = (quadrant: string) => {
-      const raw = rawBody() as unknown as { macro: { fx: { liquidity: Record<string, unknown> } } };
-      raw.macro.fx.liquidity.quadrant = quadrant;
+      const raw = rawBody() as unknown as { macro: { liquidity: Record<string, unknown> } };
+      raw.macro.liquidity.quadrant = quadrant;
       return { ...parseBrief(raw)!, receivedAt: new Date().toISOString(), source: 'vm' as const };
     };
     const now = new Date().toISOString();

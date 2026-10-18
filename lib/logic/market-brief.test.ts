@@ -7,7 +7,7 @@ describe('parseBrief (allow-list)', () => {
     const body = parseBrief(rawBody())!;
     expect(body.as_of).toBe('2026-11-06');
     expect(body.macro?.fear_greed).toEqual({ score: 54, zone_label: 'Neutral' });
-    expect(body.macro?.fx?.usdkrw).toEqual({ current: 1391.2, change_pct: 0.3 }); // `series` stripped
+    expect(body.macro?.usdkrw).toEqual({ current: 1391.2, change_pct: 0.3 }); // `series` stripped
     const json = JSON.stringify(body);
     for (const leaked of ['"regime":', 'allocation', 'ACCT-SECRET', 'total_value', 'ib_sniper', 'vr_sniper', 'accounts']) {
       expect(json).not.toContain(leaked);

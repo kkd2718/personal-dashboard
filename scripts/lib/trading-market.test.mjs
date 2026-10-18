@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { buildMarketBrief, stripForbiddenKeys } from './trading-market.mjs';
 
@@ -13,7 +14,7 @@ const market = {
   fear_greed: { score: 54, zone_label: 'Neutral', history: [1, 2, 3] },
   vix: { value: 17.2, zone_label: 'Calm', points: [1] },
   ndx_rsi: { weekly: { value: 60, points: [1] }, monthly: { value: 66 } },
-  rsiwatch: { flags: ['qqqe'], qqqe_z: -0.4, spx_wrsi: 57, schd_wrsi: 48, dual_oversold: false, ignition_count: 1 },
+  rsiwatch: { flags: { qqqe: true, spx: false }, qqqe_z: -0.4, spx_wrsi: 57, schd_wrsi: 48, dual_oversold: false, ignition_count: 1 },
   regime: { phase: 'growth', allocation: { growth: 0.7 } },
 };
 const fx = {
@@ -46,12 +47,15 @@ describe('buildMarketBrief', () => {
 
   it('maps the allow-listed fields from market, fx, rsi and brief', () => {
     expect(body.as_of).toBe('2026-11-06');
-    expect(body.macro.macro_regime.curve).toEqual({ current: 0.35, inverted_12m: true });
+    expect(body.macro.curve).toEqual({ current: 0.35, inverted_12m: true });
+    expect(body.macro.composite).toBe('neutral');
     expect(body.macro.ndx_rsi).toEqual({ daily: 55, weekly: 60, monthly: 66 });
-    expect(body.macro.fx.japan).toEqual({ jgb10y: 1.1, jgb30y: 2.2, usdjpy: 151.3, jpy_chg20d_pct: -1.2 });
-    expect(body.macro.fx.usdkrw).toEqual({ current: 1391.2, change_pct: 0.3 });
-    expect(body.macro.fx.leader).toEqual({ us: { leader: 'NVDA', gap_pct: 2.5 }, kr: { leader: '삼성전자', reign_days: 14 } });
-    expect(body.macro.as_of).toEqual({ market: '2026-11-06', fx: '2026-11-06' });
+    expect(body.macro.rsiwatch.flags).toEqual({ qqqe: true, spx: false });
+    expect(body.macro.japan).toEqual({ jgb10y: 1.1, jgb30y: 2.2, usdjpy: 151.3, jpy_chg20d_pct: -1.2 });
+    expect(body.macro.usdkrw).toEqual({ current: 1391.2, change_pct: 0.3 });
+    expect(body.macro.crypto).toEqual({ btc_dist_200d_pct: 12.5, btc_below_200d: false, eth_dist_200d_pct: -4.1, eth_below_200d: true });
+    expect(body.macro.schd_dist_pct).toBe(-0.6);
+    expect(body.macro.leader).toEqual({ us: 'NVDA', us_gap_pct: 2.5, kr: '삼성전자', kr_reign_days: 14 });
     expect(body.trades).toMatchObject({ overall: 'warn', checks: [{ id: 'fill', status: 'warn' }] });
   });
 
@@ -60,6 +64,12 @@ describe('buildMarketBrief', () => {
     for (const leaked of ['"regime":', 'allocation', 'phase', 'ib_sniper', 'vr_sniper', 'points', 'series', 'history', 'holdings', 'account', 'qty', 'value_krw']) {
       expect(json).not.toContain(leaked);
     }
+  });
+
+  it('forwards /api/brief macro as-is when present (flat contract), still stripping forbidden keys', () => {
+    const flat = { composite: 'warning', curve: { current: 0.8 }, leader: { us: 'NVDA', kr: '삼성전자' }, account_total: 5, usdkrw: { current: 1329.6, change_pct: -0.85 } };
+    const b = buildMarketBrief({ market, fx, rsi, brief: { ...brief, macro: flat } }, NOW);
+    expect(b.macro).toEqual({ composite: 'warning', curve: { current: 0.8 }, leader: { us: 'NVDA', kr: '삼성전자' }, usdkrw: { current: 1329.6, change_pct: -0.85 } });
   });
 
   it('works without /api/brief (not built yet) and falls back to the market as_of', () => {
@@ -79,6 +89,17 @@ describe('buildMarketBrief', () => {
     expect(b.macro.vix).toBeUndefined();
     expect(b.macro.fear_greed).toEqual({ score: 40 });
     expect(b.trades).toBeUndefined();
+  });
+});
+
+describe('PC fallback with the real /api/brief capture', () => {
+  const live = JSON.parse(readFileSync(new URL('../../lib/logic/fixtures/trading-brief.live.json', import.meta.url), 'utf-8'));
+  it('forwards the whole flat macro unchanged and drops the VM-only extras at the top level', () => {
+    const b = buildMarketBrief({ market: null, fx: null, rsi: null, brief: live }, NOW);
+    expect(b.macro).toEqual(live.macro);
+    expect(b.as_of).toBe(live.as_of);
+    expect(b.sectors).toHaveLength(live.sectors.length);
+    expect(b.trades.overall).toBe(live.trades.overall);
   });
 });
 

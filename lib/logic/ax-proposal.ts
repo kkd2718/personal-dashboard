@@ -222,20 +222,30 @@ export type CallbackData =
   | { t: 'w'; id: string; i: number; a: 'd' | 'p' | 'x' }
   // mail alert buttons: p = 작업 준비 요청, r = 답장 초안, s = project pick #i
   | { t: 'm'; id: string; a: 'p' | 'r' }
-  | { t: 'm'; id: string; a: 's'; i: number };
+  | { t: 'm'; id: string; a: 's'; i: number }
+  // /send: c = cancel (unsend), s = project pick #i; /remind: c = cancel the calendar event
+  | { t: 's'; id: string; a: 'c' }
+  | { t: 's'; id: string; a: 's'; i: number }
+  | { t: 'r'; id: string; a: 'c' };
 
 export function encodeCallback(c: CallbackData): string {
   if (c.t === 'p') return `p:${c.id}:${c.a}`;
+  if (c.t === 's') return c.a === 's' ? `s:${c.id}:s${c.i}` : `s:${c.id}:c`;
+  if (c.t === 'r') return `r:${c.id}:c`;
   if (c.t === 'm') return c.a === 's' ? `m:${c.id}:s${c.i}` : `m:${c.id}:${c.a}`;
   return `w:${c.id}:${c.i}:${c.a}`;
 }
 
-export function decodeCallback(s: string): CallbackData | null {
-  const p = /^p:([0-9a-z]{1,16}):(ok|no|memo)$/.exec(s);
+export function decodeCallback(str: string): CallbackData | null {
+  const p = /^p:([0-9a-z]{1,16}):(ok|no|memo)$/.exec(str);
   if (p) return { t: 'p', id: p[1], a: p[2] as 'ok' | 'no' | 'memo' };
-  const m = /^m:([0-9a-z]{1,16}):(p|r|s(\d{1,2}))$/.exec(s);
+  const m = /^m:([0-9a-z]{1,16}):(p|r|s(\d{1,2}))$/.exec(str);
   if (m) return m[3] !== undefined ? { t: 'm', id: m[1], a: 's', i: Number(m[3]) } : { t: 'm', id: m[1], a: m[2] as 'p' | 'r' };
-  const w = /^w:([0-9a-z]{1,16}):(\d{1,3}):(d|p|x)$/.exec(s);
+  const s = /^s:([0-9a-z]{1,16}):(c|s(\d{1,2}))$/.exec(str);
+  if (s) return s[3] !== undefined ? { t: 's', id: s[1], a: 's', i: Number(s[3]) } : { t: 's', id: s[1], a: 'c' };
+  const r = /^r:([0-9a-z]{1,16}):c$/.exec(str);
+  if (r) return { t: 'r', id: r[1], a: 'c' };
+  const w = /^w:([0-9a-z]{1,16}):(\d{1,3}):(d|p|x)$/.exec(str);
   if (w) return { t: 'w', id: w[1], i: Number(w[2]), a: w[3] as 'd' | 'p' | 'x' };
   return null;
 }

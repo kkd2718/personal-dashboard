@@ -321,7 +321,7 @@ export function parseUpdate(update: unknown): TelegramMessage | null {
 }
 
 export type TelegramUpdate =
-  | { kind: 'message'; updateId: number | null; chatId: number; text: string; messageId: number | null; replyToMessageId: number | null }
+  | { kind: 'message'; updateId: number | null; chatId: number; text: string; messageId: number | null; replyToMessageId: number | null; replyToText: string | null }
   | { kind: 'callback'; updateId: number | null; chatId: number; callbackId: string; messageId: number; data: string };
 
 /** Parses a message or inline-button callback update (chat id of a callback is that of its message). */
@@ -340,6 +340,7 @@ export function parseTelegramUpdate(update: unknown): TelegramUpdate | null {
       ...message,
       messageId: typeof raw.message_id === 'number' ? raw.message_id : null,
       replyToMessageId: typeof reply?.message_id === 'number' ? reply.message_id : null,
+      replyToText: typeof reply?.text === 'string' ? reply.text : typeof reply?.caption === 'string' ? reply.caption : null,
     };
   }
 
@@ -353,12 +354,12 @@ export function parseTelegramUpdate(update: unknown): TelegramUpdate | null {
   return { kind: 'callback', updateId, chatId: chat.id, callbackId: c.id, messageId: msg.message_id, data: c.data };
 }
 
-export type CommandName = 'macro' | 'today' | 'deadlines' | 'done' | 'cal' | 'waits' | 'wait' | 'mailrule' | 'ask' | 'budget' | 'help' | 'start' | 'unknown';
+export type CommandName = 'macro' | 'today' | 'deadlines' | 'done' | 'cal' | 'waits' | 'wait' | 'mailrule' | 'send' | 'remind' | 'reminds' | 'ask' | 'budget' | 'help' | 'start' | 'unknown';
 
 /** `modifier`: `/ask!` (Opus) or `/ask+` (Sonnet); other commands ignore it. */
 export type Route = { kind: 'command'; name: CommandName; arg: string; modifier?: '!' | '+' } | { kind: 'capture'; text: string };
 
-const COMMAND_NAMES: ReadonlySet<string> = new Set(['macro', 'today', 'deadlines', 'done', 'cal', 'waits', 'wait', 'mailrule', 'ask', 'budget', 'help', 'start']);
+const COMMAND_NAMES: ReadonlySet<string> = new Set(['macro', 'today', 'deadlines', 'done', 'cal', 'waits', 'wait', 'mailrule', 'send', 'remind', 'reminds', 'ask', 'budget', 'help', 'start']);
 
 /** Routes incoming text to a command or a plain capture. Commands may carry a
  * `@BotName` suffix (`/today@my_bot`); anything else is a memo to capture. */

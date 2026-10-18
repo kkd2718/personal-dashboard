@@ -336,3 +336,19 @@ const REQUEST_TAIL_RE = /\s*(?:잡아|추가해|넣어|등록해|알려|해)\s?(
 export function stripRequestVerbs(title: string): string {
   return title.replace(REQUEST_TAIL_RE, '').trim();
 }
+
+const REL_OFFSET_RE = /(?:(\d+|한|두|세|네)\s?시간(?:\s?(반)|\s?(\d{1,2})\s?분)?|(\d+)\s?분)\s?(?:뒤|후)(?:에)?/g;
+
+/** "30분 뒤", "2시간 뒤", "1시간 30분 후", "한 시간 반 뒤": minutes from now plus the matched span; null when absent. */
+export function parseRelativeOffset(text: string): { minutes: number; span: [number, number] } | null {
+  REL_OFFSET_RE.lastIndex = 0;
+  const m = REL_OFFSET_RE.exec(text);
+  if (!m) return null;
+  let minutes: number;
+  if (m[4] !== undefined) minutes = Number(m[4]);
+  else {
+    const hours = KO_COUNT[m[1]] ?? Number(m[1]);
+    minutes = hours * 60 + (m[2] ? 30 : m[3] ? Number(m[3]) : 0);
+  }
+  return minutes > 0 ? { minutes, span: [m.index, m.index + m[0].length] } : null;
+}

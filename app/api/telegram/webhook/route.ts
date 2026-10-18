@@ -11,6 +11,7 @@ import { formatMacroFull, macroSentence } from '@/lib/telegram/macro';
 import { budgetConfig, pace as paceOf } from '@/lib/logic/ask-budget';
 import { ASK_CONV_META_KEY, isFollowUp, type AskConv } from '@/lib/logic/ask-conv';
 import { handleCallback, handleFreeText, type AxDeps } from '@/lib/telegram/ax';
+import { handleRemind, handleReminds, handleSend } from '@/lib/telegram/send-remind';
 import {
   MAIL_TRIAGE_CONFIG_KEY,
   applyMailRule,
@@ -69,7 +70,7 @@ export const maxDuration = 60;
 
 const RECENT_UPDATES_KEY = 'telegram:updates:recent';
 
-const HELP_TEXT = '메모는 그냥 보내면 저장돼요. @프로젝트 #태그 지원 · /today · /deadlines · /done 1 (루틴 완료, /done 알렌 5 = 개수) · /cal 내일 오후 3시 치과 (캘린더에 바로 추가) · /waits (답장 대기 목록) · /ask 질문 (대시보드에 묻기, /ask+ Sonnet, /ask! Opus, 답변에 답장하면 이어서) · /budget (API 예산) · /macro (시장 스냅샷)\n/ask 답변에 답장(reply)하면 30분 동안 대화가 이어져요. 그 뒤의 답장은 메모로 저장되니 /ask 로 다시 물어보세요.';
+const HELP_TEXT = '메모는 그냥 보내면 저장돼요. @프로젝트 #태그 지원 · /today · /deadlines · /done 1 (루틴 완료, /done 알렌 5 = 개수) · /cal 내일 오후 3시 치과 (캘린더에 바로 추가) · /send @프로젝트 내용 (그 프로젝트 Claude 세션으로 전달, 메시지에 답장해도 됨) · /remind 내일 9시 약 (정시 알림, /reminds 목록, /remind 취소 2) · /waits (답장 대기 목록) · /ask 질문 (대시보드에 묻기, /ask+ Sonnet, /ask! Opus, 답변에 답장하면 이어서) · /budget (API 예산) · /macro (시장 스냅샷)\n/ask 답변에 답장(reply)하면 30분 동안 대화가 이어져요. 그 뒤의 답장은 메모로 저장되니 /ask 로 다시 물어보세요.';
 
 /** Telegram Bot API webhook (phase 2b). Always 200s (Telegram retries non-2xx) —
  * failures are reported to the chat, not via the HTTP status. */
@@ -121,7 +122,7 @@ export async function POST(request: Request) {
   try {
     const deps = axDeps(request);
     if (update.kind === 'callback') await handleCallback(deps, update);
-    else await handle(update.text, deps);
+    else await handle(update.text, deps, update.replyToText);
     // Settings §5.8 연동 상태 rows read this back (PLAN_UX.md decision 3).
     await getRepo().setMeta('integration:telegram', { at: new Date().toISOString(), detail: '메시지 수신' });
   } catch {
@@ -178,7 +179,7 @@ function axDeps(request: Request): AxDeps {
   };
 }
 
-async function handle(text: string, deps: AxDeps): Promise<void> {
+async function handle(text: string, deps: AxDeps, replyToText: string | null = null): Promise<void> {
   const parsed = route(text);
   if (parsed.kind === 'capture') {
     await handleFreeText(deps, parsed.text);
@@ -197,6 +198,15 @@ async function handle(text: string, deps: AxDeps): Promise<void> {
       return;
     case 'cal':
       await sendMessage(await handleCal(parsed.arg));
+      return;
+    case 'send':
+      await handleSend(deps, parsed.arg, replyToText);
+      return;
+    case 'remind':
+      await handleRemind(deps, parsed.arg);
+      return;
+    case 'reminds':
+      await handleReminds(deps);
       return;
     case 'waits':
       await sendMessage(formatWaitList(openWaitingList(await loadWaiting(getRepo())), todayKST()));

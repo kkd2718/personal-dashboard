@@ -7,7 +7,6 @@ import { isStale, mdLabel, quadrantLabel, type MarketBrief } from '@/lib/logic/m
 import { oneShot, type OneShotDeps } from '@/lib/ask/oneshot';
 
 type Macro = NonNullable<MarketBrief['macro']>;
-type Fx = NonNullable<Macro['fx']>;
 
 const e = escapeHtml;
 const present = <T>(v: T | null | undefined): v is T => v !== null && v !== undefined;
@@ -27,13 +26,17 @@ function line(label: string, parts: Array<string | null>): string | null {
 const withChg = (label: string, cur: number | null | undefined, chg: string | null, d = 1): string | null =>
   fmt(cur, d) === null ? null : `${label} ${fmt(cur, d)}${chg ? ` (${chg})` : ''}`;
 
+/** Names of the raised RSI-watch flags. */
+const trueFlags = (flags: Record<string, boolean> | null | undefined): string[] =>
+  Object.entries(flags ?? {}).filter(([, on]) => on).map(([name]) => name);
+
 function tempLine(m: Macro | null | undefined): string | null {
   if (!m) return null;
   const rsi = m.ndx_rsi;
   const rsis = [fmt(rsi?.daily, 0), fmt(rsi?.weekly, 0), fmt(rsi?.monthly, 0)].filter(Boolean).join('/');
   const zone = (z: string | null | undefined) => (z ? `(${e(z)})` : '');
   return line('🌡 온도', [
-    present(m.macro_regime?.composite) ? `레짐 ${e(String(m.macro_regime!.composite))}` : null,
+    present(m.composite) ? `레짐 ${e(String(m.composite))}` : null,
     fmt(m.fear_greed?.score, 0) ? `공포탐욕 ${fmt(m.fear_greed?.score, 0)}${zone(m.fear_greed?.zone_label)}` : null,
     fmt(m.vix?.value) ? `VIX ${fmt(m.vix?.value)}${zone(m.vix?.zone_label)}` : null,
     rsis ? `NDX RSI ${rsis}` : null,
@@ -42,46 +45,44 @@ function tempLine(m: Macro | null | undefined): string | null {
 
 function ratesLine(m: Macro | null | undefined): string | null {
   if (!m) return null;
-  const fx = m.fx;
-  const mr = m.macro_regime;
   return line('📉 금리·유동성', [
-    withChg('10Y', fx?.us10y?.current, sgn(fx?.us10y?.change_bp, 0, 'bp'), 2),
-    withChg('30Y', fx?.us30y?.current, sgn(fx?.us30y?.change_bp, 0, 'bp'), 2),
-    present(mr?.curve?.current) ? `곡선 ${fmt(mr!.curve!.current, 2)}${mr!.curve!.inverted_12m ? ' (12M 내 역전)' : ''}` : null,
-    mr?.hy?.state ? `HY ${e(mr.hy.state)}${present(mr.hy.rise_bp) ? ` ${sgn(mr.hy.rise_bp, 0, 'bp')}` : ''}` : null,
-    fx?.liquidity?.quadrant ? (quadrantLabel(fx.liquidity.quadrant) ?? `유동성 ${e(fx.liquidity.quadrant)}`) : null,
+    withChg('10Y', m.us10y?.current, sgn(m.us10y?.change_bp, 0, 'bp'), 2),
+    withChg('30Y', m.us30y?.current, sgn(m.us30y?.change_bp, 0, 'bp'), 2),
+    present(m.curve?.current) ? `곡선 ${fmt(m.curve!.current, 2)}${m.curve!.inverted_12m ? ' (12M 내 역전)' : ''}` : null,
+    m.hy?.state ? `HY ${e(m.hy.state)}${present(m.hy.rise_bp) ? ` ${sgn(m.hy.rise_bp, 0, 'bp')}` : ''}` : null,
+    m.liquidity?.quadrant ? (quadrantLabel(m.liquidity.quadrant) ?? `유동성 ${e(m.liquidity.quadrant)}`) : null,
   ]);
 }
 
-function fxLine(fx: Fx | null | undefined): string | null {
-  if (!fx) return null;
+function fxLine(m: Macro | null | undefined): string | null {
+  if (!m) return null;
   return line('💱 환율', [
-    withChg('USDKRW', fx.usdkrw?.current, sgn(fx.usdkrw?.change_pct, 1, '%'), 0),
-    withChg('DXY', fx.dxy?.current, sgn(fx.dxy?.change_pct, 1, '%'), 1),
-    fmt(fx.japan?.usdjpy) ? `USDJPY ${fmt(fx.japan?.usdjpy)}` : null,
+    withChg('USDKRW', m.usdkrw?.current, sgn(m.usdkrw?.change_pct, 1, '%'), 0),
+    withChg('DXY', m.dxy?.current, sgn(m.dxy?.change_pct, 1, '%'), 1),
+    fmt(m.japan?.usdjpy) ? `USDJPY ${fmt(m.japan?.usdjpy)}` : null,
   ]);
 }
 
-function riskLine(fx: Fx | null | undefined): string | null {
-  if (!fx) return null;
-  const coin = (name: string, c: { dist_200d_pct?: number | null; below_200d?: boolean | null } | null | undefined) =>
-    fmt(c?.dist_200d_pct) ? `${name} ${sgn(c?.dist_200d_pct, 1, '%')}${c?.below_200d ? ' 200일선↓' : ''}` : null;
-  const dist = (name: string, d: { dist_pct?: number | null } | null | undefined) => (fmt(d?.dist_pct) ? `${name} ${sgn(d?.dist_pct, 1, '%')}` : null);
+function riskLine(m: Macro | null | undefined): string | null {
+  if (!m) return null;
+  const coin = (name: string, dist: number | null | undefined, below: boolean | null | undefined) =>
+    fmt(dist) ? `${name} ${sgn(dist, 1, '%')}${below ? ' 200일선↓' : ''}` : null;
+  const dist = (name: string, d: number | null | undefined) => (fmt(d) ? `${name} ${sgn(d, 1, '%')}` : null);
   return line('🪙 위험자산', [
-    coin('BTC', fx.crypto?.btc),
-    coin('ETH', fx.crypto?.eth),
-    dist('유럽', fx.europe),
-    dist('BRK', fx.brk),
-    dist('SCHD', fx.schd_pole),
+    coin('BTC', m.crypto?.btc_dist_200d_pct, m.crypto?.btc_below_200d),
+    coin('ETH', m.crypto?.eth_dist_200d_pct, m.crypto?.eth_below_200d),
+    dist('유럽', m.europe_dist_pct),
+    dist('BRK', m.brk_dist_pct),
+    dist('SCHD', m.schd_dist_pct),
   ]);
 }
 
-function leaderLine(fx: Fx | null | undefined): string | null {
-  const l = fx?.leader;
+function leaderLine(m: Macro | null | undefined): string | null {
+  const l = m?.leader;
   if (!l) return null;
   return line('🏆 주도주', [
-    l.us?.leader ? `US ${e(l.us.leader)}${present(l.us.gap_pct) ? ` (${sgn(l.us.gap_pct, 1, '%p')})` : ''}` : null,
-    l.kr?.leader ? `KR ${e(l.kr.leader)}${present(l.kr.reign_days) ? ` ${l.kr.reign_days}일째` : ''}` : null,
+    l.us ? `US ${e(l.us)}${present(l.us_gap_pct) ? ` (${sgn(l.us_gap_pct, 1, '%p')})` : ''}` : null,
+    l.kr ? `KR ${e(l.kr)}${present(l.kr_reign_days) ? ` ${l.kr_reign_days}일째` : ''}` : null,
   ]);
 }
 
@@ -136,15 +137,14 @@ export function formatMacroBlock(brief: MarketBrief | null, today: string, nowIs
   if (!brief) return null;
   const stale = isStale(brief, nowIso);
   const t = tradesLines(brief, stale);
-  const fx = brief.macro?.fx;
   const body = [
     ...t.top,
     t.summary,
     tempLine(brief.macro),
     ratesLine(brief.macro),
-    fxLine(fx),
-    riskLine(fx),
-    leaderLine(fx),
+    fxLine(brief.macro),
+    riskLine(brief.macro),
+    leaderLine(brief.macro),
     sectorLine(brief.sectors, 6),
     strategyLine(brief.strategy, 6),
     ...econLines(brief, today, true, 2),
@@ -160,7 +160,6 @@ export function formatMacroFull(brief: MarketBrief | null, today: string, nowIso
   const stale = isStale(brief, nowIso);
   const m = brief.macro;
   const t = tradesLines(brief, stale, Infinity);
-  const mr = m?.macro_regime;
   const lines = [
     `<b>📈 매크로</b> <i>(${e(brief.as_of)} · 수신 ${mdLabel(brief.receivedAt)}${stale ? ' · 오래됨' : ''} · ${brief.source})</i>`,
     ...t.top,
@@ -168,11 +167,11 @@ export function formatMacroFull(brief: MarketBrief | null, today: string, nowIso
     ...(brief.trades?.checks ?? []).map((c) => `  ${STATUS_ICON[c.status]} ${e(c.label)}${c.detail ? ` — ${e(c.detail)}` : ''}${c.cycle_date ? ` (${e(c.cycle_date)})` : ''}`),
     tempLine(m),
     line('  레짐 상세', [
-      present(mr?.sahm?.value) ? `Sahm ${fmt(mr!.sahm!.value, 2)}${mr!.sahm!.state ? ` ${e(mr!.sahm!.state)}` : ''}` : null,
-      present(mr?.monthly_overheat?.latest) ? `월간 과열 ${fmt(mr!.monthly_overheat!.latest, 1)}${mr!.monthly_overheat!.overheat ? ' (과열)' : ''}` : null,
+      present(m?.sahm?.value) ? `Sahm ${fmt(m!.sahm!.value, 2)}${m!.sahm!.state ? ` ${e(m!.sahm!.state)}` : ''}` : null,
+      present(m?.monthly_overheat?.latest) ? `월간 과열 ${fmt(m!.monthly_overheat!.latest, 1)}${m!.monthly_overheat!.overheat ? ' (과열)' : ''}` : null,
     ]),
     line('  RSI 워치', [
-      m?.rsiwatch?.flags?.length ? `플래그 ${m.rsiwatch.flags.map(e).join(',')}` : null,
+      trueFlags(m?.rsiwatch?.flags).length > 0 ? `플래그 ${trueFlags(m?.rsiwatch?.flags).map(e).join(',')}` : null,
       fmt(m?.rsiwatch?.qqqe_z, 2) ? `QQQE z ${fmt(m?.rsiwatch?.qqqe_z, 2)}` : null,
       fmt(m?.rsiwatch?.spx_wrsi, 0) ? `SPX wRSI ${fmt(m?.rsiwatch?.spx_wrsi, 0)}` : null,
       fmt(m?.rsiwatch?.schd_wrsi, 0) ? `SCHD wRSI ${fmt(m?.rsiwatch?.schd_wrsi, 0)}` : null,
@@ -181,18 +180,18 @@ export function formatMacroFull(brief: MarketBrief | null, today: string, nowIso
     ]),
     ratesLine(m),
     line('  일본', [
-      fmt(m?.fx?.japan?.jgb10y, 2) ? `JGB10Y ${fmt(m?.fx?.japan?.jgb10y, 2)}` : null,
-      fmt(m?.fx?.japan?.jgb30y, 2) ? `JGB30Y ${fmt(m?.fx?.japan?.jgb30y, 2)}` : null,
-      sgn(m?.fx?.japan?.jpy_chg20d_pct, 1, '%') ? `엔 20일 ${sgn(m?.fx?.japan?.jpy_chg20d_pct, 1, '%')}` : null,
+      fmt(m?.japan?.jgb10y, 2) ? `JGB10Y ${fmt(m?.japan?.jgb10y, 2)}` : null,
+      fmt(m?.japan?.jgb30y, 2) ? `JGB30Y ${fmt(m?.japan?.jgb30y, 2)}` : null,
+      sgn(m?.japan?.jpy_chg20d_pct, 1, '%') ? `엔 20일 ${sgn(m?.japan?.jpy_chg20d_pct, 1, '%')}` : null,
     ]),
     line('  연준', [
-      fmt(m?.fx?.liquidity?.ffr, 2) ? `FFR ${fmt(m?.fx?.liquidity?.ffr, 2)}` : null,
-      sgn(m?.fx?.liquidity?.ffr_chg13w, 2) ? `13주 ${sgn(m?.fx?.liquidity?.ffr_chg13w, 2)}` : null,
-      sgn(m?.fx?.liquidity?.netliq_chg13w_pct, 1, '%') ? `순유동성 13주 ${sgn(m?.fx?.liquidity?.netliq_chg13w_pct, 1, '%')}` : null,
+      fmt(m?.liquidity?.ffr, 2) ? `FFR ${fmt(m?.liquidity?.ffr, 2)}` : null,
+      sgn(m?.liquidity?.ffr_chg13w, 2) ? `13주 ${sgn(m?.liquidity?.ffr_chg13w, 2)}` : null,
+      sgn(m?.liquidity?.netliq_chg13w_pct, 1, '%') ? `순유동성 13주 ${sgn(m?.liquidity?.netliq_chg13w_pct, 1, '%')}` : null,
     ]),
-    fxLine(m?.fx),
-    riskLine(m?.fx),
-    leaderLine(m?.fx),
+    fxLine(m),
+    riskLine(m),
+    leaderLine(m),
     ...brief.sectors.map((s) =>
       line(`🏭 ${e(s.ticker)}${s.label ? ` ${e(s.label)}` : ''}`, [
         fmt(s.price, 2) ? `${fmt(s.price, 2)}` : null,

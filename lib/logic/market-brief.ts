@@ -5,7 +5,8 @@
 // matching FORBIDDEN_KEY is dropped again as a second line of defense. Pure.
 //
 // Body shape (all leaf fields optional; a field with the wrong type is dropped, not a 400):
-//   { as_of, macro:{ macro_regime, fear_greed, vix, ndx_rsi{daily,weekly,monthly}, rsiwatch, fx, as_of },
+//   { as_of, macro:{ composite, curve, hy, sahm, monthly_overheat, fear_greed, vix, ndx_rsi, rsiwatch, usdkrw, dxy, us10y,
+//       us30y, japan, liquidity, crypto, europe_dist_pct, brk_dist_pct, schd_dist_pct, leader, as_of } (flat),
 //     sectors[], strategy[], upcoming[], econ[], econ_error?, trades:{overall, checks[]} }
 import { z } from 'zod';
 import { dday, kstDateTime } from '@/lib/logic/dates';
@@ -24,49 +25,48 @@ const str = z.string().max(200).nullish().catch(undefined);
 const bool = z.boolean().nullish().catch(undefined);
 const strnum = z.union([z.string().max(80), z.number()]).nullish().catch(undefined);
 const obj = <T extends z.ZodRawShape>(shape: T) => z.object(shape).nullish().catch(undefined);
-const list = <T extends z.ZodType>(item: T, max: number) => z.array(item).max(max).nullish().catch(undefined);
 
 const delta = (key: string) => obj({ current: num, [key]: num });
 
+// `rsiwatch.flags` is an object of booleans on the wire; a legacy list of names is folded into one.
+const flags = z
+  .preprocess(
+    (v) => (Array.isArray(v) ? Object.fromEntries(v.filter((x): x is string => typeof x === 'string').map((x) => [x, true])) : v),
+    z.record(z.string().max(60), z.boolean())
+  )
+  .nullish()
+  .catch(undefined);
+
+/** FLAT contract (the VM's /api/brief `macro`): regime groups, FX/rates and crypto all sit at the top level. */
 export const macroSchema = obj({
-  macro_regime: obj({
-    composite: strnum,
-    curve: obj({ current: num, inverted_12m: bool }),
-    hy: obj({ state: str, rise_bp: num }),
-    sahm: obj({ state: str, value: num }),
-    monthly_overheat: obj({ latest: num, overheat: bool }),
-  }),
+  composite: strnum,
+  curve: obj({ current: num, inverted_12m: bool }),
+  hy: obj({ state: str, rise_bp: num }),
+  sahm: obj({ state: str, value: num }),
+  monthly_overheat: obj({ latest: num, overheat: bool }),
   fear_greed: obj({ score: num, zone_label: str }),
   vix: obj({ value: num, zone_label: str }),
   ndx_rsi: obj({ daily: num, weekly: num, monthly: num }),
   rsiwatch: obj({
-    flags: list(z.string().max(60), 10),
+    flags,
     qqqe_z: num,
     spx_wrsi: num,
     schd_wrsi: num,
     dual_oversold: bool,
     ignition_count: num,
   }),
-  fx: obj({
-    usdkrw: delta('change_pct'),
-    dxy: delta('change_pct'),
-    us10y: delta('change_bp'),
-    us30y: delta('change_bp'),
-    japan: obj({ jgb10y: num, jgb30y: num, usdjpy: num, jpy_chg20d_pct: num }),
-    liquidity: obj({ ffr: num, ffr_chg13w: num, netliq_chg13w_pct: num, quadrant: str }),
-    crypto: obj({
-      btc: obj({ dist_200d_pct: num, below_200d: bool }),
-      eth: obj({ dist_200d_pct: num, below_200d: bool }),
-    }),
-    europe: obj({ dist_pct: num }),
-    brk: obj({ dist_pct: num }),
-    schd_pole: obj({ dist_pct: num }),
-    leader: obj({
-      us: obj({ leader: str, gap_pct: num }),
-      kr: obj({ leader: str, reign_days: num }),
-    }),
-  }),
-  as_of: obj({ market: str, fx: str, rsi: str }),
+  usdkrw: delta('change_pct'),
+  dxy: delta('change_pct'),
+  us10y: delta('change_bp'),
+  us30y: delta('change_bp'),
+  japan: obj({ jgb10y: num, jgb30y: num, usdjpy: num, jpy_chg20d_pct: num }),
+  liquidity: obj({ ffr: num, ffr_chg13w: num, netliq_chg13w_pct: num, quadrant: str }),
+  crypto: obj({ btc_dist_200d_pct: num, btc_below_200d: bool, eth_dist_200d_pct: num, eth_below_200d: bool }),
+  europe_dist_pct: num,
+  brk_dist_pct: num,
+  schd_dist_pct: num,
+  leader: obj({ us: str, us_gap_pct: num, kr: str, kr_reign_days: num }),
+  as_of: obj({ curve: str, fear_greed: str, hy: str, rsi: str, vix: str }),
 });
 
 const sectorSchema = z.object({

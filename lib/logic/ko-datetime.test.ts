@@ -4,6 +4,7 @@ import {
   addMinutesKst,
   applyShift,
   parseKoDateTime,
+  parseRelativeOffset,
   rescheduleBase,
   stripSpans,
 } from './ko-datetime';
@@ -192,5 +193,23 @@ describe('shift helpers', () => {
   it('applyShift', () => {
     expect(applyShift('2026-01-31', { unit: 'month', n: 1 })).toBe('2026-02-28');
     expect(applyShift('2026-10-15', { unit: 'day', n: 14 })).toBe('2026-10-29');
+  });
+});
+
+describe('parseRelativeOffset', () => {
+  it.each([
+    ['30분 뒤 전화', 30],
+    ['2시간 뒤에 회의', 120],
+    ['1시간 30분 후 약', 90],
+    ['한 시간 반 뒤', 90],
+    ['두 시간 뒤', 120],
+  ])('%s -> %i min', (text, minutes) => {
+    expect(parseRelativeOffset(text)?.minutes).toBe(minutes);
+  });
+  it('span covers the phrase; absent or zero -> null', () => {
+    const r = parseRelativeOffset('약 30분 뒤에 먹기')!;
+    expect('약 30분 뒤에 먹기'.slice(...r.span)).toBe('30분 뒤에');
+    expect(parseRelativeOffset('내일 3시 회의')).toBeNull();
+    expect(parseRelativeOffset('0분 뒤')).toBeNull();
   });
 });
