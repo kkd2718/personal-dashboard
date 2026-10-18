@@ -6,6 +6,7 @@ import {
   parseRemindArg,
   parseSendArg,
   recentActiveProjects,
+  remindExpiry,
   reminderEvent,
   upcomingReminders,
 } from './send-remind';
@@ -55,6 +56,7 @@ describe('recentActiveProjects', () => {
 
 // 2026-11-07 (Sat) 12:00 KST
 const T = '2026-11-07';
+const SCOPE = { account: 'a', calendar: 'primary' };
 const N = '12:00';
 
 describe('parseRemindArg', () => {
@@ -111,7 +113,21 @@ describe('reminder events', () => {
       row('a:primary:e8:x', '🔔 먼', '2026-12-30', '09:00'),
       row('a:primary:ed:x', '🔔 종일', T, null),
     ];
-    expect(upcomingReminders(rows, T, N).map((r) => r.title)).toEqual(['🔔 첫째', '🔔 셋째']);
+    expect(upcomingReminders(rows, T, N, SCOPE).map((r) => r.title)).toEqual(['🔔 첫째', '🔔 셋째']);
+  });
+  it('only the configured account and calendar; a series (same Google id on several rows) is left out', () => {
+    const rows = [
+      row('a:primary:e1:x', '🔔 내 것', T, '13:00'),
+      { ...row('b:primary:e2:x', '🔔 다른 계정', T, '13:00'), account: 'b' },
+      row('a:work:e3:x', '🔔 다른 캘린더', T, '13:00'),
+      row('a:primary:e4@google.com:2026-11-08', '🔔 반복', '2026-11-08', '09:00'),
+      row('a:primary:e4@google.com:2026-11-09', '🔔 반복', '2026-11-09', '09:00'),
+    ];
+    expect(upcomingReminders(rows, T, N, SCOPE).map((r) => r.title)).toEqual(['🔔 내 것']);
+    expect(upcomingReminders(rows, T, N, { account: null, calendar: 'primary' }).map((r) => r.title)).toEqual(['🔔 내 것', '🔔 다른 계정']);
+  });
+  it('remindExpiry is the event time + 1 day', () => {
+    expect(remindExpiry('2026-11-08', '09:00')).toBe('2026-11-09T00:00:00.000Z');
   });
   it('google event id from a mirrored row id', () => {
     expect(googleEventId('a:primary:abc123:2026-11-08T00:00:00.000Z')).toBe('abc123');

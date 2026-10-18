@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { claimPending, loadPending, savePending, type PendingRepo } from './pending';
+import { claimPending, loadPending, prunePending, savePending, type PendingRepo } from './pending';
 
 function fakeRepo(): PendingRepo & { store: Record<string, unknown> } {
   const store: Record<string, unknown> = {};
@@ -53,5 +53,23 @@ describe('mail records retention', () => {
     };
     await savePending(repo as never, { id: 'new', createdAt: '2026-11-07T00:00:00.000Z' }, '2026-11-07T00:00:00.000Z');
     expect(Object.keys(store).sort()).toEqual(['telegram:pending:m2', 'telegram:pending:new', 'telegram:pending:p1']);
+  });
+});
+
+describe('explicit expiresAt', () => {
+  it('a record with expiresAt lives until then regardless of its age, and is dropped after', async () => {
+    const store: Record<string, unknown> = {
+      'telegram:pending:r1': { type: 'remind', id: 'r1', createdAt: '2026-10-01T00:00:00.000Z', expiresAt: '2026-11-20T00:00:00.000Z' },
+      'telegram:pending:r2': { type: 'remind', id: 'r2', createdAt: '2026-10-01T00:00:00.000Z', expiresAt: '2026-11-06T00:00:00.000Z' },
+    };
+    const repo = {
+      getMeta: async (k: string) => store[k] ?? null,
+      setMeta: async (k: string, v: unknown) => void (store[k] = v),
+      listMetaByPrefix: async (p: string) => Object.fromEntries(Object.entries(store).filter(([k]) => k.startsWith(p))),
+      deleteMeta: async (k: string) => void delete store[k],
+      claimMeta: async () => true,
+    };
+    await prunePending(repo as never, '2026-11-07T00:00:00.000Z');
+    expect(Object.keys(store)).toEqual(['telegram:pending:r1']);
   });
 });

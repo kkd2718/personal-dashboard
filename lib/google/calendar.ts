@@ -122,7 +122,7 @@ export async function insertCalendarEvent(
   }
 }
 
-/** Deletes one event by its Google id; an already-deleted event (410) counts as done. */
+/** Deletes one event by its Google id; an already-gone event (404/410) counts as done. */
 export async function deleteCalendarEvent(
   cfg: GoogleCalendarConfig,
   eventId: string,
@@ -135,7 +135,29 @@ export async function deleteCalendarEvent(
       `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cfg.calendarId)}/events/${encodeURIComponent(eventId)}`,
       { method: 'DELETE', headers: { authorization: `Bearer ${token.value}` }, signal: AbortSignal.timeout(8000) }
     );
-    return res.ok || res.status === 410 ? { ok: true, value: null } : { ok: false, error: 'http' };
+    return res.ok || res.status === 404 || res.status === 410 ? { ok: true, value: null } : { ok: false, error: 'http' };
+  } catch {
+    return { ok: false, error: 'network' };
+  }
+}
+
+/** Whether an event is part of a recurring series; `gone` when Google no longer has it (404/410). */
+export async function getEventKind(
+  cfg: GoogleCalendarConfig,
+  eventId: string,
+  fetchImpl: typeof fetch = fetch
+): Promise<CalResult<{ gone: boolean; recurring: boolean }>> {
+  const token = await getAccessToken(cfg, fetchImpl);
+  if (!token.ok) return token;
+  try {
+    const res = await fetchImpl(
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cfg.calendarId)}/events/${encodeURIComponent(eventId)}`,
+      { headers: { authorization: `Bearer ${token.value}` }, signal: AbortSignal.timeout(8000) }
+    );
+    if (res.status === 404 || res.status === 410) return { ok: true, value: { gone: true, recurring: false } };
+    if (!res.ok) return { ok: false, error: 'http' };
+    const json = (await res.json()) as { recurrence?: unknown; recurringEventId?: unknown };
+    return { ok: true, value: { gone: false, recurring: json.recurrence !== undefined || typeof json.recurringEventId === 'string' } };
   } catch {
     return { ok: false, error: 'network' };
   }

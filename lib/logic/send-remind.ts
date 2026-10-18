@@ -34,6 +34,8 @@ export interface PendingRemind {
   rowId: string | null;
   account: string | null;
   summary: string;
+  /** The cancel button works until the event time + 1 day. */
+  expiresAt: string;
 }
 
 const MENTION_RE = /(^|\s)@([\p{L}\p{N}_-]+)/gu;
@@ -139,10 +141,29 @@ export const whenLabel = (date: string, time: string) => {
   return `${m}/${d}(${WEEKDAY_SHORT[weekdayOf(date)]}) ${time}`;
 };
 
-/** Upcoming 🔔 events (start >= now), soonest first: the numbering `/reminds` shows and `/remind 취소 N` uses. */
-export function upcomingReminders(rows: CalendarEvent[], today: string, nowTime: string, days = 14): CalendarEvent[] {
+/** When a reminder's cancel record may be dropped: the event time + 1 day. */
+export function remindExpiry(date: string, time: string): string {
+  return new Date(Date.parse(`${date}T${time}:00+09:00`) + 24 * 3_600_000).toISOString();
+}
+
+/** Upcoming 🔔 events (start >= now), soonest first: the numbering `/reminds` shows and `/remind 취소 N` uses.
+ * Only the configured account and calendar; a series (the same Google id on several rows) is left out. */
+export function upcomingReminders(
+  rows: CalendarEvent[],
+  today: string,
+  nowTime: string,
+  scope: { account: string | null; calendar: string },
+  days = 14
+): CalendarEvent[] {
   const last = addDaysStr(today, days);
+  const seen = new Map<string, number>();
+  for (const r of rows) {
+    const id = googleEventId(r.id);
+    if (id) seen.set(id, (seen.get(id) ?? 0) + 1);
+  }
   return rows
+    .filter((r) => (scope.account === null || r.account === scope.account) && r.id.split(':')[1] === scope.calendar)
+    .filter((r) => (seen.get(googleEventId(r.id) ?? '') ?? 0) <= 1)
     .filter((r) => r.title.startsWith(REMIND_PREFIX) && r.startTime !== null && r.startDate <= last)
     .filter((r) => r.startDate > today || (r.startDate === today && (r.startTime as string) >= nowTime))
     .sort((a, b) => (a.startDate + (a.startTime as string)).localeCompare(b.startDate + (b.startTime as string)));

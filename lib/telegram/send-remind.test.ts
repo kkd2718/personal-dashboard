@@ -47,10 +47,12 @@ function setup(over: { cfg?: GoogleCalendarConfig | null; activity?: ProjectActi
   const answers: Array<string | undefined> = [];
   const requests: Array<{ method: string; url: string; body: Record<string, unknown> | null }> = [];
   let deleteStatus = 204;
+  let eventBody: Record<string, unknown> = { id: 'evt123abc' };
   const fetchImpl = (async (url: string, init?: { method?: string; body?: string }) => {
     if (url.includes('oauth2.googleapis.com')) return new Response(JSON.stringify({ access_token: 't', expires_in: 3600 }));
     requests.push({ method: init?.method ?? 'GET', url, body: init?.body ? JSON.parse(init.body) : null });
     if (init?.method === 'DELETE') return new Response(null, { status: deleteStatus });
+    if ((init?.method ?? 'GET') === 'GET') return new Response(JSON.stringify(eventBody));
     return new Response(JSON.stringify({ id: 'evt123abc', organizer: { email: 'me@x.com' } }));
   }) as unknown as typeof fetch;
   const deps = {
@@ -66,7 +68,7 @@ function setup(over: { cfg?: GoogleCalendarConfig | null; activity?: ProjectActi
     fetchImpl,
   } as unknown as AxDeps;
   const press = (data: string) => handleCallback(deps, { callbackId: 'cb', messageId: 7, data });
-  return { deps, notes, events, meta, sends, edits, answers, requests, press, setDeleteStatus: (s: number) => (deleteStatus = s) };
+  return { deps, notes, events, meta, sends, edits, answers, requests, press, setDeleteStatus: (s: number) => (deleteStatus = s), setEventBody: (b: Record<string, unknown>) => (eventBody = b) };
 }
 
 beforeEach(() => resetAccessTokenCache());
@@ -171,6 +173,13 @@ describe('/remind', () => {
     expect(s.sends.map((x) => x.text)).toEqual(['과거 시각이에요', expect.stringContaining('사용법'), expect.stringContaining('사용법')]);
   });
 
+  it('the remind record lives until the event time + 1 day (not the default 7 days)', async () => {
+    const s = setup();
+    await handleRemind(s.deps, '11/17 오전 9시 약');
+    const rec = [...s.meta].find(([k]) => k.startsWith('telegram:pending:'))![1] as { expiresAt: string };
+    expect(rec.expiresAt).toBe('2026-11-18T00:00:00.000Z');
+  });
+
   it('cancel button deletes the Google event and the mirrored row', async () => {
     const s = setup();
     await handleRemind(s.deps, '내일 오전 9시 약 먹기');
@@ -241,6 +250,38 @@ describe('/reminds and /remind 취소 N', () => {
     expect(s.requests.find((r) => r.method === 'DELETE')!.url).toContain('/events/e2');
     expect(s.events.map((e) => e.id)).toEqual(['me:primary:e1:x', 'me:primary:e5:x']);
     expect(s.sends[0].text).toContain('알림 취소');
+  });
+
+  it('a recurring event is refused (deleting by id would remove the whole series)', async () => {
+    const s = setup({ events });
+    s.setEventBody({ id: 'e1', recurringEventId: 'series' });
+    await handleRemind(s.deps, '취소 1');
+    expect(s.requests.some((r) => r.method === 'DELETE')).toBe(false);
+    expect(s.sends[0].text).toBe('반복 일정은 캘린더에서 지워 주세요');
+  });
+
+  it('an event already gone from Google (404) is a successful cancel and the mirrored row is removed', async () => {
+    const s = setup({ events });
+    s.setDeleteStatus(404);
+    await handleRemind(s.deps, '취소 1');
+    expect(s.sends[0].text).toContain('알림 취소');
+    expect(s.events.map((e) => e.id)).not.toContain('me:primary:e1:x');
+  });
+
+  it('other accounts and other calendars are not listed or cancellable', async () => {
+    const other = { ...row('you:primary:e7:x', '🔔 남의 것', '2026-11-07', '13:30'), account: 'you' };
+    const s = setup({ events: [...events, other, row('me:work:e8:x', '🔔 다른 캘린더', '2026-11-07', '13:40')] });
+    await handleReminds(s.deps);
+    expect(s.sends[0].text).not.toContain('남의 것');
+    expect(s.sends[0].text).not.toContain('다른 캘린더');
+  });
+
+  it('without OAuth, /reminds and /remind 취소 N explain instead of saving a memo', async () => {
+    const s = setup({ cfg: null, events });
+    await handleReminds(s.deps);
+    await handleRemind(s.deps, '취소 1');
+    expect(s.sends.map((x) => x.text)).toEqual([expect.stringContaining('GOOGLE_OAUTH'), expect.stringContaining('GOOGLE_OAUTH')]);
+    expect(s.deps.createNote).not.toHaveBeenCalled();
   });
 
   it('unknown number: nothing deleted', async () => {

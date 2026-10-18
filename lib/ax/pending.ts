@@ -26,6 +26,11 @@ export interface PendingRecord {
 export async function prunePending(repo: PendingRepo, now: string): Promise<void> {
   try {
     for (const [key, value] of Object.entries(await repo.listMetaByPrefix(PENDING_PREFIX))) {
+      const expiresAt = (value as { expiresAt?: unknown } | null)?.expiresAt;
+      if (typeof expiresAt === 'string') {
+        if (Date.parse(now) > Date.parse(expiresAt)) await repo.deleteMeta(key); // explicit lifetime (a /remind until its event)
+        continue;
+      }
       const createdAt = (value as { createdAt?: unknown } | null)?.createdAt;
       const hours = (value as { type?: unknown } | null)?.type === 'mail' ? MAIL_KEEP_HOURS : KEEP_HOURS;
       if (typeof createdAt === 'string' && isExpired(createdAt, now, hours)) await repo.deleteMeta(key);
