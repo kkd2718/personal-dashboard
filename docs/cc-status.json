@@ -154,8 +154,8 @@
       "owner": "agent"
     },
     {
-      "text": "Amgi 수집 누락 재발 여부 관찰",
-      "status": "doing",
+      "text": "Amgi 수집 누락 재발 여부 관찰 — 10/13–18 매일 기록 확인",
+      "status": "done",
       "section": "대시보드",
       "owner": "agent"
     },
@@ -228,7 +228,7 @@
     },
     {
       "text": "구글(main) Apps Script 트리거 자동 실행 재개 확인",
-      "status": "todo",
+      "status": "done",
       "section": "운영",
       "owner": "me"
     },
