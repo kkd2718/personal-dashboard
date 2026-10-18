@@ -132,11 +132,17 @@ export async function runDigest(
   const parts = !macroBlock ? splitTelegram(main) : main.length + macroBlock.length + 2 <= 4000 ? [`${main}
 
 ${macroBlock}`] : [...splitTelegram(main), ...splitTelegram(macroBlock)];
-  for (const part of parts) {
-    if (!(await sender(part)).ok) return 'failed';
+  let failed = false;
+  for (const [i, part] of parts.entries()) {
+    if (!(await sender(part)).ok) {
+      failed = true;
+      break;
+    }
+    // Marked as soon as the main part is out, so a later part failing never resends it on retry/?force.
+    if (i === 0) await repo.setMeta(META_KEY, today);
   }
+  if (failed) return 'failed';
 
-  await repo.setMeta(META_KEY, today);
   // Settings §5.8 연동 상태 rows read this back (PLAN_UX.md decision 3).
   await repo.setMeta('integration:telegram', { at: new Date().toISOString(), detail: '다이제스트 전송' });
   return 'sent';

@@ -118,6 +118,16 @@ describe('digest 📈 매크로 block', () => {
     expect(s.store.has('telegram:digest:lastSent')).toBe(false);
   });
 
+  it('the sent-today mark is written once the main part is out, even if the macro part then fails', async () => {
+    const s = setup({ 'trading:market': longSnapshot() });
+    (s.digestRepo as { listTasks: () => Promise<unknown[]> }).listTasks = async () => longTasks;
+    (s.digestRepo as { listProjects: () => Promise<unknown[]> }).listProjects = async () => [{ id: 'p1', slug: 'p1', name: '프로젝트', status: 'active', order: 0 }];
+    const sender = vi.fn<(t: string) => Promise<{ ok: boolean }>>(async (t) => ({ ok: !t.includes('📈 매크로') }));
+    expect(await runDigest(s.digestRepo, sender, TODAY, false, null)).toBe('failed');
+    expect(s.store.get('telegram:digest:lastSent')).toBe(TODAY);
+    expect(await runDigest(s.digestRepo, sender, TODAY, false, null)).toBe('skipped-already');
+  });
+
   it('an unreadable snapshot never blocks the rest of the digest', async () => {
     const s = setup();
     const base = s.digestRepo.getMeta.bind(s.digestRepo);
