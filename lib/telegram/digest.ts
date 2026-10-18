@@ -14,7 +14,7 @@ import { TRADING_SUMMARY_META_KEY, tradingOneLine } from '@/lib/logic/trading';
 import type { StatusItem } from '@/lib/status/types';
 import { checklist } from '@/lib/logic/checklist';
 import { CALENDAR_VISIBLE_META_KEY, filterVisibleEvents } from '@/lib/logic/calendar';
-import { WORK_SHIFTS_META_KEY, type WorkShiftsMeta } from '@/lib/logic/work';
+import { WORK_SHIFTS_META_KEY, hideOffEvent, type WorkShiftsMeta } from '@/lib/logic/work';
 import { routineStatus } from '@/lib/logic/routines';
 import { loadRoutineCounts, loadRoutineDone, loadRoutineItems } from '@/lib/routines-data';
 import { formatDigest } from '@/lib/telegram/format';
@@ -47,6 +47,9 @@ export type Sender = (text: string) => Promise<SendResult>;
 
 /** My overdue/today/tomorrow items across every non-archived project's cc-status
  * checklist (shared by the digest and /today). */
+/** Awaits `p`, or `fallback` when it rejects. */
+const safe = <T,>(p: Promise<T>, fallback: T): Promise<T> => p.catch(() => fallback);
+
 export async function loadProjectDue(
   repo: Pick<DigestRepo, 'listProjects' | 'getMeta'>,
   today: string,
@@ -81,23 +84,25 @@ export async function runDigest(
     if (lastSent === today) return 'skipped-already';
   }
 
+  // Each read fails on its own: one Supabase hiccup must not lose the whole digest.
   const [tasks, deadlines, reviews, snapshot, rawTodayEvents, visibleCalendars, trading, work, projectDue, routineItems, routineDone] = await Promise.all([
-    repo.listTasks(),
-    repo.listDeadlines(),
-    repo.listReviews(),
-    repo.getStatusSnapshot(),
-    repo.listCalendarEvents(today, today),
-    repo.getMeta<string[]>(CALENDAR_VISIBLE_META_KEY),
-    repo.getMeta<TradingSummary>(TRADING_SUMMARY_META_KEY),
-    repo.getMeta<WorkShiftsMeta>(WORK_SHIFTS_META_KEY),
-    loadProjectDue(repo, today),
-    loadRoutineItems(repo),
-    loadRoutineDone(repo, today),
+    safe(repo.listTasks(), []),
+    safe(repo.listDeadlines(), []),
+    safe(repo.listReviews(), []),
+    safe(repo.getStatusSnapshot(), null),
+    safe(repo.listCalendarEvents(today, today), []),
+    safe(repo.getMeta<string[]>(CALENDAR_VISIBLE_META_KEY), null),
+    safe(repo.getMeta<TradingSummary>(TRADING_SUMMARY_META_KEY), null),
+    safe(repo.getMeta<WorkShiftsMeta>(WORK_SHIFTS_META_KEY), null),
+    safe(loadProjectDue(repo, today), { overdue: [], today: [], tomorrow: [] } as DueChecklist),
+    safe(loadRoutineItems(repo), []),
+    safe(loadRoutineDone(repo, today), []),
   ]);
+  const todayShift = work?.shifts.find((s) => s.date === today) ?? null;
   const me = checklist(tasks, deadlines, reviews, today).me;
-  const routines = routineStatus(routineItems, routineDone, today, await loadRoutineCounts(repo, today));
-  const waiting = waitingNudges(await loadWaiting(repo), today).map((n) => ({ title: n.item.title, days: n.days }));
-  const googleMeta = repo.listMetaByPrefix ? await repo.listMetaByPrefix('integration:google:') : {};
+  const routines = routineStatus(routineItems, routineDone, today, await safe(loadRoutineCounts(repo, today), {}));
+  const waiting = waitingNudges(await safe(loadWaiting(repo), []), today).map((n) => ({ title: n.item.title, days: n.days }));
+  const googleMeta = repo.listMetaByPrefix ? await safe(repo.listMetaByPrefix('integration:google:'), {}) : {};
   const message = formatDigest({
     staleSyncs: staleGoogleAccounts(googleMeta, new Date().toISOString()),
     routines,
@@ -107,10 +112,10 @@ export async function runDigest(
     deadlines,
     reviews,
     checklist: me,
-    todayEvents: filterVisibleEvents(rawTodayEvents, visibleCalendars),
+    todayEvents: hideOffEvent(filterVisibleEvents(rawTodayEvents, visibleCalendars), todayShift),
     statusItems: snapshot?.items ?? [],
     cloudUrl,
-    workShift: work?.shifts.find((s) => s.date === today) ?? null,
+    workShift: todayShift,
   });
   const nowIso = new Date().toISOString();
   const { current: market, prev: marketPrev } = await loadBriefs(repo).catch(() => ({ current: null, prev: null }));

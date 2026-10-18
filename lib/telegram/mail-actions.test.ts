@@ -4,7 +4,7 @@ import type { SpendRecord } from '@/lib/logic/ask-budget';
 import { project } from '@/lib/logic/ax-fixtures';
 import type { MailPending } from '@/lib/logic/mail-ai';
 import type { AxDeps } from './ax';
-import { handleMailCallback, sendMailAlert, summarizeMail, type MailAlertDeps } from './mail-actions';
+import { handleMailCallback, sendMailAlert, summarizeAll, summarizeMail, type MailAlertDeps } from './mail-actions';
 
 const NOW = new Date('2026-11-07T03:00:00.000Z');
 const TODAY = '2026-11-07';
@@ -171,5 +171,32 @@ describe('handleMailCallback', () => {
     const s = callbackSetup({ ageHours: 47 });
     await handleMailCallback(s.deps, { callbackId: 'c' }, { t: 'm', id: 'mail1', a: 'p' });
     expect(s.createNote).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('summary time budget', () => {
+  it('summaries run one at a time with maxRetries 0; once the budget is spent the rest go out without a summary', async () => {
+    const a = alertDeps();
+    let clock = 0;
+    const seen: Array<{ timeoutMs?: number; maxRetries?: number } | undefined> = [];
+    a.deps.client = {
+      create: async (_params, opts) => {
+        seen.push(opts);
+        clock += 5000; // each call takes 5 s
+        return message([text('요약')]);
+      },
+    };
+    const out = await summarizeAll(a.deps, [item, item, item, item], 0, { budgetMs: 12_000, now: () => clock });
+    expect(out).toEqual(['요약', '요약', '요약', null]); // started at 0 s, 5 s, 10 s (2 s left); at 15 s the budget is spent
+    expect(seen).toHaveLength(3);
+    expect(seen.every((o) => o?.maxRetries === 0)).toBe(true);
+    expect(seen[2]?.timeoutMs).toBe(2000); // never longer than what is left
+  });
+
+  it('a budget already spent calls nothing', async () => {
+    const a = alertDeps();
+    const out = await summarizeAll(a.deps, [item, item], 0, { budgetMs: 12_000, now: () => 20_000 });
+    expect(out).toEqual([null, null]);
+    expect(a.calls).toHaveLength(0);
   });
 });

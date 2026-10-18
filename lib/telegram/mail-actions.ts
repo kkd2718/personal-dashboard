@@ -45,9 +45,35 @@ export interface MailAlertItem {
 }
 
 /** 1-2 line Korean summary, or null (no client, budget out, failure, empty). */
-export async function summarizeMail(deps: MailAlertDeps, item: Pick<MailAlertItem, 'from' | 'subject' | 'snippet'>): Promise<string | null> {
-  const r = await oneShot(deps, 'mail', { system: SUMMARY_SYSTEM, user: mailPrompt(item), maxTokens: 200, timeoutMs: 8000 });
+export async function summarizeMail(
+  deps: MailAlertDeps,
+  item: Pick<MailAlertItem, 'from' | 'subject' | 'snippet'>,
+  timeoutMs = 8000
+): Promise<string | null> {
+  const r = await oneShot(deps, 'mail', { system: SUMMARY_SYSTEM, user: mailPrompt(item), maxTokens: 200, timeoutMs });
   return cleanSummary(r?.text);
+}
+
+/** Total time for all summaries of one request; after it the remaining alerts go out without one. */
+export const SUMMARY_BUDGET_MS = 12_000;
+const MIN_CALL_MS = 1500;
+
+/** Summaries one at a time (each read-modify-writes the spend ledger) inside a shared time budget measured from
+ * `startedAt`; once under MIN_CALL_MS is left, the rest are null. */
+export async function summarizeAll(
+  deps: MailAlertDeps,
+  items: Array<Pick<MailAlertItem, 'from' | 'subject' | 'snippet'>>,
+  startedAt: number,
+  opts: { budgetMs?: number; now?: () => number } = {}
+): Promise<Array<string | null>> {
+  const now = opts.now ?? Date.now;
+  const budget = opts.budgetMs ?? SUMMARY_BUDGET_MS;
+  const out: Array<string | null> = [];
+  for (const item of items) {
+    const left = budget - (now() - startedAt);
+    out.push(left < MIN_CALL_MS ? null : await summarizeMail(deps, item, Math.min(8000, left)));
+  }
+  return out;
 }
 
 /** Sends one alert: header, optional summary line, and the two buttons (pending record kept 48 h). */

@@ -84,3 +84,9 @@ export function parseShift(code: string, date: string): ParsedShift {
 export function shiftsByDate(shifts: WorkShift[]): Map<string, ParsedShift> {
   return new Map(shifts.map((s) => [s.date, parseShift(s.code, s.date)]));
 }
+
+/** On a work `off` day the timed `off` calendar event only repeats the shift line: hide it from the day's events. */
+export function hideOffEvent<T extends { title: string }>(events: T[], shift: WorkShift | null | undefined): T[] {
+  if (!shift || parseShift(shift.code, shift.date).kind !== 'off') return events;
+  return events.filter((e) => e.title.trim().toLowerCase() !== 'off');
+}

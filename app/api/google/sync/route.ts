@@ -13,8 +13,8 @@ import {
 } from '@/lib/google/sync';
 import { sendMessage, telegramConfig } from '@/lib/telegram/client';
 import { createAskClient, type AskClient } from '@/lib/ask/client';
-import { stripAttachmentNames } from '@/lib/logic/mail-triage';
-import { sendMailAlert, summarizeMail, type MailAlertDeps } from '@/lib/telegram/mail-actions';
+import { MAIL_TRIAGE_CONFIG_KEY, normalizeTriageConfig, stripAttachmentNames } from '@/lib/logic/mail-triage';
+import { sendMailAlert, summarizeAll, type MailAlertDeps } from '@/lib/telegram/mail-actions';
 import { escapeHtml } from '@/lib/telegram/format';
 import { todayKST } from '@/lib/logic/dates';
 import { findMatchingPaper } from '@/lib/logic/review-candidates';
@@ -40,7 +40,7 @@ import {
   summarizeShiftMonth,
   type WorkAnnounced,
 } from '@/lib/logic/work-announce';
-import { loadWaiting, patchWaitingItem } from '@/lib/waiting-data';
+import { loadWaiting, patchWaitingItem, stripStoredReplySnippets } from '@/lib/waiting-data';
 import { formatShiftMonth, formatWaitingReplyAlert } from '@/lib/telegram/format';
 import { WORK_SHIFTS_META_KEY, mergeShifts, type WorkShift, type WorkShiftsMeta } from '@/lib/logic/work';
 
@@ -195,7 +195,8 @@ export async function POST(request: Request) {
     }
   }
 
-  if (waiting && waiting.length > 0) await processWaiting(repo, waiting, request);
+  await stripStoredReplySnippets(repo).catch(() => {}); // idempotent: cleans replies stored before the filter existed
+  if (waiting && waiting.length > 0) await processWaiting(repo, waiting, request, account);
 
   // Settings §5.8 연동 상태 rows read this back (PLAN_UX.md decision 3).
   await repo.setMeta(`integration:google:${account}`, {
@@ -220,11 +221,20 @@ export async function POST(request: Request) {
 async function processWaiting(
   repo: ReturnType<typeof getRepo>,
   waiting: NonNullable<z.infer<typeof bodySchema>['waiting']>,
-  request: Request
+  request: Request,
+  account: string
 ) {
   // Mail from the owner's own accounts (OWNER_EMAILS) is never a reply.
   const owners = parseOwnerEmails(process.env.OWNER_EMAILS);
-  const input = waiting.map((w) => ({ ...w, matches: w.matches.filter((m) => !isOwnerSender(m.from, owners)) }));
+  // Snippets are filtered here whatever the script did: attachment names never reach storage, Jev or Telegram,
+  // and a kill-switched account (noBodyAccounts) sends none.
+  const noBody = normalizeTriageConfig(await repo.getMeta(MAIL_TRIAGE_CONFIG_KEY)).noBodyAccounts.includes(account);
+  const input = waiting.map((w) => ({
+    ...w,
+    matches: w.matches
+      .filter((m) => !isOwnerSender(m.from, owners))
+      .map((m) => ({ ...m, snippet: noBody ? '' : stripAttachmentNames(m.snippet) })),
+  }));
   const { replied } = applyWaitingMatches(await loadWaiting(repo), input);
   if (replied.length === 0) return;
 
@@ -350,9 +360,7 @@ async function sendCandidateAlerts(
   const shown = candidates.slice(0, 4);
   // Attachment names never reach Claude or the stored pending record (same filter as mail triage).
   const snippets = shown.map((c) => stripAttachmentNames(c.snippet));
-  // Sequential: each call read-modify-writes the spend ledger.
-  const summaries: Array<string | null> = [];
-  for (const [i, c] of shown.entries()) summaries.push(await summarizeMail(deps, { from: c.fromAddr, subject: c.subject, snippet: snippets[i] }));
+  const summaries = await summarizeAll(deps, shown.map((c, i) => ({ from: c.fromAddr, subject: c.subject, snippet: snippets[i] })), Date.now());
   for (const [i, c] of shown.entries()) {
     const paper = c.manuscriptId ? papers.find((p) => p.manuscriptId === c.manuscriptId) : undefined;
     const sent = await sendMailAlert(

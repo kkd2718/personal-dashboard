@@ -63,7 +63,7 @@ export async function oneShot(
         system: opts.system,
         messages: [{ role: 'user', content: opts.user }],
       },
-      { timeoutMs: opts.timeoutMs }
+      { timeoutMs: opts.timeoutMs, maxRetries: 0 } // a retry would double the wait inside a time-boxed webhook
     );
     const spent = await addSpend(deps.repo, budgetConfig(env), deps.today, feature, model, res.usage, prices[model]).catch(() => null);
     const text = extractText(res.content);

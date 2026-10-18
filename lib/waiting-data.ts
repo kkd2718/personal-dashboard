@@ -2,6 +2,7 @@
 // right before writing — two Apps Script accounts and the webhook all touch it, and a
 // single-user hourly cadence makes that read-modify-write good enough.
 import { WAITING_META_KEY, type WaitingItem } from '@/lib/logic/waiting';
+import { stripAttachmentNames } from '@/lib/logic/mail-triage';
 import type { Repo } from '@/lib/repo';
 
 export async function loadWaiting(repo: Pick<Repo, 'getMeta'>): Promise<WaitingItem[]> {
@@ -32,4 +33,12 @@ export async function patchWaitingItem(
   items[i] = fn(items[i]);
   await repo.setMeta(WAITING_META_KEY, items);
   return items[i];
+}
+
+/** Strips attachment file names from every stored reply snippet (idempotent; writes only items that change). */
+export async function stripStoredReplySnippets(repo: Pick<Repo, 'getMeta' | 'setMeta'>): Promise<void> {
+  const dirty = (await loadWaiting(repo)).filter((it) => it.reply && stripAttachmentNames(it.reply.snippet) !== it.reply.snippet);
+  for (const item of dirty) {
+    await patchWaitingItem(repo, item.id, (it) => (it.reply ? { ...it, reply: { ...it.reply, snippet: stripAttachmentNames(it.reply.snippet) } } : it));
+  }
 }

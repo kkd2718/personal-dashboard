@@ -25,10 +25,10 @@ import { getRepo } from '@/lib/repo';
 import { sendMessage, telegramConfig } from '@/lib/telegram/client';
 import { MAIL_CAP_NOTICE, formatMailAlert } from '@/lib/telegram/format';
 import { createAskClient } from '@/lib/ask/client';
-import { sendMailAlert, summarizeMail, type MailAlertDeps } from '@/lib/telegram/mail-actions';
+import { sendMailAlert, summarizeAll, type MailAlertDeps } from '@/lib/telegram/mail-actions';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 const MAX_BYTES = 256 * 1024;
 
@@ -57,6 +57,7 @@ const bodySchema = z.object({
 /** For the 5-minute `triage` trigger of integrations/google/Code.gs (one per account). Mail
  * content only travels to Telegram/Jev; only message ids and counters are stored. */
 export async function POST(request: Request) {
+  const startedAt = Date.now();
   const auth = checkBearer(request, process.env.GOOGLE_SYNC_TOKEN);
   if (auth === 'missing-config') {
     return NextResponse.json({ ok: false, error: 'GOOGLE_SYNC_TOKEN not configured' }, { status: 503 });
@@ -130,8 +131,7 @@ export async function POST(request: Request) {
     const nowIso = new Date().toISOString();
     const deps: MailAlertDeps = { repo, client, today, nowIso, send: (text, replyMarkup) => sendMessage(text, { replyMarkup }) };
     const projects = await repo.listProjects();
-    const summaries: Array<string | null> = []; // sequential: each call read-modify-writes the spend ledger
-    for (const m of toAlert) summaries.push(await summarizeMail(deps, { from: m.from, subject: m.subject, snippet: m.snippet ?? '' }));
+    const summaries = await summarizeAll(deps, toAlert.map((m) => ({ from: m.from, subject: m.subject, snippet: m.snippet ?? '' })), startedAt);
     sentKeys = new Set<string>();
     let retry = false;
     for (const [i, m] of toAlert.entries()) {

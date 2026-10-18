@@ -22,7 +22,7 @@ import { openWaitingList, parseWaitCommand, resolveWaitTarget } from '@/lib/logi
 import { loadWaiting, patchWaitingItem } from '@/lib/waiting-data';
 import { createJev, jevToken } from '@/lib/ai/jev';
 import { rememberUpdate } from '@/lib/logic/ax-proposal';
-import { WORK_SHIFTS_META_KEY, type WorkShiftsMeta } from '@/lib/logic/work';
+import { WORK_SHIFTS_META_KEY, hideOffEvent, type WorkShiftsMeta } from '@/lib/logic/work';
 import {
   escapeHtml,
   WAIT_USAGE,
@@ -365,6 +365,7 @@ async function buildToday(): Promise<string> {
     loadRoutineDone(repo, today),
   ]);
   const routineCounts = await loadRoutineCounts(repo, today);
+  const todayShift = work?.shifts.find((s) => s.date === today) ?? null;
   const me = checklist(tasks, deadlines, reviews, today).me;
   const dayMemos = notes.filter((n) => n.date === today && n.status !== 'archived');
   return formatToday({
@@ -372,10 +373,10 @@ async function buildToday(): Promise<string> {
     checklist: me,
     upcoming: upcoming(deadlines, reviews, today, 7),
     dayMemos,
-    todayEvents: filterVisibleEvents(rawTodayEvents, visibleCalendars),
+    todayEvents: hideOffEvent(filterVisibleEvents(rawTodayEvents, visibleCalendars), todayShift),
     statusItems: snapshot?.items ?? [],
     cloudUrl: process.env.CLOUD_URL ?? null,
-    workShift: work?.shifts.find((s) => s.date === today) ?? null,
+    workShift: todayShift,
     projectDue,
     routines: routineStatus(routineItems, routineDone, today, routineCounts),
   });

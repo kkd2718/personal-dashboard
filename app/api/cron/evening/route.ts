@@ -29,7 +29,11 @@ export async function GET(request: Request) {
   if (telegramConfig()) {
     const repo = getRepo();
     const today = todayKST();
-    evening = await runEvening(repo, sendMessage, today, force);
+    try {
+      evening = await runEvening(repo, sendMessage, today, force);
+    } catch {
+      evening = 'failed'; // the weekly review still runs
+    }
     try {
       weekly = await runWeekly(repo, (text, markup) => sendMessage(text, { replyMarkup: markup }), today, {
         force: params.has('weekly'),

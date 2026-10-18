@@ -15,7 +15,7 @@ export type AskMessage = Anthropic.Messages.Message;
 export type AskCreateParams = Anthropic.Messages.MessageCreateParamsNonStreaming;
 
 export interface AskClient {
-  create(params: AskCreateParams, opts?: { timeoutMs?: number }): Promise<AskMessage>;
+  create(params: AskCreateParams, opts?: { timeoutMs?: number; maxRetries?: number }): Promise<AskMessage>;
 }
 
 /** null without `ANTHROPIC_API_KEY` (every /ask feature then degrades to a notice). */
@@ -23,5 +23,11 @@ export function createAskClient(env: Record<string, string | undefined> = proces
   const apiKey = env.ANTHROPIC_API_KEY;
   if (!apiKey) return null;
   const client = new Anthropic({ apiKey, maxRetries: 1, timeout: 25_000 });
-  return { create: (params, opts) => client.messages.create(params, opts?.timeoutMs ? { timeout: opts.timeoutMs } : undefined) };
+  return {
+    create: (params, opts) =>
+      client.messages.create(params, {
+        ...(opts?.timeoutMs ? { timeout: opts.timeoutMs } : {}),
+        ...(opts?.maxRetries !== undefined ? { maxRetries: opts.maxRetries } : {}),
+      }),
+  };
 }

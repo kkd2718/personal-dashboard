@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mergeShifts, parseShift, shiftsByDate, type WorkShiftsMeta } from './work';
+import { hideOffEvent, mergeShifts, parseShift, shiftsByDate, type WorkShiftsMeta } from './work';
 
 describe('parseShift', () => {
   it('A1 on a weekday is 13층 1조 10:00-20:00', () => {
@@ -97,5 +97,15 @@ describe('telegram workLine', () => {
       '💼 근무 14층 2조 10:30–20:30'
     );
     expect(formatDigest({ today, deadlines: [], reviews: [], checklist: empty, statusItems: [], workShift: shift })).toBeNull();
+  });
+});
+
+describe('hideOffEvent', () => {
+  const events = [{ title: 'off' }, { title: ' OFF ' }, { title: '치과' }];
+  it('hides the off event only on an off day', () => {
+    expect(hideOffEvent(events, { date: '2026-10-07', code: 'off' })).toEqual([{ title: '치과' }]);
+    expect(hideOffEvent(events, { date: '2026-10-07', code: 'off(교환)' })).toEqual([{ title: '치과' }]);
+    expect(hideOffEvent(events, { date: '2026-10-07', code: 'A1' })).toBe(events);
+    expect(hideOffEvent(events, null)).toBe(events);
   });
 });

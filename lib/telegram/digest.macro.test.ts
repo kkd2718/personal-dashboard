@@ -148,3 +148,26 @@ describe('digest 📈 매크로 block', () => {
     expect(out).toContain('…외 3건 — /macro');
   });
 });
+
+describe('digest fault tolerance and work off days', () => {
+  it('one failing read does not lose the digest', async () => {
+    const s = setup({ 'trading:market': snapshot() });
+    const boom = async (): Promise<unknown[]> => {
+      throw new Error('db down');
+    };
+    (s.digestRepo as { listTasks: () => Promise<unknown[]> }).listTasks = boom;
+    (s.digestRepo as { listDeadlines: () => Promise<unknown[]> }).listDeadlines = boom;
+    expect(await runDigest(s.digestRepo, s.sender, TODAY, false, null)).toBe('sent');
+    expect(s.sender.mock.calls[0][0]).toContain('📈 매크로');
+  });
+
+  it('on a work off day the off calendar event is hidden from 오늘 일정', async () => {
+    const s = setup({ 'calendar:visible': ['c'], 'trading:market': snapshot(), 'work:shifts': { shifts: [{ date: TODAY, code: 'off' }], updatedAt: TODAY } });
+    const ev = (title: string) => ({ id: title, account: 'a', calendarName: 'c', title, startDate: TODAY, endDate: TODAY, startTime: '09:00', endTime: '10:00', location: null, updatedAt: '' });
+    (s.digestRepo as unknown as { listCalendarEvents: () => Promise<unknown[]> }).listCalendarEvents = async () => [ev('off'), ev('치과')];
+    await runDigest(s.digestRepo, s.sender, TODAY, false, null);
+    const out = s.sender.mock.calls[0][0];
+    expect(out).toContain('치과');
+    expect(out).not.toMatch(/09:00[^\n]*off/);
+  });
+});

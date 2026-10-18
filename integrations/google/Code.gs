@@ -159,7 +159,7 @@ function collectWaiting_(props) {
             messageId: msg.getId(),
             from: from.slice(0, 300),
             subject: (msg.getSubject() || '').slice(0, 500),
-            snippet: (msg.getPlainBody() || '').replace(/\s+/g, ' ').trim().slice(0, 300),
+            snippet: stripAttachmentNames_(msg.getPlainBody() || '').slice(0, 300),
             receivedAt: msg.getDate().toISOString(),
           });
         }
