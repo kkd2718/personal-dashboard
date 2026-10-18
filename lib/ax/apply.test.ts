@@ -66,4 +66,23 @@ describe('applyProposal', () => {
     });
     expect(out).toContain('미설정');
   });
+
+  it('send_memo creates one note for the project and marks it sent', async () => {
+    const r = repo({
+      createNote: vi.fn(async () => ({ id: 'n1' }) as never),
+      updateNote: vi.fn(async () => ({}) as never),
+    });
+    const out = await applyProposal(r, deps, { kind: 'send_memo', projectId: 'p1', projectName: 'BrainCT', body: '전처리 재실행' });
+    expect(r.createNote).toHaveBeenCalledTimes(1);
+    expect(r.createNote).toHaveBeenCalledWith({ body: '[텔레그램 /ask] 전처리 재실행', kind: 'memo', projectId: 'p1', source: 'telegram' });
+    expect(r.updateNote).toHaveBeenCalledWith('n1', { status: 'sent' });
+    expect(out).toContain('BrainCT');
+  });
+
+  it('deadline_create calls createDeadline once', async () => {
+    const r = repo({ createDeadline: vi.fn(async () => deadline({ id: 'new', title: 'x' })) });
+    await applyProposal(r, deps, { kind: 'deadline_create', title: '제출', dueDate: '2026-10-30', dueTime: '17:00', projectId: null, deadlineKind: 'paper' });
+    expect(r.createDeadline).toHaveBeenCalledTimes(1);
+    expect(r.createDeadline).toHaveBeenCalledWith({ title: '제출', kind: 'paper', dueDate: '2026-10-30', dueTime: '17:00', projectId: null });
+  });
 });

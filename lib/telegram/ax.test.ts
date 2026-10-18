@@ -328,6 +328,19 @@ describe('task_create', () => {
     expect(s.markups[0].text).toContain('프로젝트 없음');
   });
 
+  it('cleanTitle polishes the proposed title; a throwing cleaner keeps the rule title', async () => {
+    const polished = setup(intentCreate, { cleanTitle: async () => '서류 정리' });
+    await handleFreeText(polished.deps, '할 일: 서류 정리해야 해');
+    expect(polished.markups[0].text).toContain('<b>서류 정리</b>');
+    const broken = setup(intentCreate, {
+      cleanTitle: async () => {
+        throw new Error('x');
+      },
+    });
+    await handleFreeText(broken.deps, '할 일: 서류 정리');
+    expect(broken.markups[0].text).toContain('<b>서류 정리</b>');
+  });
+
   it('a past due date falls back to a memo with the reason', async () => {
     const s = setup(intentCreate);
     await handleFreeText(s.deps, '할 일: 청소 10월 3일');

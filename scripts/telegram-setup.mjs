@@ -94,6 +94,8 @@ async function main() {
       { command: 'cal', description: '캘린더에 일정 추가 (/cal 내일 3시 치과)' },
       { command: 'waits', description: '답장 대기 목록' },
       { command: 'wait', description: '대기 수정/종료 (/wait 2 close)' },
+      { command: 'ask', description: '대시보드에 질문 (/ask 이번 주 마감? · /ask! Opus)' },
+      { command: 'budget', description: '/ask API 예산 현황' },
       { command: 'mailrule', description: '메일 알림 규칙 (/mailrule allow a@b.com)' },
       { command: 'help', description: '사용법' },
     ],

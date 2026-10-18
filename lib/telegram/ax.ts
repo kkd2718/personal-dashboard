@@ -32,6 +32,8 @@ import {
   type PendingStatus,
 } from '@/lib/logic/ax-proposal';
 import { kstDateTime } from '@/lib/logic/dates';
+import type { AskClient } from '@/lib/ask/client';
+import { handleMailCallback } from '@/lib/telegram/mail-actions';
 import type { Repo } from '@/lib/repo';
 import type { InlineKeyboard } from '@/lib/telegram/client';
 import { escapeHtml, formatCaptureReply } from '@/lib/telegram/format';
@@ -49,6 +51,10 @@ export interface AxDeps {
   createNote(text: string): Promise<Note>;
   calendarCfg: GoogleCalendarConfig | null;
   now(): Date;
+  /** Claude client for the mail alert buttons (답장 초안); null/absent -> they report "can't now". */
+  askClient?: AskClient | null;
+  /** Optional Haiku polish of a rule-based task_create title (never throws, returns the rule title on any doubt). */
+  cleanTitle?(text: string, ruleTitle: string): Promise<string>;
   /** Called after a proposal was applied (route layer revalidates pages). */
   onApplied?(): void;
   fetchImpl?: typeof fetch;
@@ -124,12 +130,17 @@ async function classify(deps: AxDeps, jev: Jev, text: string): Promise<Outcome> 
     });
     if (!built.ok) return { memoSuffix: note(`${escapeHtml(built.reason)} — 메모로 저장했어요`) };
 
+    let body = built.proposal;
+    if (body.kind === 'task_create' && deps.cleanTitle) {
+      const ruleTitle = body.title;
+      body = { ...body, title: await deps.cleanTitle(text, ruleTitle).catch(() => ruleTitle) };
+    }
     const proposal: PendingProposal = {
       type: 'proposal',
       id: newShortId(),
       createdAt: nowDate.toISOString(),
       text,
-      proposal: built.proposal,
+      proposal: body,
       status: 'pending',
     };
     await savePending(deps.repo, proposal, proposal.createdAt);
@@ -164,6 +175,7 @@ export async function handleCallback(deps: AxDeps, cb: CallbackInput): Promise<v
   const decoded = decodeCallback(cb.data);
   if (!decoded) return void (await deps.answer(cb.callbackId, '알 수 없는 버튼'));
   if (decoded.t === 'w') return handleWeeklyCallback(deps, cb, decoded);
+  if (decoded.t === 'm') return handleMailCallback(deps, cb, decoded);
 
   const record = await loadPending(deps.repo, decoded.id);
   if (!record) return void (await deps.answer(cb.callbackId, '만료됨'));

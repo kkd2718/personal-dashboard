@@ -5,7 +5,8 @@ import type { StatusItem } from '@/lib/status/types';
 import type { Checklist, ChecklistItem } from '@/lib/logic/checklist';
 import type { UpcomingItem } from '@/lib/logic/upcoming';
 import { dueReminders, reviewReminders } from '@/lib/logic/upcoming';
-import { ddayLabel, dday, weekdayOf } from '@/lib/logic/dates';
+import { addDaysStr, ddayLabel, dday, weekdayOf } from '@/lib/logic/dates';
+import type { Pace, SpendRecord } from '@/lib/logic/ask-budget';
 import { MAX_ALERTS_PER_MESSAGE, senderAddress, type TriageMail } from '@/lib/logic/mail-triage';
 import type { ShiftMonthSummary } from '@/lib/logic/work-announce';
 import type { ReplyCategory, WaitingItem, WaitingReply } from '@/lib/logic/waiting';
@@ -319,7 +320,7 @@ export function parseUpdate(update: unknown): TelegramMessage | null {
 }
 
 export type TelegramUpdate =
-  | { kind: 'message'; updateId: number | null; chatId: number; text: string }
+  | { kind: 'message'; updateId: number | null; chatId: number; text: string; messageId: number | null; replyToMessageId: number | null }
   | { kind: 'callback'; updateId: number | null; chatId: number; callbackId: string; messageId: number; data: string };
 
 /** Parses a message or inline-button callback update (chat id of a callback is that of its message). */
@@ -329,7 +330,17 @@ export function parseTelegramUpdate(update: unknown): TelegramUpdate | null {
   const updateId = typeof u.update_id === 'number' ? u.update_id : null;
 
   const message = parseUpdate(update);
-  if (message) return { kind: 'message', updateId, ...message };
+  if (message) {
+    const raw = u.message as Record<string, unknown>;
+    const reply = raw.reply_to_message && typeof raw.reply_to_message === 'object' ? (raw.reply_to_message as Record<string, unknown>) : null;
+    return {
+      kind: 'message',
+      updateId,
+      ...message,
+      messageId: typeof raw.message_id === 'number' ? raw.message_id : null,
+      replyToMessageId: typeof reply?.message_id === 'number' ? reply.message_id : null,
+    };
+  }
 
   const cb = u.callback_query;
   if (!cb || typeof cb !== 'object') return null;
@@ -341,21 +352,27 @@ export function parseTelegramUpdate(update: unknown): TelegramUpdate | null {
   return { kind: 'callback', updateId, chatId: chat.id, callbackId: c.id, messageId: msg.message_id, data: c.data };
 }
 
-export type CommandName = 'today' | 'deadlines' | 'done' | 'cal' | 'waits' | 'wait' | 'mailrule' | 'help' | 'start' | 'unknown';
+export type CommandName = 'today' | 'deadlines' | 'done' | 'cal' | 'waits' | 'wait' | 'mailrule' | 'ask' | 'budget' | 'help' | 'start' | 'unknown';
 
-export type Route = { kind: 'command'; name: CommandName; arg: string } | { kind: 'capture'; text: string };
+/** `modifier`: `/ask!` (Opus) or `/ask+` (Sonnet); other commands ignore it. */
+export type Route = { kind: 'command'; name: CommandName; arg: string; modifier?: '!' | '+' } | { kind: 'capture'; text: string };
 
-const COMMAND_NAMES: ReadonlySet<string> = new Set(['today', 'deadlines', 'done', 'cal', 'waits', 'wait', 'mailrule', 'help', 'start']);
+const COMMAND_NAMES: ReadonlySet<string> = new Set(['today', 'deadlines', 'done', 'cal', 'waits', 'wait', 'mailrule', 'ask', 'budget', 'help', 'start']);
 
 /** Routes incoming text to a command or a plain capture. Commands may carry a
  * `@BotName` suffix (`/today@my_bot`); anything else is a memo to capture. */
 export function route(text: string): Route {
   const trimmed = text.trim();
-  const match = /^\/(\w+)(?:@\S+)?(?:\s+([\s\S]*))?$/.exec(trimmed);
+  const match = /^\/(\w+)([!+])?(?:@\S+)?(?:\s+([\s\S]*))?$/.exec(trimmed);
   if (match) {
     const name = match[1].toLowerCase();
-    const arg = match[2] ?? '';
-    return { kind: 'command', name: (COMMAND_NAMES.has(name) ? name : 'unknown') as CommandName, arg };
+    const arg = match[3] ?? '';
+    return {
+      kind: 'command',
+      name: (COMMAND_NAMES.has(name) ? name : 'unknown') as CommandName,
+      arg,
+      ...(match[2] ? { modifier: match[2] as '!' | '+' } : {}),
+    };
   }
   return { kind: 'capture', text };
 }
@@ -383,6 +400,29 @@ export function formatWaitList(open: WaitingItem[], today: string): string {
     return `${i + 1}. ${parts.join(' · ')}`;
   });
   return [`<b>⏳ 답장 대기 ${open.length}건</b>`, ...lines].join('\n');
+}
+
+const md = (d: string): string => `${Number(d.slice(5, 7))}/${Number(d.slice(8))}`;
+const usd2 = (n: number): string => `$${n.toFixed(2)}`;
+const modelLabel = (m: string): string => m.replace(/^claude-/, '').replace(/-\d+-\d+$/, '');
+
+/** `/budget`: this cycle's Claude API spend against the paced budget. No API call involved. */
+export function formatBudget(p: Pace, rec: { cycle: SpendRecord; day: SpendRecord }, today: string): string {
+  const gap = p.allowedUsd - p.spentUsd;
+  const status = p.exhausted ? '예산 소진' : p.ahead ? `페이스 초과 ${usd2(-gap)}` : `페이스 여유 ${usd2(gap)}`;
+  const lines = [
+    `<b>💰 /ask 예산</b> ${md(p.cycle.start)}–${md(addDaysStr(p.cycle.nextStart, -1))} (${p.cycle.dayIndex + 1}/${p.cycle.days}일째)`,
+    `크레딧 ${usd2(p.creditUsd)} · 예비 ${usd2(p.creditUsd - p.usableUsd)} · 사용 가능 ${usd2(p.usableUsd)}`,
+    `지출 ${usd2(p.spentUsd)} · 오늘까지 허용 ${usd2(p.allowedUsd)} · ${status}`,
+    `남은 ${usd2(p.remainingUsd)} · 오늘(${md(today)}) ${usd2(rec.day.usd)} (${rec.day.calls}회)`,
+  ];
+  const models = Object.entries(rec.cycle.byModel);
+  if (models.length > 0) lines.push(`모델별: ${models.map(([m, v]) => `${escapeHtml(modelLabel(m))} ${usd2(v.usd)}`).join(' · ')}`);
+  const features = Object.entries(rec.cycle.byFeature);
+  if (features.length > 0) lines.push(`기능별: ${features.map(([f, v]) => `${escapeHtml(f)} ${usd2(v ?? 0)}`).join(' · ')}`);
+  if (rec.cycle.unpricedCalls > 0) lines.push(`가격 미설정 호출 ${rec.cycle.unpricedCalls}회 (비용 미반영)`);
+  lines.push(`초기화 ${md(p.cycle.nextStart)} · 호출 ${rec.cycle.calls}회`);
+  return lines.join('\n');
 }
 
 export const WAIT_USAGE = '사용법: /waits · /wait 2 from:주소 · /wait 2 subject:"키워드" · /wait 2 days:5 · /wait 2 close · /wait <id> reopen';

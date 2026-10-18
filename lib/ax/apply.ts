@@ -11,6 +11,9 @@ import type { Repo } from '@/lib/repo';
 export type ApplyRepo = Pick<
   Repo,
   | 'createTask'
+  | 'createDeadline'
+  | 'createNote'
+  | 'updateNote'
   | 'listTasks'
   | 'updateTask'
   | 'listDeadlines'
@@ -71,6 +74,21 @@ export async function applyProposal(repo: ApplyRepo, deps: ApplyDeps, p: Proposa
       return [created.length > 0 ? formatCalReply(created) : null, error ? escapeHtml(error) : null]
         .filter(Boolean)
         .join('\n');
+    }
+    case 'send_memo': {
+      // Same path as the project checklist's 보내기: a note with status 'sent' is delivered by the SessionStart/prompt hooks.
+      const created = await repo.createNote({
+        body: `[텔레그램 /ask] ${p.body}`,
+        kind: 'memo',
+        projectId: p.projectId,
+        source: 'telegram',
+      });
+      await repo.updateNote(created.id, { status: 'sent' });
+      return `📨 ${escapeHtml(p.projectName)} 세션으로 보냈어요`;
+    }
+    case 'deadline_create': {
+      await repo.createDeadline({ title: p.title, kind: p.deadlineKind, dueDate: p.dueDate, dueTime: p.dueTime, projectId: p.projectId });
+      return '✅ 마감을 추가했어요';
     }
     case 'waiting_reply': {
       await addWaitingItem(repo, newWaitingItem(p, deps.today, new Date().toISOString(), newWaitingId()));

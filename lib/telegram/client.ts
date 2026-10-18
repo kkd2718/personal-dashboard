@@ -92,6 +92,11 @@ export async function editMessageText(
   });
 }
 
+/** Shows the "typing…" indicator for ~5 s. */
+export async function sendChatAction(action: 'typing' = 'typing'): Promise<SendResult> {
+  return call('sendChatAction', { chat_id: telegramConfig()?.chatId, action });
+}
+
 export async function answerCallbackQuery(callbackId: string, text?: string): Promise<SendResult> {
   return call('answerCallbackQuery', { callback_query_id: callbackId, ...(text ? { text } : {}) });
 }

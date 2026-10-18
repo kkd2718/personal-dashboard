@@ -9,7 +9,7 @@ import { absoluteDateLabel, weekdayOf } from '@/lib/logic/dates';
 import { applyShift, parseKoDateTime, rescheduleBase, stripRequestVerbs, stripSpans } from '@/lib/logic/ko-datetime';
 import { escapeHtml } from '@/lib/telegram/format';
 import type { InlineKeyboard } from '@/lib/telegram/client';
-import type { Deadline, Paper, Project, Task } from '@/lib/types';
+import type { Deadline, DeadlineKind, Paper, Project, Task } from '@/lib/types';
 
 export type Proposal =
   | { kind: 'task_create'; title: string; projectId: string | null; projectName: string | null; dueDate: string | null }
@@ -18,7 +18,10 @@ export type Proposal =
   | { kind: 'deadline_done'; deadlineId: string; title: string }
   | { kind: 'deadline_reschedule'; deadlineId: string; title: string; from: string; to: string; dueTime?: string }
   | { kind: 'calendar_event'; events: NewEvent[] }
-  | { kind: 'waiting_reply'; title: string; projectId: string | null; match: { from?: string; subject?: string }; nudgeAfterDays: number; taskId?: string | null; deadlineId?: string | null };
+  | { kind: 'waiting_reply'; title: string; projectId: string | null; match: { from?: string; subject?: string }; nudgeAfterDays: number; taskId?: string | null; deadlineId?: string | null }
+  // /ask only (docs/PLAN_ASK.md §4)
+  | { kind: 'send_memo'; projectId: string; projectName: string; body: string }
+  | { kind: 'deadline_create'; title: string; dueDate: string; dueTime: string | null; projectId: string | null; deadlineKind: DeadlineKind };
 
 export type BuildResult = { ok: true; proposal: Proposal } | { ok: false; reason: string /* Korean, user-facing */ };
 
@@ -169,6 +172,15 @@ export function formatProposal(p: Proposal, today: string): string {
       return `📅 마감 변경\n<b>${escapeHtml(p.title)}</b>\n${day(p.from)} → ${day(p.to)}${p.dueTime ? ` ${p.dueTime}` : ''}`;
     case 'calendar_event':
       return `📅 캘린더에 추가\n${p.events.map((e) => `• ${eventLine(e)}`).join('\n')}`;
+    case 'send_memo':
+      return `📨 ${escapeHtml(p.projectName)} 세션에 메모 전달
+<b>${escapeHtml(p.body)}</b>`;
+    case 'deadline_create': {
+      const time = p.dueTime ? ` ${p.dueTime}` : '';
+      return `➕ 마감 추가
+<b>${escapeHtml(p.title)}</b>
+${day(p.dueDate)}${time}`;
+    }
     case 'waiting_reply':
       return [
         '⏳ 답장 대기 등록',
@@ -207,15 +219,22 @@ export function isExpired(createdAt: string, now: string, ttlHours: number): boo
 
 export type CallbackData =
   | { t: 'p'; id: string; a: 'ok' | 'no' | 'memo' }
-  | { t: 'w'; id: string; i: number; a: 'd' | 'p' | 'x' };
+  | { t: 'w'; id: string; i: number; a: 'd' | 'p' | 'x' }
+  // mail alert buttons: p = 작업 준비 요청, r = 답장 초안, s = project pick #i
+  | { t: 'm'; id: string; a: 'p' | 'r' }
+  | { t: 'm'; id: string; a: 's'; i: number };
 
 export function encodeCallback(c: CallbackData): string {
-  return c.t === 'p' ? `p:${c.id}:${c.a}` : `w:${c.id}:${c.i}:${c.a}`;
+  if (c.t === 'p') return `p:${c.id}:${c.a}`;
+  if (c.t === 'm') return c.a === 's' ? `m:${c.id}:s${c.i}` : `m:${c.id}:${c.a}`;
+  return `w:${c.id}:${c.i}:${c.a}`;
 }
 
 export function decodeCallback(s: string): CallbackData | null {
   const p = /^p:([0-9a-z]{1,16}):(ok|no|memo)$/.exec(s);
   if (p) return { t: 'p', id: p[1], a: p[2] as 'ok' | 'no' | 'memo' };
+  const m = /^m:([0-9a-z]{1,16}):(p|r|s(\d{1,2}))$/.exec(s);
+  if (m) return m[3] !== undefined ? { t: 'm', id: m[1], a: 's', i: Number(m[3]) } : { t: 'm', id: m[1], a: m[2] as 'p' | 'r' };
   const w = /^w:([0-9a-z]{1,16}):(\d{1,3}):(d|p|x)$/.exec(s);
   if (w) return { t: 'w', id: w[1], i: Number(w[2]), a: w[3] as 'd' | 'p' | 'x' };
   return null;

@@ -1,6 +1,12 @@
-import { NextResponse } from 'next/server';
+import { after, NextResponse } from 'next/server';
 import { constantTimeEqual } from '@/lib/auth/bearer';
-import { answerCallbackQuery, editMessageText, sendMessage, telegramConfig } from '@/lib/telegram/client';
+import { answerCallbackQuery, editMessageText, sendChatAction, sendMessage, telegramConfig } from '@/lib/telegram/client';
+import { createAskClient } from '@/lib/ask/client';
+import { runAsk, type AskDeps } from '@/lib/ask/run';
+import { loadSpend } from '@/lib/ask/spend';
+import { cleanTaskTitle } from '@/lib/ask/title';
+import { budgetConfig, pace as paceOf } from '@/lib/logic/ask-budget';
+import { ASK_CONV_META_KEY, isFollowUp, type AskConv } from '@/lib/logic/ask-conv';
 import { handleCallback, handleFreeText, type AxDeps } from '@/lib/telegram/ax';
 import {
   MAIL_TRIAGE_CONFIG_KEY,
@@ -16,6 +22,7 @@ import { WORK_SHIFTS_META_KEY, type WorkShiftsMeta } from '@/lib/logic/work';
 import {
   escapeHtml,
   WAIT_USAGE,
+  formatBudget,
   formatCalReply,
   formatWaitList,
   formatRoutineList,
@@ -54,11 +61,12 @@ import { revalidateAll } from '@/app/actions/revalidate';
 import { CALENDAR_VISIBLE_META_KEY, filterVisibleEvents } from '@/lib/logic/calendar';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 30;
+// /ask runs in after() and may use the whole window (Fluid compute allows up to 300 s).
+export const maxDuration = 60;
 
 const RECENT_UPDATES_KEY = 'telegram:updates:recent';
 
-const HELP_TEXT = '메모는 그냥 보내면 저장돼요. @프로젝트 #태그 지원 · /today · /deadlines · /done 1 (루틴 완료, /done 알렌 5 = 개수) · /cal 내일 오후 3시 치과 (캘린더에 바로 추가) · /waits (답장 대기 목록)';
+const HELP_TEXT = '메모는 그냥 보내면 저장돼요. @프로젝트 #태그 지원 · /today · /deadlines · /done 1 (루틴 완료, /done 알렌 5 = 개수) · /cal 내일 오후 3시 치과 (캘린더에 바로 추가) · /waits (답장 대기 목록) · /ask 질문 (대시보드에 묻기, /ask+ Sonnet, /ask! Opus, 답변에 답장하면 이어서) · /budget (API 예산)';
 
 /** Telegram Bot API webhook (phase 2b). Always 200s (Telegram retries non-2xx) —
  * failures are reported to the chat, not via the HTTP status. */
@@ -99,6 +107,14 @@ export async function POST(request: Request) {
     }
   }
 
+  // /ask and replies to an /ask answer run after the response so Telegram never retries a slow webhook.
+  const ask = await askRequest(update);
+  if (ask) {
+    after(() => runAsk(askDeps(request), ask).catch(() => {}));
+    await getRepo().setMeta('integration:telegram', { at: new Date().toISOString(), detail: '메시지 수신' }).catch(() => {});
+    return NextResponse.json({ ok: true });
+  }
+
   try {
     const deps = axDeps(request);
     if (update.kind === 'callback') await handleCallback(deps, update);
@@ -109,6 +125,37 @@ export async function POST(request: Request) {
     await sendMessage('저장 실패: 잠시 후 다시 시도해 주세요');
   }
   return NextResponse.json({ ok: true });
+}
+
+/** The /ask request carried by a message (command, or a reply to a recent answer), else null. */
+async function askRequest(update: NonNullable<ReturnType<typeof parseTelegramUpdate>>): Promise<Parameters<typeof runAsk>[1] | null> {
+  if (update.kind !== 'message') return null;
+  const parsed = route(update.text);
+  const isCmd = parsed.kind === 'command' && parsed.name === 'ask';
+  if (!isCmd && parsed.kind !== 'capture') return null;
+  let followUp = false;
+  if (update.replyToMessageId !== null) {
+    try {
+      const conv = await getRepo().getMeta<AskConv>(ASK_CONV_META_KEY);
+      followUp = isFollowUp(conv, update.replyToMessageId, new Date().toISOString());
+    } catch {
+      // no conversation context: treated as a fresh question / plain memo
+    }
+  }
+  if (parsed.kind === 'command') return { question: parsed.arg, modifier: parsed.modifier ?? null, followUp };
+  return followUp ? { question: parsed.text, modifier: null, followUp } : null;
+}
+
+function askDeps(request: Request): AskDeps {
+  return {
+    repo: getRepo(),
+    client: createAskClient(),
+    send: sendMessage,
+    sendWithMarkup: (text, markup) => sendMessage(text, { replyMarkup: markup }),
+    typing: sendChatAction,
+    now: () => new Date(),
+    jev: createJev({ token: jevToken(process.env, request.headers) }),
+  };
 }
 
 function axDeps(request: Request): AxDeps {
@@ -122,6 +169,8 @@ function axDeps(request: Request): AxDeps {
     createNote: (text) => createNoteFromText(text, null, 'telegram'),
     calendarCfg: googleCalendarConfig(),
     now: () => new Date(),
+    askClient: createAskClient(),
+    cleanTitle: (text, ruleTitle) => cleanTaskTitle({ client: createAskClient(), repo: getRepo(), today: todayKST() }, text, ruleTitle),
     onApplied: revalidateAll,
   };
 }
@@ -154,6 +203,12 @@ async function handle(text: string, deps: AxDeps): Promise<void> {
       return;
     case 'mailrule':
       await sendMessage(await handleMailRule(parsed.arg));
+      return;
+    case 'budget':
+      await sendMessage(await buildBudget());
+      return;
+    case 'ask': // handled before this switch (askRequest); unreachable
+      await sendMessage(HELP_TEXT);
       return;
     case 'help':
     case 'start':
@@ -308,6 +363,14 @@ async function buildToday(): Promise<string> {
     projectDue,
     routines: routineStatus(routineItems, routineDone, today, routineCounts),
   });
+}
+
+async function buildBudget(): Promise<string> {
+  const repo = getRepo();
+  const today = todayKST();
+  const cfg = budgetConfig();
+  const ledger = await loadSpend(repo, cfg, today);
+  return formatBudget(paceOf(cfg, today, ledger.cycle.usd, 'ask'), ledger, today);
 }
 
 async function buildDeadlines(): Promise<string> {

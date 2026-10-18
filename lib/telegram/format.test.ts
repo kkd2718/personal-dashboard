@@ -322,6 +322,7 @@ describe('route', () => {
 
   it('routes unknown commands to unknown', () => {
     expect(route('/frobnicate')).toEqual({ kind: 'command', name: 'unknown', arg: '' });
+    expect(route('/budget')).toEqual({ kind: 'command', name: 'budget', arg: '' });
   });
 });
 
@@ -354,7 +355,14 @@ describe('parseTelegramUpdate', () => {
       updateId: 7,
       chatId: 5,
       text: 'hi',
+      messageId: null,
+      replyToMessageId: null,
     });
+  });
+  it('message ids and reply-to', () => {
+    expect(
+      parseTelegramUpdate({ update_id: 7, message: { message_id: 11, chat: { id: 5 }, text: 'hi', reply_to_message: { message_id: 9 } } })
+    ).toMatchObject({ messageId: 11, replyToMessageId: 9 });
   });
   it('callback query', () => {
     expect(
@@ -398,5 +406,17 @@ describe('reply-waiting formatting', () => {
       messageId: 'm', from: 'x@y.z', subject: 's', snippet: 'hi', date: 't', category: 'approved', positive: 0.87,
     });
     expect(alert).toContain('분류: 승인 (긍정 87%)');
+  });
+});
+
+describe('route modifiers', () => {
+  it('/ask! and /ask+ keep a modifier and the question', () => {
+    expect(route('/ask! 계획 세워줘')).toEqual({ kind: 'command', name: 'ask', arg: '계획 세워줘', modifier: '!' });
+    expect(route('/ask+ 요약')).toEqual({ kind: 'command', name: 'ask', arg: '요약', modifier: '+' });
+    expect(route('/ask@my_bot 질문')).toEqual({ kind: 'command', name: 'ask', arg: '질문' });
+    expect(route('/ask')).toEqual({ kind: 'command', name: 'ask', arg: '' });
+  });
+  it('other text with ! is still a memo', () => {
+    expect(route('hello! /ask')).toEqual({ kind: 'capture', text: 'hello! /ask' });
   });
 });

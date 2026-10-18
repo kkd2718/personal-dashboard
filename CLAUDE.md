@@ -153,6 +153,14 @@ project's DB password isn't always available/known. Run scripts with
   (`/mailrule`), others via Jev noul >= 0.7 under the `mail` budget (300/day), dedupe by message id, 502 on Telegram failure.
   `task_create` intent: a free-text request to add a task (or a `할 일:`/`todo:` prefix, which skips intent classification) becomes a
   ➕ proposal; project from `@mention`, else a confident Jev project choice, else none; applied via `repo.createTask` on 적용.
+  **ask (`docs/PLAN_ASK.md`)**: Telegram `/ask <question>` (`/ask+` Sonnet, `/ask!` Opus; reply to an answer = follow-up, 30 min) on the
+  Claude API (`@anthropic-ai/sdk`, `ANTHROPIC_API_KEY`). The webhook (`maxDuration` 60) returns 200 and runs `lib/ask/run.ts` in `after()`; manual
+  tool loop (`lib/ask/loop.ts`) over read-only tools (`lib/ask/tools.ts`: no env/meta/trading accounts/`#비공개` memos); the only write path is
+  `propose_change` (`lib/ask/propose.ts`, max 3) -> the AX pending/적용 flow (adds `send_memo`, `deadline_create` kinds). Routing: one Jev
+  `complexity` question (`lib/logic/ask-route.ts`) -> Haiku default, Sonnet when confident `reason`. One spend ledger for every Claude call
+  (`app_meta ask:spend:<cycleStart>` + day key, `lib/ask/spend.ts`), paced per billing cycle (`lib/logic/ask-budget.ts`: $100, day 23, 10%
+  reserve, pace line + slack; prices in `lib/logic/ask-cost.ts`); `/budget` shows it. `lib/ask/title.ts`: Haiku title polish for AX `task_create`.
+  New commands need `scripts/telegram-setup.mjs` rerun (`ask`, `budget`). Smoke test: `scripts/ask-probe.mjs`.
 
 ## Conventions
 - Opus plans (`docs/PLAN.md`), Sonnet implements. Don't redesign a plan's data model/signatures
