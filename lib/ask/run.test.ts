@@ -83,6 +83,24 @@ describe('runAsk', () => {
     expect(s.send.mock.calls[0][0]).not.toContain('sk-secret');
   });
 
+  it('default answers are capped short with the brevity rule; 자세히/길게/상세 lifts both', async () => {
+    const short = setup();
+    await runAsk(short.deps, req());
+    expect(short.calls[0].max_tokens).toBe(1200);
+    const sys = short.calls[0].system as Array<{ text: string }>;
+    expect(sys[0].text).toContain('한 화면');
+    expect(sys[1].text).not.toContain('자세한 답');
+    for (const word of ['자세히', '길게', '상세']) {
+      const long = setup();
+      await runAsk(long.deps, req({ question: `이번 주 마감 ${word} 알려줘` }));
+      expect(long.calls[0].max_tokens).toBe(1500);
+      expect((long.calls[0].system as Array<{ text: string }>)[1].text).toContain('자세한 답');
+    }
+    const sonnet = setup();
+    await runAsk(sonnet.deps, req({ modifier: '+', question: '상세히 설명해줘' }));
+    expect(sonnet.calls[0].max_tokens).toBe(3000);
+  });
+
   it('a thinking-only reply never sends an empty message', async () => {
     const s = setup({ replies: [message([{ type: 'thinking', thinking: 'x', signature: 's' }], 'end_turn')] });
     await runAsk(s.deps, req());

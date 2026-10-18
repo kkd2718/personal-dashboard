@@ -25,6 +25,8 @@ export interface LoopInput {
   /** Epoch ms. */
   deadlineAt: number;
   maxIterations?: number;
+  /** Overrides the model's default output cap (long-form answers). */
+  maxTokens?: number;
   onUsage?(model: AskModel, usage: Anthropic.Messages.Usage): Promise<void>;
   toolHandler?(name: string, input: unknown): Promise<ToolOutcome>;
 }
@@ -65,7 +67,7 @@ export async function runAskLoop(input: LoopInput): Promise<LoopResult> {
     // history need `tools` defined, and omitting them would also bust the prompt cache.
     const res = await client.create({
       model,
-      max_tokens: settings.maxTokens,
+      max_tokens: input.maxTokens ?? settings.maxTokens,
       thinking: settings.thinking,
       ...(settings.effort ? { output_config: { effort: settings.effort } } : {}),
       system,

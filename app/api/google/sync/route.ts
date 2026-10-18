@@ -12,6 +12,9 @@ import {
   shouldPushCandidate,
 } from '@/lib/google/sync';
 import { sendMessage, telegramConfig } from '@/lib/telegram/client';
+import { createAskClient, type AskClient } from '@/lib/ask/client';
+import { stripAttachmentNames } from '@/lib/logic/mail-triage';
+import { sendMailAlert, summarizeMail, type MailAlertDeps } from '@/lib/telegram/mail-actions';
 import { escapeHtml } from '@/lib/telegram/format';
 import { todayKST } from '@/lib/logic/dates';
 import { findMatchingPaper } from '@/lib/logic/review-candidates';
@@ -185,7 +188,10 @@ export async function POST(request: Request) {
 
     const toPush = newCandidates.filter((c) => shouldPushCandidate(c.kind));
     if (toPush.length > 0 && telegramConfig()) {
-      await sendMessage(formatNewCandidatesAlert(toPush));
+      const client = createAskClient();
+      // Nothing was sent when setup fails (project/paper reads), so the plain batch is still safe.
+      if (client) await sendCandidateAlerts(repo, client, toPush).catch(() => sendMessage(formatNewCandidatesAlert(toPush)));
+      else await sendMessage(formatNewCandidatesAlert(toPush));
     }
   }
 
@@ -315,9 +321,10 @@ function formatNewCandidatesAlert(
     journal: string | null;
     manuscriptId: string | null;
     dueDate: string | null;
-  }>
+  }>,
+  withLink = true
 ): string {
-  const cloudUrl = process.env.CLOUD_URL;
+  const cloudUrl = withLink ? process.env.CLOUD_URL : undefined;
   const maxItems = cloudUrl ? 4 : 5; // total message stays <=5 lines including the link
   const lines = candidates.slice(0, maxItems).map((c) => {
     const journal = c.journal ? escapeHtml(c.journal) : '(저널 미상)';
@@ -328,4 +335,39 @@ function formatNewCandidatesAlert(
   });
   if (cloudUrl) lines.push(`${cloudUrl.replace(/\/$/, '')}/papers?tab=review`);
   return lines.join('\n');
+}
+
+/** One alert per new candidate with a Haiku summary and the two buttons; the first Telegram failure falls
+ * back to the plain batch so nothing is lost. The paper's project (by manuscript id) pre-selects the project. */
+async function sendCandidateAlerts(
+  repo: ReturnType<typeof getRepo>,
+  client: AskClient,
+  candidates: Awaited<ReturnType<ReturnType<typeof getRepo>['upsertReviewCandidates']>>
+) {
+  const nowIso = new Date().toISOString();
+  const deps: MailAlertDeps = { repo, client, today: todayKST(), nowIso, send: (text, replyMarkup) => sendMessage(text, { replyMarkup }) };
+  const [projects, papers] = await Promise.all([repo.listProjects(), repo.listPapers()]);
+  const shown = candidates.slice(0, 4);
+  // Attachment names never reach Claude or the stored pending record (same filter as mail triage).
+  const snippets = shown.map((c) => stripAttachmentNames(c.snippet));
+  // Sequential: each call read-modify-writes the spend ledger.
+  const summaries: Array<string | null> = [];
+  for (const [i, c] of shown.entries()) summaries.push(await summarizeMail(deps, { from: c.fromAddr, subject: c.subject, snippet: snippets[i] }));
+  for (const [i, c] of shown.entries()) {
+    const paper = c.manuscriptId ? papers.find((p) => p.manuscriptId === c.manuscriptId) : undefined;
+    const sent = await sendMailAlert(
+      deps,
+      { header: formatNewCandidatesAlert([c], false), from: c.fromAddr, subject: c.subject, snippet: snippets[i], link: c.link, projectId: paper?.projectId ?? null },
+      summaries[i],
+      projects
+    );
+    if (!sent.ok) {
+      await sendMessage(formatNewCandidatesAlert(candidates.slice(i)));
+      return;
+    }
+  }
+  if (candidates.length > shown.length) {
+    const cloudUrl = process.env.CLOUD_URL;
+    await sendMessage([`…외 ${candidates.length - shown.length}건`, ...(cloudUrl ? [`${cloudUrl.replace(/\/$/, '')}/papers?tab=review`] : ['리뷰 탭에서 확인하세요'])].join(' · '));
+  }
 }

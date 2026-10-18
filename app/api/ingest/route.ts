@@ -7,6 +7,9 @@ import { newCriticalItems } from '@/lib/logic/status-diff';
 import { projectDetailMetaKey } from '@/lib/logic/project-detail';
 import { telegramConfig, sendMessage } from '@/lib/telegram/client';
 import { formatCriticalAlert } from '@/lib/telegram/format';
+import { notifyTradesFail } from '@/lib/telegram/trades-alert';
+import { briefBodySchema, stripForbiddenKeys } from '@/lib/logic/market-brief';
+import { storeBrief } from '@/lib/market-brief-data';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,6 +67,8 @@ const bodySchema = z.object({
   statusItems: z.array(statusItemSchema),
   projectActivity: z.array(projectActivitySchema).optional(),
   projectDetails: z.array(projectDetailSchema).max(50).optional(),
+  // PC fallback for the VM-pushed market snapshot (written only when the stored one is > 6 h old).
+  tradingBrief: briefBodySchema.optional().catch(undefined),
   obsidian: z.object({ imported: z.number().int().min(0) }).optional(),
   trading: z
     .object({
@@ -145,6 +150,9 @@ export async function POST(request: Request) {
   });
   if (parsed.data.trading) {
     await repo.setMeta(TRADING_SUMMARY_META_KEY, parsed.data.trading);
+  }
+  if (parsed.data.tradingBrief) {
+    await storeBrief(repo, stripForbiddenKeys(parsed.data.tradingBrief), 'pc', collectedAt, notifyTradesFail);
   }
   if (parsed.data.obsidian) {
     const n = parsed.data.obsidian.imported;

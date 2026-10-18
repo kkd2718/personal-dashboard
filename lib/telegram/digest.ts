@@ -21,6 +21,11 @@ import { formatDigest } from '@/lib/telegram/format';
 import { waitingNudges } from '@/lib/logic/waiting';
 import { loadWaiting } from '@/lib/waiting-data';
 import type { SendResult } from '@/lib/telegram/client';
+import type { AskClient } from '@/lib/ask/client';
+import type { SpendRepo } from '@/lib/ask/spend';
+import { loadBriefs } from '@/lib/market-brief-data';
+import { formatMacroBlock, macroSentence } from '@/lib/telegram/macro';
+import { splitTelegram } from '@/lib/logic/ask-text';
 
 export type DigestResult = 'sent' | 'skipped-empty' | 'skipped-already' | 'failed';
 
@@ -67,7 +72,9 @@ export async function runDigest(
   sender: Sender,
   today: string,
   force: boolean,
-  cloudUrl: string | null
+  cloudUrl: string | null,
+  /** Enables the Haiku "what changed vs yesterday" sentence of the 📈 매크로 block. */
+  ai?: { client: AskClient | null; repo: SpendRepo }
 ): Promise<DigestResult> {
   if (!force) {
     const lastSent = await repo.getMeta<string>(META_KEY);
@@ -105,7 +112,12 @@ export async function runDigest(
     cloudUrl,
     workShift: work?.shifts.find((s) => s.date === today) ?? null,
   });
-  if (!message) return 'skipped-empty';
+  const nowIso = new Date().toISOString();
+  const { current: market, prev: marketPrev } = await loadBriefs(repo).catch(() => ({ current: null, prev: null }));
+  const sentence = ai ? await macroSentence({ client: ai.client, repo: ai.repo, today }, market, marketPrev, nowIso).catch(() => null) : null;
+  const macroBlock = formatMacroBlock(market, today, nowIso, sentence?.text ?? null);
+  const base = message ?? (macroBlock ? '<b>☀️ 브리핑</b>' : null);
+  if (!base) return 'skipped-empty';
   // Account summary line, only when the collector refreshed it within ~a day (the PC
   // may be off; a stale total would read as today's).
   const tradingLine =
@@ -115,8 +127,14 @@ export async function runDigest(
 💰 계좌 ${tradingOneLine(trading, today)}`
       : '';
 
-  const result = await sender(message + tradingLine);
-  if (!result.ok) return 'failed';
+  // One message when it fits; otherwise the macro block goes separately (split if needed).
+  const main = base + tradingLine;
+  const parts = !macroBlock ? splitTelegram(main) : main.length + macroBlock.length + 2 <= 4000 ? [`${main}
+
+${macroBlock}`] : [...splitTelegram(main), ...splitTelegram(macroBlock)];
+  for (const part of parts) {
+    if (!(await sender(part)).ok) return 'failed';
+  }
 
   await repo.setMeta(META_KEY, today);
   // Settings §5.8 연동 상태 rows read this back (PLAN_UX.md decision 3).

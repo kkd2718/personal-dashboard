@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fakeRepo } from '@/lib/ask/fixtures';
 import { ASK_CONV_META_KEY, type AskConv } from '@/lib/logic/ask-conv';
+import { parseBrief } from '@/lib/logic/market-brief';
+import { rawBody } from '@/lib/logic/market-brief.fixtures';
 
 const h = vi.hoisted(() => ({
   afterCbs: [] as Array<() => unknown>,
@@ -105,10 +107,38 @@ describe('telegram webhook /ask', () => {
     expect(h.afterCbs).toHaveLength(1);
   });
 
+  it('/macro sends every chunk of a long snapshot, each within Telegram limits', async () => {
+    const sectors = Array.from({ length: 30 }, (_, i) => ({ ticker: `T${i}`, label: `섹터 ${i}`, price: 100, chg1d_pct: 1, note: '가'.repeat(110) }));
+    const econ = Array.from({ length: 40 }, (_, i) => ({ date: '2026-11-07', time_kst: '22:30', name: `지표 ${i} ${'나'.repeat(100)}`, importance: 'high' }));
+    const snap = { ...parseBrief(rawBody({ sectors, econ }))!, receivedAt: new Date().toISOString(), source: 'vm' };
+    h.repo = fakeRepo({ meta: { 'trading:market': snap } }).repo;
+    await post({ text: '/macro' });
+    expect(h.sendMessage.mock.calls.length).toBeGreaterThan(1);
+    for (const [t] of h.sendMessage.mock.calls) expect(t.length).toBeLessThanOrEqual(4096);
+  });
+
+  it('/help explains that replying to an /ask answer continues for 30 minutes', async () => {
+    await post({ text: '/help' });
+    expect(h.sendMessage.mock.calls[0][0]).toContain('30분 동안 대화가 이어져요');
+    expect(h.sendMessage.mock.calls[0][0]).toContain('메모로 저장');
+  });
+
   it('/budget answers synchronously without an API call', async () => {
     await post({ text: '/budget' });
     expect(h.afterCbs).toHaveLength(0);
     expect(h.runAsk).not.toHaveBeenCalled();
     expect(h.sendMessage.mock.calls[0][0]).toContain('/ask 예산');
+  });
+
+  it('/macro without a snapshot says so; with one it shows the full view', async () => {
+    await post({ text: '/macro' });
+    expect(h.sendMessage.mock.calls[0][0]).toContain('아직 받은 매크로 스냅샷이 없어요');
+    const snap = { ...parseBrief(rawBody())!, receivedAt: new Date().toISOString(), source: 'vm' };
+    h.repo = fakeRepo({ meta: { 'trading:market': snap } }).repo;
+    await post({ text: '/macro' });
+    const out = h.sendMessage.mock.calls[1][0];
+    expect(out).toContain('📈 매크로');
+    expect(out).toContain('Sahm');
+    expect(h.afterCbs).toHaveLength(0);
   });
 });

@@ -50,7 +50,7 @@ export async function summarizeMail(deps: MailAlertDeps, item: Pick<MailAlertIte
   return cleanSummary(r?.text);
 }
 
-/** Sends one alert: header, optional summary line, and the two buttons (pending record kept 7 days). */
+/** Sends one alert: header, optional summary line, and the two buttons (pending record kept 48 h). */
 export async function sendMailAlert(deps: MailAlertDeps, item: MailAlertItem, summary: string | null, projects: Project[]): Promise<SendResult> {
   const text = summary ? `${item.header}\n🧾 ${escapeHtml(summary)}` : item.header;
   const projectId = item.projectId ?? findProjectInText(projects, `${item.subject} ${item.snippet}`)?.id ?? null;
@@ -82,7 +82,7 @@ export async function handleMailCallback(
   const raw = await loadPendingRaw(deps.repo, decoded.id);
   const nowIso = deps.now().toISOString();
   if (!raw || raw.type !== 'mail' || isExpired(raw.createdAt, nowIso, MAIL_PENDING_TTL_HOURS)) {
-    return void (await deps.answer(cb.callbackId, '만료됨'));
+    return void (await deps.answer(cb.callbackId, decoded.a === 'r' ? '48시간이 지나 초안을 만들 수 없어요' : '48시간이 지나 만료됐어요'));
   }
   const record = raw as unknown as MailPending;
   if (decoded.a === 'r') return replyDraft(deps, cb.callbackId, record, nowIso);

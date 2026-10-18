@@ -18,6 +18,7 @@ import { encodeProjectDir, isWslPath, toWslPath } from './lib/project-dir.mjs';
 import { countBacklog, countJsonProgress, extractSection, listOpenItems, parseBacklogEntry } from './lib/backlog.mjs';
 import { parseCcStatus } from './lib/cc-status.mjs';
 import { tradingSummary } from './lib/trading-summary.mjs';
+import { tradingMarketBrief } from './lib/trading-market.mjs';
 import { tradingStatus } from './lib/trading-probe.mjs';
 import { buildStatusItems } from './lib/status-items.mjs';
 import { applyImports, defaultInboxContent, externalIdFor, parseNewMemos } from './lib/obsidian-inbox.mjs';
@@ -416,7 +417,11 @@ async function main() {
   const projectDetails = validCollected.map((c) => c.detail).filter(Boolean);
 
   const trading = await tradingStatus(TRADING_URL, today).catch(() => []);
-  const tradingSum = await tradingSummary(TRADING_URL, new Date().toISOString()).catch(() => null);
+  const [tradingSum, tradingBrief] = await Promise.all([
+    tradingSummary(TRADING_URL, new Date().toISOString()).catch(() => null),
+    // Fallback only: the cloud stores it when the VM's pushed snapshot is > 6 h old (or missing).
+    tradingMarketBrief(TRADING_URL, new Date().toISOString()).catch(() => null),
+  ]);
   const statusItems = buildStatusItems(projects, validActivity, trading, today);
 
   // Obsidian import runs first so ingest can report it (settings shows "확인함" even
@@ -433,6 +438,7 @@ async function main() {
     ...(projectDetails.length > 0 ? { projectDetails } : {}),
     ...(OBSIDIAN_VAULT ? { obsidian: { imported: obsidian.imported } } : {}),
     ...(tradingSum ? { trading: tradingSum } : {}),
+    ...(tradingBrief ? { tradingBrief } : {}),
   };
   await mkdir(path.join(ROOT, '.data'), { recursive: true });
   await writeFile(path.join(ROOT, '.data', 'collector-last.json'), JSON.stringify(payload, null, 2), 'utf-8');

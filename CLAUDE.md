@@ -61,6 +61,11 @@ anon/authenticated get nothing) — see `docs/reviews/plan-advice.md` §5 for wh
   active/paused projects to probe (paths, backlogGlobs).
 - `GET /api/agent-inbox`, `POST /api/agent-inbox/done` (`AGENT_TOKEN`) — phase 2a: SessionStart hook
   (`scripts/cc-inbox.mjs`) delivers a project's open agent tasks + sent memos into its Claude session.
+- `POST /api/trading/brief` (`TRADING_BRIEF_TOKEN`) — the trading VM pushes a **market-only** snapshot (macro/fx/rsi indicators,
+  sectors, strategy states, upcoming/econ events, trade-check health; allow-list in `lib/logic/market-brief.ts`, forbidden-key filter,
+  64KB cap) stored as `app_meta trading:market` (+ `trading:market:prev` rotated once per KST day). The PC collector's pull
+  (`scripts/lib/trading-market.mjs` -> `/api/ingest` `tradingBrief`) is a fallback that writes only when the stored one is > 6h old.
+  A trade check newly failing sends one Telegram alert. Digest 📈 매크로 block (`lib/telegram/macro.ts`) + `/macro`.
 - `GET /api/export` (session required) — full JSON dump of every table (Supabase free tier has no
   automated backups).
 - `GET /api/cron/daily` (`CRON_SECRET`, called by Vercel — see `vercel.json`) — daily heartbeat.
@@ -160,7 +165,11 @@ project's DB password isn't always available/known. Run scripts with
   `complexity` question (`lib/logic/ask-route.ts`) -> Haiku default, Sonnet when confident `reason`. One spend ledger for every Claude call
   (`app_meta ask:spend:<cycleStart>` + day key, `lib/ask/spend.ts`), paced per billing cycle (`lib/logic/ask-budget.ts`: $100, day 23, 10%
   reserve, pace line + slack; prices in `lib/logic/ask-cost.ts`); `/budget` shows it. `lib/ask/title.ts`: Haiku title polish for AX `task_create`.
-  New commands need `scripts/telegram-setup.mjs` rerun (`ask`, `budget`). Smoke test: `scripts/ask-probe.mjs`.
+  New commands need `scripts/telegram-setup.mjs` rerun (`ask`, `budget`, `macro`). Smoke test: `scripts/ask-probe.mjs`.
+  Mail alert extras (`lib/telegram/mail-actions.ts`, `lib/logic/mail-ai.ts`): with `ANTHROPIC_API_KEY`, mail-triage and review/revision-candidate
+  alerts become one message per mail with a Haiku 1-2 line summary (feature `mail`, may use the reserve) and buttons 작업 준비 요청 (sent memo
+  to the matched project, else a project-pick keyboard) / 답장 초안 (Haiku, Sonnet when under pace; shown as a code block, never written to
+  Gmail). Pending record (`type:'mail'`, snippet <= 300 chars) is pruned after 48h (the 답장 초안 button then says so). Budget out/failure -> alert without a summary.
 
 ## Conventions
 - Opus plans (`docs/PLAN.md`), Sonnet implements. Don't redesign a plan's data model/signatures

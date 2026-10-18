@@ -13,6 +13,8 @@ export function claimPending(repo: PendingRepo, id: string, now: string): Promis
 }
 
 const KEEP_HOURS = 7 * 24;
+/** Mail alert records hold a snippet (for 답장 초안): shorter retention. */
+const MAIL_KEEP_HOURS = 48;
 
 /** Any pending record (proposal or weekly review) keyed by id. */
 export interface PendingRecord {
@@ -20,11 +22,13 @@ export interface PendingRecord {
   createdAt: string;
 }
 
-export async function savePending<T extends PendingRecord>(repo: PendingRepo, record: T, now: string): Promise<void> {
+/** Drops pending records past their retention (mail 48 h, others 7 days) and old claim keys. Best-effort. */
+export async function prunePending(repo: PendingRepo, now: string): Promise<void> {
   try {
     for (const [key, value] of Object.entries(await repo.listMetaByPrefix(PENDING_PREFIX))) {
       const createdAt = (value as { createdAt?: unknown } | null)?.createdAt;
-      if (typeof createdAt === 'string' && isExpired(createdAt, now, KEEP_HOURS)) await repo.deleteMeta(key);
+      const hours = (value as { type?: unknown } | null)?.type === 'mail' ? MAIL_KEEP_HOURS : KEEP_HOURS;
+      if (typeof createdAt === 'string' && isExpired(createdAt, now, hours)) await repo.deleteMeta(key);
     }
     for (const [key, claimedAt] of Object.entries(await repo.listMetaByPrefix(CLAIM_PREFIX))) {
       if (typeof claimedAt === 'string' && isExpired(claimedAt, now, KEEP_HOURS)) await repo.deleteMeta(key);
@@ -32,6 +36,10 @@ export async function savePending<T extends PendingRecord>(repo: PendingRepo, re
   } catch {
     // pruning is best-effort
   }
+}
+
+export async function savePending<T extends PendingRecord>(repo: PendingRepo, record: T, now: string): Promise<void> {
+  await prunePending(repo, now);
   await repo.setMeta(PENDING_PREFIX + record.id, record);
 }
 

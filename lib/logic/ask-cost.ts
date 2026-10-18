@@ -33,7 +33,10 @@ export const PRICES: Record<AskModel, Price | null> = {
 };
 
 export interface ModelSettings {
+  /** Default cap: answers are meant to be short. */
   maxTokens: number;
+  /** Cap when the question asks for 자세히/길게/상세. */
+  longMaxTokens: number;
   thinking: { type: 'disabled' } | { type: 'between_tools' } | { type: 'adaptive' };
   effort?: 'low' | 'medium' | 'high';
 }
@@ -42,9 +45,9 @@ export interface ModelSettings {
  * rejects it and wants `between_tools` (no thinking before answering); Opus 5.5 only takes `adaptive`
  * + `output_config.effort` (neither `disabled` nor `enabled`+budget). */
 export const MODEL_SETTINGS: Record<AskModel, ModelSettings> = {
-  'claude-haiku-5-5': { maxTokens: 1500, thinking: { type: 'disabled' } },
-  'claude-sonnet-5-5': { maxTokens: 3000, thinking: { type: 'between_tools' } },
-  'claude-opus-5-5': { maxTokens: 8000, thinking: { type: 'adaptive' }, effort: 'medium' },
+  'claude-haiku-5-5': { maxTokens: 1200, longMaxTokens: 1500, thinking: { type: 'disabled' } },
+  'claude-sonnet-5-5': { maxTokens: 1500, longMaxTokens: 3000, thinking: { type: 'between_tools' } },
+  'claude-opus-5-5': { maxTokens: 5000, longMaxTokens: 8000, thinking: { type: 'adaptive' }, effort: 'medium' },
 };
 
 const isRate = (r: unknown): r is Rates =>

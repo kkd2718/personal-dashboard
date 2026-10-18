@@ -24,6 +24,8 @@ import { addDaysStr, todayKST } from '@/lib/logic/dates';
 import { getRepo } from '@/lib/repo';
 import { sendMessage, telegramConfig } from '@/lib/telegram/client';
 import { MAIL_CAP_NOTICE, formatMailAlert } from '@/lib/telegram/format';
+import { createAskClient } from '@/lib/ask/client';
+import { sendMailAlert, summarizeMail, type MailAlertDeps } from '@/lib/telegram/mail-actions';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -121,7 +123,41 @@ export async function POST(request: Request) {
   // unrecorded so the script (which only advances on 200) resends them. A 4xx would repeat forever,
   // so that batch is marked seen and the error is reported on the integration row instead.
   let sendError: string | null = null;
-  if (toAlert.length > 0 && telegramConfig()) {
+  let sentKeys = keys;
+  const client = createAskClient();
+  if (toAlert.length > 0 && telegramConfig() && client) {
+    // AI path: one message per mail (summary + buttons). Falls back to plain alerts on any AI failure.
+    const nowIso = new Date().toISOString();
+    const deps: MailAlertDeps = { repo, client, today, nowIso, send: (text, replyMarkup) => sendMessage(text, { replyMarkup }) };
+    const projects = await repo.listProjects();
+    const summaries: Array<string | null> = []; // sequential: each call read-modify-writes the spend ledger
+    for (const m of toAlert) summaries.push(await summarizeMail(deps, { from: m.from, subject: m.subject, snippet: m.snippet ?? '' }));
+    sentKeys = new Set<string>();
+    let retry = false;
+    for (const [i, m] of toAlert.entries()) {
+      const sent = await sendMailAlert(
+        deps,
+        { header: formatMailAlert([m]), from: m.from, subject: m.subject, snippet: m.snippet ?? '', link: m.link },
+        summaries[i],
+        projects
+      );
+      if (sent.ok) {
+        sentKeys.add(crossAccountKey(m));
+        continue;
+      }
+      if (isRetryableSendFailure(sent)) {
+        retry = true;
+        break;
+      }
+      sendError = sent.error ?? 'telegram error';
+    }
+    if (retry) {
+      const unsent = new Set(toAlert.filter((m) => !sentKeys.has(crossAccountKey(m))).map((m) => m.messageId));
+      await repo.setMeta(mailSeenKey(account), rememberSeen(seen, fresh.filter((m) => !unsent.has(m.messageId)).map((m) => m.messageId)));
+      if (sentKeys.size > 0) await repo.setMeta(mailAlertedKey(today), [...alerted, ...sentKeys]);
+      return NextResponse.json({ ok: false, error: 'telegram send failed' }, { status: 502 });
+    }
+  } else if (toAlert.length > 0 && telegramConfig()) {
     const sent = await sendMessage(formatMailAlert(toAlert));
     if (!sent.ok) {
       if (isRetryableSendFailure(sent)) {
@@ -136,8 +172,8 @@ export async function POST(request: Request) {
     }
   }
   await repo.setMeta(mailSeenKey(account), rememberSeen(seen, fresh.map((m) => m.messageId)));
-  if (toAlert.length > 0 && !sendError) {
-    await repo.setMeta(mailAlertedKey(today), [...alerted, ...keys]);
+  if (sentKeys.size > 0 && (!sendError || client)) {
+    await repo.setMeta(mailAlertedKey(today), [...alerted, ...sentKeys]);
     await pruneAlerted(repo, today);
   }
 
@@ -145,7 +181,7 @@ export async function POST(request: Request) {
     if ((await sendMessage(MAIL_CAP_NOTICE)).ok) await repo.setMeta(MAIL_CAP_NOTICE_KEY, today);
   }
 
-  const alertedCount = sendError ? 0 : toAlert.length;
+  const alertedCount = client ? sentKeys.size : sendError ? 0 : toAlert.length;
   await repo.setMeta(`integration:mail:${account}`, {
     at: new Date().toISOString(),
     detail: `처리 ${fresh.length} · 알림 ${alertedCount}${sendError ? ` · 오류 ${sendError}` : ''}`,

@@ -4,6 +4,8 @@ import { getRepo } from '@/lib/repo';
 import { telegramConfig, sendMessage } from '@/lib/telegram/client';
 import { runDigest, type DigestResult } from '@/lib/telegram/digest';
 import { todayKST } from '@/lib/logic/dates';
+import { createAskClient } from '@/lib/ask/client';
+import { prunePending } from '@/lib/ax/pending';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,10 +29,13 @@ export async function GET(request: Request) {
   const repo = getRepo();
   await repo.setHeartbeat(at);
 
+  // Mail records hold a snippet (48 h retention): prune daily even when nothing new is saved.
+  await prunePending(repo, at);
+
   const force = new URL(request.url).searchParams.has('force');
   let digest: CronDigest = 'disabled';
   if (telegramConfig()) {
-    digest = await runDigest(repo, sendMessage, todayKST(), force, process.env.CLOUD_URL ?? null);
+    digest = await runDigest(repo, sendMessage, todayKST(), force, process.env.CLOUD_URL ?? null, { client: createAskClient(), repo });
   }
 
   return NextResponse.json({ ok: true, at, digest });

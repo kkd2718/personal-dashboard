@@ -36,3 +36,22 @@ describe('pending records and claims', () => {
     expect(await loadPending(repo, 'nope')).toBeNull();
   });
 });
+
+describe('mail records retention', () => {
+  it('savePending prunes mail records after 48h but keeps proposals for 7 days', async () => {
+    const store: Record<string, unknown> = {
+      'telegram:pending:m1': { type: 'mail', id: 'm1', createdAt: '2026-11-01T00:00:00.000Z' },
+      'telegram:pending:m2': { type: 'mail', id: 'm2', createdAt: '2026-11-06T12:00:00.000Z' },
+      'telegram:pending:p1': { type: 'proposal', id: 'p1', createdAt: '2026-11-01T00:00:00.000Z' },
+    };
+    const repo = {
+      getMeta: async (k: string) => store[k] ?? null,
+      setMeta: async (k: string, v: unknown) => void (store[k] = v),
+      listMetaByPrefix: async (p: string) => Object.fromEntries(Object.entries(store).filter(([k]) => k.startsWith(p))),
+      deleteMeta: async (k: string) => void delete store[k],
+      claimMeta: async () => true,
+    };
+    await savePending(repo as never, { id: 'new', createdAt: '2026-11-07T00:00:00.000Z' }, '2026-11-07T00:00:00.000Z');
+    expect(Object.keys(store).sort()).toEqual(['telegram:pending:m2', 'telegram:pending:new', 'telegram:pending:p1']);
+  });
+});

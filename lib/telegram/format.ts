@@ -7,6 +7,7 @@ import type { UpcomingItem } from '@/lib/logic/upcoming';
 import { dueReminders, reviewReminders } from '@/lib/logic/upcoming';
 import { addDaysStr, ddayLabel, dday, weekdayOf } from '@/lib/logic/dates';
 import type { Pace, SpendRecord } from '@/lib/logic/ask-budget';
+import type { BriefBody } from '@/lib/logic/market-brief';
 import { MAX_ALERTS_PER_MESSAGE, senderAddress, type TriageMail } from '@/lib/logic/mail-triage';
 import type { ShiftMonthSummary } from '@/lib/logic/work-announce';
 import type { ReplyCategory, WaitingItem, WaitingReply } from '@/lib/logic/waiting';
@@ -352,12 +353,12 @@ export function parseTelegramUpdate(update: unknown): TelegramUpdate | null {
   return { kind: 'callback', updateId, chatId: chat.id, callbackId: c.id, messageId: msg.message_id, data: c.data };
 }
 
-export type CommandName = 'today' | 'deadlines' | 'done' | 'cal' | 'waits' | 'wait' | 'mailrule' | 'ask' | 'budget' | 'help' | 'start' | 'unknown';
+export type CommandName = 'macro' | 'today' | 'deadlines' | 'done' | 'cal' | 'waits' | 'wait' | 'mailrule' | 'ask' | 'budget' | 'help' | 'start' | 'unknown';
 
 /** `modifier`: `/ask!` (Opus) or `/ask+` (Sonnet); other commands ignore it. */
 export type Route = { kind: 'command'; name: CommandName; arg: string; modifier?: '!' | '+' } | { kind: 'capture'; text: string };
 
-const COMMAND_NAMES: ReadonlySet<string> = new Set(['today', 'deadlines', 'done', 'cal', 'waits', 'wait', 'mailrule', 'ask', 'budget', 'help', 'start']);
+const COMMAND_NAMES: ReadonlySet<string> = new Set(['macro', 'today', 'deadlines', 'done', 'cal', 'waits', 'wait', 'mailrule', 'ask', 'budget', 'help', 'start']);
 
 /** Routes incoming text to a command or a plain capture. Commands may carry a
  * `@BotName` suffix (`/today@my_bot`); anything else is a memo to capture. */
@@ -423,6 +424,12 @@ export function formatBudget(p: Pace, rec: { cycle: SpendRecord; day: SpendRecor
   if (rec.cycle.unpricedCalls > 0) lines.push(`가격 미설정 호출 ${rec.cycle.unpricedCalls}회 (비용 미반영)`);
   lines.push(`초기화 ${md(p.cycle.nextStart)} · 호출 ${rec.cycle.calls}회`);
   return lines.join('\n');
+}
+
+/** One alert when the VM's trade check newly fails: the non-ok checks, nothing else. */
+export function formatTradesFailAlert(trades: NonNullable<BriefBody['trades']>): string {
+  const bad = trades.checks.filter((c) => c.status !== 'ok');
+  return ['🚨 <b>매매 점검 실패</b>', ...bad.map((c) => `• ${escapeHtml(c.label)}${c.detail ? ` — ${escapeHtml(c.detail)}` : ''}`)].join('\n');
 }
 
 export const WAIT_USAGE = '사용법: /waits · /wait 2 from:주소 · /wait 2 subject:"키워드" · /wait 2 days:5 · /wait 2 close · /wait <id> reopen';

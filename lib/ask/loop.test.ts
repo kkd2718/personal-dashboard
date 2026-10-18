@@ -20,7 +20,7 @@ describe('runAskLoop', () => {
     const r = await runAskLoop(base(client));
     expect(r).toMatchObject({ text: '답', stopReason: 'end_turn', iterations: 1, timedOut: false });
     expect(calls).toHaveLength(1);
-    expect(calls[0]).toMatchObject({ model: 'claude-haiku-5-5', max_tokens: 1500, thinking: { type: 'disabled' } });
+    expect(calls[0]).toMatchObject({ model: 'claude-haiku-5-5', max_tokens: 1200, thinking: { type: 'disabled' } });
     expect(calls[0].tool_choice).toBeUndefined();
   });
 
@@ -109,10 +109,10 @@ describe('runAskLoop', () => {
   it('each model gets the thinking mode its API accepts', async () => {
     const opus = fakeClient([message([text('x')])]);
     await runAskLoop(base(opus.client, { model: 'claude-opus-5-5' }));
-    expect(opus.calls[0]).toMatchObject({ max_tokens: 8000, thinking: { type: 'adaptive' }, output_config: { effort: 'medium' } });
+    expect(opus.calls[0]).toMatchObject({ max_tokens: 5000, thinking: { type: 'adaptive' }, output_config: { effort: 'medium' } });
     const sonnet = fakeClient([message([text('x')])]);
     await runAskLoop(base(sonnet.client, { model: 'claude-sonnet-5-5' }));
-    expect(sonnet.calls[0]).toMatchObject({ max_tokens: 3000, thinking: { type: 'between_tools' } });
+    expect(sonnet.calls[0]).toMatchObject({ max_tokens: 1500, thinking: { type: 'between_tools' } });
     expect(sonnet.calls[0].output_config).toBeUndefined();
   });
 });
