@@ -1,14 +1,19 @@
 {
-  "updatedAt": "2026-10-18T18:56:02+09:00",
-  "focus": "AX 안착 + 맥스 플랜 API 크레딧(Haiku) 연동 검토",
+  "updatedAt": "2026-10-18T19:40:53+09:00",
+  "focus": "/ask 배포 후 안착 · 메일 요약 버튼 · VM 매크로·매매 점검 수신",
   "next": [
-    "맥스 플랜 API 크레딧 연결·API 키 등록(사용자) → Haiku로 새 할 일 제목 정리",
-    "텔레그램 /ask 챗봇(대시보드 데이터 기반, 변경은 [적용] 제안)",
-    "/send @프로젝트 전달·/remind 시각 알림(5분 단위)",
-    "kiduk.amc Apps Script 새 Code.gs + setupTriage(사용자)"
+    "메일 알림 Haiku 요약 + [작업 준비 요청][답장 초안] 버튼",
+    "POST /api/trading/brief 수신(VM 푸시) + 아침 브리핑 📈·🩺 블록, /macro",
+    "trading 세션: VM brief_push 구현(사용자가 지시문 전달함)",
+    "kiduk.amc Apps Script 새 Code.gs + setupTriage(사용자)",
+    "논문 알림(PubMed)은 나중에"
   ],
   "blockers": [],
   "done": [
+    {
+      "date": "2026-10-18",
+      "text": "/ask 챗봇 배포 — 읽기 도구 13개, [적용] 제안(세션 전달·마감 추가), Jev 라우팅, 주기별 예산 장부·/budget, 할 일 제목 Haiku 정리"
+    },
     {
       "date": "2026-10-18",
       "text": "텔레그램 새 할 일(task_create) 제안 추가 — 할 일:/todo: 접두사, 프로젝트 Jev 추정, 마감 날짜"
@@ -44,10 +49,6 @@
     {
       "date": "2026-10-11",
       "text": "할 일 정리: 중복 마감(MS EM)·중복 Amgi 할 일 정리, 강릉아산 접수 시작 마감 완료 처리; 계좌 줄 입금 제외 수익률 반영 확인"
-    },
-    {
-      "date": "2026-10-06",
-      "text": "홈 프로젝트 체크리스트 항목: ✓완료/✕안 함(대시보드에서 숨김 + 프로젝트 세션에 메모 전달), 지남 기간 7일로"
     }
   ],
   "checklist": [
@@ -246,19 +247,25 @@
     },
     {
       "text": "맥스 플랜 API 크레딧 콘솔 조직 연결 + 대시보드 workspace API 키 전달",
-      "status": "todo",
+      "status": "done",
       "section": "운영",
       "owner": "me"
     },
     {
-      "text": "Haiku 연동: 새 할 일 제목 정리 → 메일 알림 요약",
-      "status": "todo",
+      "text": "Haiku 연동: 새 할 일 제목 정리(완료) → 메일 알림 요약",
+      "status": "doing",
       "section": "AX",
       "owner": "agent"
     },
     {
-      "text": "텔레그램 /ask 챗봇, /send·/remind 예약",
-      "status": "todo",
+      "text": "텔레그램 /ask 챗봇(완료), /send·/remind 예약",
+      "status": "doing",
+      "section": "AX",
+      "owner": "agent"
+    },
+    {
+      "text": "VM → /api/trading/brief 매크로·섹터·전략·경제지표·매매 점검 아침 브리핑",
+      "status": "doing",
       "section": "AX",
       "owner": "agent"
     }
