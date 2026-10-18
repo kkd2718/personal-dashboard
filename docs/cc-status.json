@@ -1,14 +1,17 @@
 {
-  "updatedAt": "2026-10-18T20:22:45+09:00",
-  "focus": "메일 요약·VM 매크로/매매 점검 브리핑 배포 후 첫 실수신 확인",
+  "updatedAt": "2026-10-18T20:49:03+09:00",
+  "focus": "AX·API 기능 안착 — 내일 06:30 VM 브리핑 첫 실수신 확인",
   "next": [
-    "trading 세션: VM 수동 전송 1회 + 크론 확인(사용자 전달)",
-    "VM brief_push 첫 실전송(평일 15:45·06:30) 수신 확인 → 아침 브리핑 📈·🩺 점검",
-    "/send·/remind 예약",
+    "10/19 06:30 VM 전송 → 아침 브리핑 📈·🩺 전체 매크로 확인",
+    "/send·/remind 실사용 피드백",
     "논문 알림(PubMed)은 나중에"
   ],
   "blockers": [],
   "done": [
+    {
+      "date": "2026-10-18",
+      "text": "매크로 수신 스키마 수정(21개 묶음 저장 확인), /send·/remind·/reminds(구글 캘린더 알림) 배포"
+    },
     {
       "date": "2026-10-18",
       "text": "메일 알림 Haiku 요약+[작업 준비 요청][답장 초안](48h 보관), VM→/api/trading/brief 매크로·섹터·전략·경제지표·매매 점검 아침 브리핑, /macro, /ask 한 화면 길이"
@@ -44,10 +47,6 @@
     {
       "date": "2026-10-13",
       "text": "개수형 루틴(암기 문제 풀이): 홈 ± 입력, /done 이름 N, POST /api/routine/count + scripts/routine-count.mjs(+N/=N/^N)"
-    },
-    {
-      "date": "2026-10-11",
-      "text": "할 일 일정 재조정(자기소개서 10/18·19, BrainCT 검토 10/24·curation 10/31·미팅 슬라이드 보류), 케어노트 부위별 지남 처리 반영 확인"
     }
   ],
   "checklist": [
@@ -257,13 +256,13 @@
       "owner": "agent"
     },
     {
-      "text": "텔레그램 /ask 챗봇(완료), /send·/remind 예약",
-      "status": "doing",
+      "text": "텔레그램 /ask 챗봇, /send·/remind 예약",
+      "status": "done",
       "section": "AX",
       "owner": "agent"
     },
     {
-      "text": "VM → /api/trading/brief 아침 브리핑 (배포 완료, 첫 VM 실전송 확인 남음)",
+      "text": "VM → /api/trading/brief 아침 브리핑 (배포·VM 실전송 수신 확인 완료, 첫 아침 브리핑 확인 남음)",
       "status": "doing",
       "section": "AX",
       "owner": "agent"
