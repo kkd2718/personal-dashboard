@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { JevAnswer } from '@/lib/ai/jev';
 import type { Candidate } from './ax-candidates';
-import { axQuestions, axState, decide, obviousMemo } from './ax-intent';
+import { project } from './ax-fixtures';
+import { axQuestions, axState, decide, isTaskPrefix, obviousMemo, pickProject } from './ax-intent';
 
 const choice = (pick: string, probabilities: Record<string, number> | null): JevAnswer => {
   const values = probabilities ? Object.values(probabilities).sort((a, b) => b - a) : [];
@@ -77,6 +78,40 @@ describe('decide', () => {
   it('calendar_event ignores the target', () => {
     const intent = choice('calendar_event', { calendar_event: 0.9, memo: 0.1 });
     expect(decide({ intent }, [])).toEqual({ ok: true, intent: 'calendar_event', target: null });
+  });
+});
+
+describe('task_create', () => {
+  const projects = [project({ id: 'p1', slug: 'a', name: 'Alpha' }), project({ id: 'p2', slug: 'b', name: 'Old', status: 'archived' })];
+  const intent = choice('task_create', { task_create: 0.9, memo: 0.1 });
+
+  it('takes a confident project, otherwise none', () => {
+    expect(decide({ intent, project: choice('p1', { p1: 0.8, none: 0.2 }) }, [], undefined, projects)).toMatchObject({
+      ok: true,
+      intent: 'task_create',
+      projectId: 'p1',
+    });
+    expect(decide({ intent, project: choice('p1', { p1: 0.5, none: 0.5 }) }, [], undefined, projects)).toMatchObject({ projectId: null });
+    expect(decide({ intent, project: choice('none', { none: 0.9, p1: 0.1 }) }, [], undefined, projects)).toMatchObject({ projectId: null });
+    expect(decide({ intent }, [], undefined, projects)).toMatchObject({ ok: true, projectId: null });
+  });
+
+  it('a hallucinated or archived project id is ignored', () => {
+    expect(pickProject(choice('p2', { p2: 0.9, none: 0.1 }), projects)).toBeNull();
+    expect(pickProject(choice('zzz', { zzz: 0.9, none: 0.1 }), projects)).toBeNull();
+  });
+
+  it('project question lists active projects only; none without projects', () => {
+    const q = axQuestions([], projects);
+    expect(Object.keys((q.project as { criteria: Record<string, string> }).criteria)).toEqual(['p1', 'none']);
+    expect('project' in axQuestions([], [])).toBe(false);
+  });
+
+  it('prefix detection', () => {
+    expect(isTaskPrefix('할 일: 논문 검토')).toBe(true);
+    expect(isTaskPrefix('할일:x')).toBe(true);
+    expect(isTaskPrefix('TODO: x')).toBe(true);
+    expect(isTaskPrefix('오늘 할 일 정리')).toBe(false);
   });
 });
 

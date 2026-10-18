@@ -2,7 +2,7 @@
 // pending-proposal / callback-data plumbing for Telegram's inline keyboard. Pure.
 import { eventsFromParsed, type NewEvent } from '@/lib/logic/new-event';
 import type { Candidate } from '@/lib/logic/ax-candidates';
-import type { Intent } from '@/lib/logic/ax-intent';
+import { TASK_PREFIX_RE, type Intent } from '@/lib/logic/ax-intent';
 import { parseCapture, stripTokens } from '@/lib/logic/capture';
 import { extractEmailOrDomain, extractWaitDays } from '@/lib/logic/waiting';
 import { absoluteDateLabel, weekdayOf } from '@/lib/logic/dates';
@@ -12,6 +12,7 @@ import type { InlineKeyboard } from '@/lib/telegram/client';
 import type { Deadline, Paper, Project, Task } from '@/lib/types';
 
 export type Proposal =
+  | { kind: 'task_create'; title: string; projectId: string | null; projectName: string | null; dueDate: string | null }
   | { kind: 'task_done'; taskId: string; title: string }
   | { kind: 'task_reschedule'; taskId: string; title: string; from: string | null; to: string }
   | { kind: 'deadline_done'; deadlineId: string; title: string }
@@ -31,6 +32,8 @@ export interface BuildInput {
   deadlines: Deadline[];
   projects: Project[];
   papers: Paper[];
+  /** task_create: the project Jev picked (an `@project` in the text wins). */
+  projectId?: string | null;
 }
 
 const NOT_FOUND = '대상을 찾을 수 없어요';
@@ -44,6 +47,20 @@ export function buildProposal(input: BuildInput): BuildResult {
     parsed.date ?? (parsed.shift ? applyShift(rescheduleBase(currentDue, today), parsed.shift) : null);
 
   switch (intent) {
+    case 'task_create': {
+      const wanted = parseCapture(text, input.projects).projectId ?? input.projectId ?? null;
+      const project = wanted ? input.projects.find((p) => p.id === wanted) : undefined;
+      const title = stripRequestVerbs(stripTokens(stripSpans(text, parsed.spans)))
+        .replace(TASK_PREFIX_RE, '')
+        .replace(/\s*(?:해야\s?(?:해|함|한다|겠다|돼|됨)|하기)[.!]?$/, '')
+        .trim();
+      if (!title) return fail('제목을 찾지 못했어요');
+      if (parsed.date && parsed.date < today) return fail('과거 날짜예요');
+      return {
+        ok: true,
+        proposal: { kind: 'task_create', title, projectId: project?.id ?? null, projectName: project?.name ?? null, dueDate: parsed.date },
+      };
+    }
     case 'task_done': {
       const task = target?.kind === 'task' ? tasks.find((t) => t.id === target.id) : undefined;
       if (!task) return fail(NOT_FOUND);
@@ -138,6 +155,10 @@ function eventLine(e: NewEvent): string {
 export function formatProposal(p: Proposal, today: string): string {
   const day = (d: string | null) => (d ? absoluteDateLabel(d, today) : '없음');
   switch (p.kind) {
+    case 'task_create': {
+      const due = p.dueDate ? ` · 마감 ${Number(p.dueDate.slice(5, 7))}/${Number(p.dueDate.slice(8))}` : '';
+      return `➕ 할 일 추가 · ${escapeHtml(p.projectName ?? '프로젝트 없음')} · <b>${escapeHtml(p.title)}</b>${due}`;
+    }
     case 'task_done':
       return `✅ 할 일 완료 처리\n<b>${escapeHtml(p.title)}</b>`;
     case 'task_reschedule':

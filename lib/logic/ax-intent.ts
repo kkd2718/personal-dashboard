@@ -1,11 +1,13 @@
 // Intent/target questions for Jev and the decision rule over its answers
 // (docs/PLAN_AX.md §6). Pure.
 import type { Candidate } from '@/lib/logic/ax-candidates';
+import type { Project } from '@/lib/types';
 import { weekdayOf } from '@/lib/logic/dates';
 import type { JevAnswer, JevQuestion } from '@/lib/ai/jev';
 
 export const INTENTS = [
   'memo',
+  'task_create',
   'task_done',
   'task_reschedule',
   'deadline_done',
@@ -28,7 +30,9 @@ export function axState(text: string, today: string): string {
 }
 
 const INTENT_CRITERIA: Record<Intent, string> = {
-  memo: '단순 메모, 아이디어, 잡담, 링크 저장 (일정/할 일 상태 변경 아님)',
+  memo: '생각·아이디어·링크·기록 (해야 할 작업으로 등록할 일이 아님), 잡담',
+  task_create:
+    '새로 해야 할 일(할 일 목록에 추가할 작업)을 등록해 달라는 요청 — "할 일:", "~해야 해", "~하기", "검토/확인/준비" 같은 작업',
   task_done: '기존 할 일을 끝냈다는 보고 (예: "초안 끝냈어")',
   task_reschedule: '기존 할 일의 마감을 미루거나 날짜를 바꿔 달라는 요청',
   deadline_done: '기존 마감/제출 항목을 끝냈거나 제출했다는 보고',
@@ -37,7 +41,29 @@ const INTENT_CRITERIA: Record<Intent, string> = {
   waiting_reply: '누군가의 답장을 기다리는 중이니 추적해 달라는 요청',
 };
 
-export function axQuestions(candidates: Candidate[]): Record<string, JevQuestion> {
+const activeProjects = (projects: Project[]) => projects.filter((p) => p.status !== 'archived');
+
+/** Choice over active projects (option key = project id) plus 'none'; null when there are none. */
+export function projectQuestion(projects: Project[]): JevQuestion | null {
+  const active = activeProjects(projects);
+  if (active.length === 0) return null;
+  const criteria: Record<string, string> = {};
+  for (const p of active) criteria[p.id] = p.summary ? `${p.name} — ${p.summary.slice(0, 60)}` : p.name;
+  criteria.none = '어느 프로젝트에도 해당하지 않음';
+  return { type: 'choice', instructions: '이 할 일이 속하는 프로젝트를 고르세요.', criteria };
+}
+
+/** The project id Jev is confident about, else null. */
+export function pickProject(answer: JevAnswer | undefined, projects: Project[], threshold = AX_THRESHOLD): string | null {
+  if (answer?.type !== 'choice' || answer.choice === 'none' || !confident(answer, threshold)) return null;
+  return activeProjects(projects).some((p) => p.id === answer.choice) ? answer.choice : null;
+}
+
+/** `할 일:` / `할일:` / `todo:` is an explicit request to create a task: no intent classification needed. */
+export const TASK_PREFIX_RE = /^\s*(?:할\s?일|todo)\s*:\s*/i;
+export const isTaskPrefix = (text: string) => TASK_PREFIX_RE.test(text);
+
+export function axQuestions(candidates: Candidate[], projects: Project[] = []): Record<string, JevQuestion> {
   const criteria: Record<string, string> = {};
   for (const i of INTENTS) if (i !== 'waiting_reply' || WAITING_ENABLED) criteria[i] = INTENT_CRITERIA[i];
   const questions: Record<string, JevQuestion> = {
@@ -51,11 +77,13 @@ export function axQuestions(candidates: Candidate[]): Record<string, JevQuestion
     targets.none = '위 항목 중 해당하는 것이 없음';
     questions.target = { type: 'choice', instructions: '메시지가 가리키는 기존 항목을 고르세요.', criteria: targets };
   }
+  const project = projectQuestion(projects);
+  if (project) questions.project = project;
   return questions;
 }
 
 export type Decision =
-  | { ok: true; intent: Intent; target: Candidate | null }
+  | { ok: true; intent: Intent; target: Candidate | null; projectId?: string | null }
   | { ok: false; reason: 'low_intent' | 'low_target' | 'no_target' | 'kind_mismatch' | 'jev_error' };
 
 type ChoiceAnswer = Extract<JevAnswer, { type: 'choice' }>;
@@ -68,7 +96,8 @@ export function confident(a: ChoiceAnswer, threshold = AX_THRESHOLD): boolean {
 export function decide(
   answers: Record<string, JevAnswer> | null,
   candidates: Candidate[],
-  threshold = AX_THRESHOLD
+  threshold = AX_THRESHOLD,
+  projects: Project[] = []
 ): Decision {
   const intentAnswer = answers?.intent;
   if (!intentAnswer || intentAnswer.type !== 'choice') return { ok: false, reason: 'jev_error' };
@@ -76,6 +105,9 @@ export function decide(
   const intent = (INTENTS as readonly string[]).includes(intentAnswer.choice) ? (intentAnswer.choice as Intent) : null;
   if (!intent) return { ok: false, reason: 'low_intent' };
   if (intent === 'memo' || intent === 'calendar_event') return { ok: true, intent, target: null };
+  if (intent === 'task_create') {
+    return { ok: true, intent, target: null, projectId: pickProject(answers?.project, projects, threshold) };
+  }
   if (intent === 'waiting_reply') {
     // A linked task/deadline is optional: use it only when Jev is confident about it.
     const t = answers?.target;

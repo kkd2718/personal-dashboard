@@ -91,6 +91,38 @@ describe('buildProposal: calendar_event', () => {
   });
 });
 
+describe('buildProposal: task_create', () => {
+  const projects = [project({ id: 'p1', slug: 'claude', name: 'Claude 연구' }), project({ id: 'p2', slug: 'amgi', name: '암기' })];
+  const make = (text: string, o: Partial<BuildInput> = {}) => build(text, 'task_create', { target: null, projects, ...o });
+
+  it('strips prefix, tokens, trailing 해야 해, and reads the due date', () => {
+    expect(make('할 일: 맥스 플랜 API 검토해야 해 내일 @claude')).toMatchObject({
+      ok: true,
+      proposal: { kind: 'task_create', title: '맥스 플랜 API 검토', projectId: 'p1', projectName: 'Claude 연구', dueDate: '2026-10-16' },
+    });
+    expect(make('논문 초안 쓰기')).toMatchObject({ proposal: { title: '논문 초안 쓰기', projectId: null, dueDate: null } });
+    expect(make('보고서 정리하기')).toMatchObject({ proposal: { title: '보고서 정리' } });
+  });
+
+  it('the Jev project is used unless the text names one; unknown ids are dropped', () => {
+    expect(make('할 일: x', { projectId: 'p2' })).toMatchObject({ proposal: { projectId: 'p2', projectName: '암기' } });
+    expect(make('할 일: x @claude', { projectId: 'p2' })).toMatchObject({ proposal: { projectId: 'p1' } });
+    expect(make('할 일: x', { projectId: 'nope' })).toMatchObject({ proposal: { projectId: null } });
+  });
+
+  it('fails on an empty title or a past date', () => {
+    expect(make('할 일:')).toEqual({ ok: false, reason: '제목을 찾지 못했어요' });
+    expect(make('할 일: 청소 10월 3일')).toEqual({ ok: false, reason: '과거 날짜예요' });
+  });
+
+  it('formatProposal', () => {
+    const r = make('할 일: 청소 내일 @amgi');
+    expect(r.ok && formatProposal(r.proposal, TODAY)).toBe('➕ 할 일 추가 · 암기 · <b>청소</b> · 마감 10/16');
+    const none = make('청소');
+    expect(none.ok && formatProposal(none.proposal, TODAY)).toBe('➕ 할 일 추가 · 프로젝트 없음 · <b>청소</b>');
+  });
+});
+
 describe('buildProposal: waiting_reply', () => {
   const projects = [project({ id: 'p1', slug: 'brainct', name: 'BrainCT 연구' })];
   const papers = [paper({ id: 'pp', shortName: 'BrainCT', projectId: 'p1' })];

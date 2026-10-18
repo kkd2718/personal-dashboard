@@ -10,7 +10,17 @@ import { applyWeeklyAction, type WeeklyRepo } from '@/lib/telegram/weekly';
 import type { ApplyRepo } from '@/lib/ax/apply';
 import type { GoogleCalendarConfig } from '@/lib/google/calendar';
 import { prefilterCandidates } from '@/lib/logic/ax-candidates';
-import { axQuestions, axState, decide, obviousMemo } from '@/lib/logic/ax-intent';
+import {
+  axQuestions,
+  axState,
+  decide,
+  isTaskPrefix,
+  obviousMemo,
+  pickProject,
+  projectQuestion,
+  type Decision,
+} from '@/lib/logic/ax-intent';
+import { parseCapture } from '@/lib/logic/capture';
 import {
   buildProposal,
   decodeCallback,
@@ -75,11 +85,25 @@ async function classify(deps: AxDeps, jev: Jev, text: string): Promise<Outcome> 
     ]);
     const candidates = prefilterCandidates(text, tasks, deadlines, projects);
 
-    if (!(await takeJevBudget(deps.repo, 'ax', today, JEV_DAILY_LIMIT_AX))) {
-      suffix = SUFFIX_BUDGET;
-      throw new Error('budget');
+    let decision: Decision;
+    if (isTaskPrefix(text)) {
+      // Explicit "할 일:" request: no intent question. Only the project may need Jev, and a missing
+      // project (no @mention, no budget, unsure) just means a task without one.
+      let projectId = parseCapture(text, projects).projectId;
+      const question = projectId ? null : projectQuestion(projects);
+      if (question && (await takeJevBudget(deps.repo, 'ax', today, JEV_DAILY_LIMIT_AX))) {
+        const answers = await jev.ask(axState(text, today), { project: question });
+        projectId = pickProject(answers?.project, projects);
+      }
+      decision = { ok: true, intent: 'task_create', target: null, projectId };
+    } else {
+      if (!(await takeJevBudget(deps.repo, 'ax', today, JEV_DAILY_LIMIT_AX))) {
+        suffix = SUFFIX_BUDGET;
+        throw new Error('budget');
+      }
+      const answers = await jev.ask(axState(text, today), axQuestions(candidates, projects));
+      decision = decide(answers, candidates, undefined, projects);
     }
-    const decision = decide(await jev.ask(axState(text, today), axQuestions(candidates)), candidates);
     if (!decision.ok) throw new Error(decision.reason);
     if (decision.intent === 'memo') return { memoSuffix: '' };
     if (decision.intent === 'calendar_event' && !deps.calendarCfg) {
@@ -92,6 +116,7 @@ async function classify(deps: AxDeps, jev: Jev, text: string): Promise<Outcome> 
       nowTime,
       intent: decision.intent,
       target: decision.target,
+      projectId: decision.projectId,
       tasks,
       deadlines,
       projects,

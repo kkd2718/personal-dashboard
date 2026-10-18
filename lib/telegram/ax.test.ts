@@ -45,6 +45,7 @@ function setup(answers: Record<string, JevAnswer> | null | 'none', over: Partial
     },
     listTasks: vi.fn(async () => [task({ id: '1', title: '논문 초안 작성', dueDate: '2026-10-10' })]),
     updateTask: vi.fn(async () => task({ id: '1', title: 'x' })),
+    createTask: vi.fn(async () => task({ id: 'new', title: 'x' })),
     listDeadlines: vi.fn(async () => [deadline({ id: '1', title: '학회 제출' })]),
     updateDeadline: vi.fn(async () => deadline({ id: '1', title: 'x' })),
     listProjects: vi.fn(async () => [project({ id: 'p', slug: 'p', name: 'P' })]),
@@ -292,5 +293,57 @@ describe('weekly callback: unchanged record', () => {
     await handleCallback(s.deps, { callbackId: 'c', messageId: 9, data: 'w:wk2:0:d' });
     expect(s.answered.at(-1)).toContain('찾을 수 없어요');
     expect(s.repo.setMeta.mock.calls.length).toBe(before);
+  });
+});
+
+describe('task_create', () => {
+  const proj = (pick: string, p: Record<string, number>) => ({ project: choice(pick, p) });
+  const intentCreate = { intent: choice('task_create', { task_create: 0.95, memo: 0.05 }) };
+
+  it('"할 일:" prefix skips the intent question and asks only for the project', async () => {
+    const s = setup(proj('p', { p: 0.9, none: 0.1 }));
+    await handleFreeText(s.deps, '할 일: 맥스 플랜 API 검토');
+    const asked = (s.jev!.ask as ReturnType<typeof vi.fn>).mock.calls[0][1] as Record<string, unknown>;
+    expect(Object.keys(asked)).toEqual(['project']);
+    expect(s.markups[0].text).toContain('➕ 할 일 추가 · P · <b>맥스 플랜 API 검토</b>');
+    expect(s.repo.createTask).not.toHaveBeenCalled();
+  });
+
+  it('prefix with an @project does not call Jev at all', async () => {
+    const s = setup(proj('p', { p: 0.9, none: 0.1 }));
+    await handleFreeText(s.deps, '할 일: 청소 @p');
+    expect(s.jev!.ask).not.toHaveBeenCalled();
+    expect(s.markups[0].text).toContain('· P ·');
+  });
+
+  it('Jev task_create with a confident project', async () => {
+    const s = setup({ ...intentCreate, ...proj('p', { p: 0.9, none: 0.1 }) });
+    await handleFreeText(s.deps, '클로드가 맥스 플랜에 API를 제공하기로 해서 검토');
+    expect(s.markups[0].text).toContain('➕ 할 일 추가 · P ·');
+  });
+
+  it('no confident project: still proposed, without a project', async () => {
+    const s = setup({ ...intentCreate, ...proj('p', { p: 0.5, none: 0.5 }) });
+    await handleFreeText(s.deps, '서류 정리해야 해');
+    expect(s.markups[0].text).toContain('프로젝트 없음');
+  });
+
+  it('a past due date falls back to a memo with the reason', async () => {
+    const s = setup(intentCreate);
+    await handleFreeText(s.deps, '할 일: 청소 10월 3일');
+    expect(s.markups).toHaveLength(0);
+    expect(s.sent[0]).toContain('과거 날짜예요');
+  });
+
+  it('applying creates exactly one task, even on a double tap', async () => {
+    const s = setup(intentCreate);
+    await handleFreeText(s.deps, '할 일: 서류 정리 내일');
+    const data = okData(s.markups);
+    await Promise.all([
+      handleCallback(s.deps, { callbackId: 'a', messageId: 1, data }),
+      handleCallback(s.deps, { callbackId: 'b', messageId: 1, data }),
+    ]);
+    expect(s.repo.createTask).toHaveBeenCalledTimes(1);
+    expect(s.repo.createTask).toHaveBeenCalledWith({ projectId: null, title: '서류 정리', dueDate: '2026-10-16', assignee: 'me' });
   });
 });

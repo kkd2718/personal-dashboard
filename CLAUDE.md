@@ -151,6 +151,8 @@ project's DB password isn't always available/known. Run scripts with
   Code.gs `triage` (5-min trigger, `setupTriage`) posts new inbox mail (<=300-char snippet, attachment names stripped, never
   attachments) to `POST /api/google/mail-triage` (`lib/logic/mail-triage.ts`): allow/deny in `app_meta mail:triage:config`
   (`/mailrule`), others via Jev noul >= 0.7 under the `mail` budget (300/day), dedupe by message id, 502 on Telegram failure.
+  `task_create` intent: a free-text request to add a task (or a `할 일:`/`todo:` prefix, which skips intent classification) becomes a
+  ➕ proposal; project from `@mention`, else a confident Jev project choice, else none; applied via `repo.createTask` on 적용.
 
 ## Conventions
 - Opus plans (`docs/PLAN.md`), Sonnet implements. Don't redesign a plan's data model/signatures

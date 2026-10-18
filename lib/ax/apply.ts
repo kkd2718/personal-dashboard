@@ -10,6 +10,7 @@ import type { Repo } from '@/lib/repo';
 
 export type ApplyRepo = Pick<
   Repo,
+  | 'createTask'
   | 'listTasks'
   | 'updateTask'
   | 'listDeadlines'
@@ -32,6 +33,10 @@ const ALREADY = '이미 완료돼 있어요';
 export async function applyProposal(repo: ApplyRepo, deps: ApplyDeps, p: Proposal): Promise<string> {
   const day = (d: string) => escapeHtml(absoluteDateLabel(d, deps.today));
   switch (p.kind) {
+    case 'task_create': {
+      await repo.createTask({ projectId: p.projectId, title: p.title, dueDate: p.dueDate, assignee: 'me' });
+      return '✅ 할 일을 추가했어요';
+    }
     case 'task_done': {
       const task = (await repo.listTasks()).find((t) => t.id === p.taskId);
       if (!task) return MISSING;
