@@ -112,8 +112,17 @@ describe('formatMarketBrief edge cases', () => {
     // today 2026-09-30: base = 09-23 (1220), last = 09-30 (1290) -> +5.7%; from point 0 it would be +29.0%
     const out = formatMarketBrief({ brief: null, summary: tradingSummary({ points, collectedAt: '2026-09-30T00:00:00Z' }), today: '2026-09-30', nowIso: '2026-09-30T01:00:00.000Z', sentence: null })!;
     expect(out).toContain('1주 +5.7%');
-    const short = tradingSummary({ points: points.slice(-3), collectedAt: '2026-09-30T00:00:00Z' }); // oldest within 7 days
-    expect(formatMarketBrief({ brief: null, summary: short, today: '2026-09-30', nowIso: '2026-09-30T01:00:00.000Z', sentence: null })).toContain('1주 +1.6%');
+    const run = (pts: typeof points) =>
+      formatMarketBrief({ brief: null, summary: tradingSummary({ points: pts, collectedAt: '2026-09-30T00:00:00Z' }), today: '2026-09-30', nowIso: '2026-09-30T01:00:00.000Z', sentence: null })!;
+    expect(run(points.slice(-6))).toContain('1주 +4.0%'); // oldest point, 5 days old: still used
+    expect(run(points.slice(-5))).not.toContain('1주'); // fallback base only 4 days old
+  });
+
+  it('sector columns stay aligned: a missing stat shows – and a line with no stats is dropped', () => {
+    const sectors = [{ ticker: 'AAA', label: '가', chg1d_pct: null, dist_200d_pct: 5, rs_vs_ndx_20d_pct: 1.5, wrsi: 50 }, { ticker: 'BBB', label: '나' }];
+    const out = fmt({ summary: null, brief: mk(rawBody({ sectors })) })!;
+    expect(out).toContain('• 가(AAA) – · +5.0% · +1.5% · 50');
+    expect(out).not.toContain('BBB');
   });
 
   it('1주 is omitted when the base point is more than 10 days old', () => {

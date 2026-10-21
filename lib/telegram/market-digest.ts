@@ -72,13 +72,15 @@ function accountLine(a: TradingAccountSummary, today: string): string {
   ])}`;
 }
 
-/** Change over the last week of daily totals: base = the latest point dated <= today-7, else the oldest one; null without a distinct base or when the base is over 10 days old. */
+/** Change over the last week of daily totals: base = the latest point dated <= today-7, else the oldest one; null without a distinct base, when the base is over 10 days old, or when a fallback base is under 5 days old. */
 function weekChangePct(points: TradingSummary['points'], today: string): number | null {
   const sorted = [...points].sort((a, b) => a.date.localeCompare(b.date));
   const last = sorted.at(-1);
   if (!last) return null;
   const cutoff = addDaysStr(today, -7);
-  const base = [...sorted].reverse().find((p) => p.date <= cutoff) ?? sorted[0];
+  const found = [...sorted].reverse().find((p) => p.date <= cutoff);
+  const base = found ?? sorted[0];
+  if (!found && base.date > addDaysStr(today, -5)) return null; // a fallback base under 5 days old is not a week
   if (base.date < addDaysStr(today, -10)) return null; // too old to call it a week
   return base.date !== last.date && base.totalKrw > 0 ? (last.totalKrw / base.totalKrw - 1) * 100 : null;
 }
@@ -208,13 +210,10 @@ function sectorSection(brief: MarketBrief, note: string): string | null {
     '🏭 섹터 (1일 · 200일선 · NDX대비 20일 · 주간RSI)',
     brief.sectors.map((s) => {
       const name = s.label ? `${e(s.label)}(${e(s.ticker)})` : e(s.ticker);
-      const stats = join([
-        sgn(s.chg1d_pct, 1, '%'),
-        sgn(s.dist_200d_pct, 1, '%'),
-        sgn(s.rs_vs_ndx_20d_pct, 1, '%'),
-        fmt(s.wrsi, 0),
-      ]);
-      return `• ${name} ${stats ?? ''}${s.note ? `\n   <i>${e(clip(s.note, 40))}</i>` : ''}`.trimEnd();
+      // Fixed four columns ('–' for a missing one) so the header stays true; no data at all drops the line.
+      const cols = [sgn(s.chg1d_pct, 1, '%'), sgn(s.dist_200d_pct, 1, '%'), sgn(s.rs_vs_ndx_20d_pct, 1, '%'), fmt(s.wrsi, 0)];
+      if (cols.every((c) => c === null)) return null;
+      return `• ${name} ${cols.map((c) => c ?? '–').join(' · ')}${s.note ? `\n   <i>${e(clip(s.note, 40))}</i>` : ''}`;
     }),
     note
   );
