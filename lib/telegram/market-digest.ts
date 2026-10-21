@@ -72,13 +72,14 @@ function accountLine(a: TradingAccountSummary, today: string): string {
   ])}`;
 }
 
-/** Change over the last week of daily totals: base = the latest point dated <= today-7, else the oldest one; null without a distinct base. */
+/** Change over the last week of daily totals: base = the latest point dated <= today-7, else the oldest one; null without a distinct base or when the base is over 10 days old. */
 function weekChangePct(points: TradingSummary['points'], today: string): number | null {
   const sorted = [...points].sort((a, b) => a.date.localeCompare(b.date));
   const last = sorted.at(-1);
   if (!last) return null;
   const cutoff = addDaysStr(today, -7);
   const base = [...sorted].reverse().find((p) => p.date <= cutoff) ?? sorted[0];
+  if (base.date < addDaysStr(today, -10)) return null; // too old to call it a week
   return base.date !== last.date && base.totalKrw > 0 ? (last.totalKrw / base.totalKrw - 1) * 100 : null;
 }
 
@@ -180,10 +181,11 @@ function riskSection(m: Macro | null | undefined, note: string): string | null {
   if (!m) return null;
   const coin = (name: string, d: number | null | undefined, below: boolean | null | undefined) =>
     fmt(d) ? `${name} ${sgn(d, 1, '%')}${below ? ' 200일선↓' : ''}` : null;
-  const dist = (name: string, d: number | null | undefined) => (fmt(d) ? `${name} ${sgn(d, 1, '%')}` : null);
+  // A value that rounds to 0.0 (>= -0.05) is at its 52-week high.
+  const dist = (name: string, d: number | null | undefined) => (fmt(d) ? (d! >= -0.05 ? `${name} 신고가` : `${name} ${sgn(d, 1, '%')}`) : null);
   const c = join([coin('BTC', m.crypto?.btc_dist_200d_pct, m.crypto?.btc_below_200d), coin('ETH', m.crypto?.eth_dist_200d_pct, m.crypto?.eth_below_200d)]);
-  const d = join([dist('유럽', m.europe_dist_pct), dist('BRK', m.brk_dist_pct), dist('SCHD', m.schd_dist_pct)]);
-  return section('🪙 위험자산·방어', [c && `${c} (200일선 대비)`, d && `${d} (52주 고점 대비)`], note);
+  const d = join([dist('유럽', m.europe_dist_pct), dist('BRK-B', m.brk_dist_pct), dist('SCHD', m.schd_dist_pct)]);
+  return section('🪙 위험자산·방어', [c && `200일선 대비: ${c}`, d && `52주 고점 대비: ${d}`], note);
 }
 
 function leaderSection(m: Macro | null | undefined, note: string): string | null {

@@ -44,8 +44,8 @@ describe('formatMarketBrief with the live VM payload', () => {
     expect(out).toContain('금리↑·유동성 보합');
     expect(out).toContain('일본 JGB10Y 2.95 · 30Y 4.02 · 엔 20일 +1.2%');
     expect(out).toContain('USDKRW 1330 (-0.8%) · DXY 101.8 (-0.1%) · USDJPY 158.0');
-    expect(out).toContain('BTC +12.4% · ETH +11.8% (200일선 대비)');
-    expect(out).toContain('유럽 -6.1% · BRK 0.0% · SCHD -1.7% (52주 고점 대비)');
+    expect(out).toContain('200일선 대비: BTC +12.4% · ETH +11.8%');
+    expect(out).toContain('52주 고점 대비: 유럽 -6.1% · BRK-B 신고가 · SCHD -1.7%');
     expect(out).toContain('US NVDA (격차 +3.2%p) · KR 삼성전자 117일째');
     expect(out).toContain('• 반도체(^SOX) -3.8% · +5.1% · -5.0% · 48');
     expect(out).toContain('• SOXL 사다리 <b>OFF</b> — NDX 고점 대비 -6.5%, ON 조건 -10% / OFF = 신고가·방어·-25%');
@@ -114,6 +114,19 @@ describe('formatMarketBrief edge cases', () => {
     expect(out).toContain('1주 +5.7%');
     const short = tradingSummary({ points: points.slice(-3), collectedAt: '2026-09-30T00:00:00Z' }); // oldest within 7 days
     expect(formatMarketBrief({ brief: null, summary: short, today: '2026-09-30', nowIso: '2026-09-30T01:00:00.000Z', sentence: null })).toContain('1주 +1.6%');
+  });
+
+  it('1주 is omitted when the base point is more than 10 days old', () => {
+    const old = [{ date: '2026-09-01', totalKrw: 1000 }, { date: '2026-09-05', totalKrw: 1100 }];
+    const out = formatMarketBrief({ brief: null, summary: tradingSummary({ points: old, collectedAt: '2026-09-30T00:00:00Z' }), today: '2026-09-30', nowIso: '2026-09-30T01:00:00.000Z', sentence: null })!;
+    expect(out).toContain('총 ');
+    expect(out).not.toContain('1주');
+  });
+
+  it('52-week-high distances: rounds-to-zero is 신고가, a small gap is shown', () => {
+    const raw = rawBody({ macro: { europe_dist_pct: -0.04, brk_dist_pct: -0.06, schd_dist_pct: 0.2 } });
+    const out = fmt({ summary: null, brief: mk(raw) })!;
+    expect(out).toContain('52주 고점 대비: 유럽 신고가 · BRK-B -0.1% · SCHD 신고가');
   });
 
   it('a summary without a valid collectedAt is labelled, not trusted', () => {
