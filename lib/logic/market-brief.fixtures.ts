@@ -45,7 +45,7 @@ export const rawBody = (over: Record<string, unknown> = {}) => ({
   },
   // --- must never be stored ---
   regime: { phase: 'growth', allocation: { growth: 0.7 } },
-  accounts: [{ label: 'ACCT-SECRET', total_value: 123456789 }],
+  account_balances: [{ label: 'ACCT-SECRET', total_value: 123456789 }],
   rsi: { ib_sniper: { x: 1 }, vr_sniper: { y: 2 } },
   ...over,
 });

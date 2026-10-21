@@ -10,7 +10,7 @@ import {
   type DueChecklist,
   type ResolvedProjectItems,
 } from '@/lib/logic/project-detail';
-import { TRADING_SUMMARY_META_KEY, tradingOneLine } from '@/lib/logic/trading';
+import { TRADING_SUMMARY_META_KEY } from '@/lib/logic/trading';
 import type { StatusItem } from '@/lib/status/types';
 import { checklist } from '@/lib/logic/checklist';
 import { CALENDAR_VISIBLE_META_KEY, filterVisibleEvents } from '@/lib/logic/calendar';
@@ -24,7 +24,8 @@ import type { SendResult } from '@/lib/telegram/client';
 import type { AskClient } from '@/lib/ask/client';
 import type { SpendRepo } from '@/lib/ask/spend';
 import { loadBriefs } from '@/lib/market-brief-data';
-import { formatMacroBlock, macroSentence } from '@/lib/telegram/macro';
+import { macroSentence } from '@/lib/telegram/macro';
+import { formatMarketBrief } from '@/lib/telegram/market-digest';
 import { splitTelegram } from '@/lib/logic/ask-text';
 
 export type DigestResult = 'sent' | 'skipped-empty' | 'skipped-already' | 'failed';
@@ -76,7 +77,7 @@ export async function runDigest(
   today: string,
   force: boolean,
   cloudUrl: string | null,
-  /** Enables the Haiku "what changed vs yesterday" sentence of the 📈 매크로 block. */
+  /** Enables the Haiku "what changed / what to watch" paragraph of the market message. */
   ai?: { client: AskClient | null; repo: SpendRepo }
 ): Promise<DigestResult> {
   if (!force) {
@@ -120,30 +121,18 @@ export async function runDigest(
   const nowIso = new Date().toISOString();
   const { current: market, prev: marketPrev } = await loadBriefs(repo).catch(() => ({ current: null, prev: null }));
   const sentence = ai ? await macroSentence({ client: ai.client, repo: ai.repo, today }, market, marketPrev, nowIso).catch(() => null) : null;
-  const macroBlock = formatMacroBlock(market, today, nowIso, sentence?.text ?? null);
-  const base = message ?? (macroBlock ? '<b>☀️ 브리핑</b>' : null);
-  if (!base) return 'skipped-empty';
-  // Account summary line, only when the collector refreshed it within ~a day (the PC
-  // may be off; a stale total would read as today's).
-  const tradingLine =
-    trading && Date.now() - new Date(trading.collectedAt).getTime() < 30 * 3_600_000
-      ? `
+  const marketMessage = formatMarketBrief({ brief: market, summary: trading, today, nowIso, sentence: sentence?.text ?? null });
+  if (!message && !marketMessage) return 'skipped-empty';
 
-💰 계좌 ${tradingOneLine(trading, today)}`
-      : '';
-
-  // One message when it fits; otherwise the macro block goes separately (split if needed).
-  const main = base + tradingLine;
-  const parts = !macroBlock ? splitTelegram(main) : main.length + macroBlock.length + 2 <= 4000 ? [`${main}
-
-${macroBlock}`] : [...splitTelegram(main), ...splitTelegram(macroBlock)];
+  // Message 1 = the to-do briefing, message 2 = market + accounts (split if long).
+  const parts = [...(message ? splitTelegram(message) : []), ...(marketMessage ? splitTelegram(marketMessage) : [])];
   let failed = false;
   for (const [i, part] of parts.entries()) {
     if (!(await sender(part)).ok) {
       failed = true;
       break;
     }
-    // Marked as soon as the main part is out, so a later part failing never resends it on retry/?force.
+    // Marked as soon as the first part is out, so a later part failing never resends it on retry/?force.
     if (i === 0) await repo.setMeta(META_KEY, today);
   }
   if (failed) return 'failed';

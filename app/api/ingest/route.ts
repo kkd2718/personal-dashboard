@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { TRADING_SUMMARY_META_KEY } from '@/lib/logic/trading';
 import { z } from 'zod';
 import { checkBearer } from '@/lib/auth/bearer';
 import { getRepo } from '@/lib/repo';
@@ -9,7 +8,7 @@ import { telegramConfig, sendMessage } from '@/lib/telegram/client';
 import { formatCriticalAlert } from '@/lib/telegram/format';
 import { notifyTradesFail } from '@/lib/telegram/trades-alert';
 import { briefBodySchema, stripForbiddenKeys } from '@/lib/logic/market-brief';
-import { storeBrief } from '@/lib/market-brief-data';
+import { storeBrief, storeSummary } from '@/lib/market-brief-data';
 
 export const dynamic = 'force-dynamic';
 
@@ -149,7 +148,8 @@ export async function POST(request: Request) {
     detail: `${parsed.data.projectActivity?.length ?? 0}개 프로젝트`,
   });
   if (parsed.data.trading) {
-    await repo.setMeta(TRADING_SUMMARY_META_KEY, parsed.data.trading);
+    // PC fallback: a fresher VM-pushed summary (<= 6 h old) is kept.
+    await storeSummary(repo, parsed.data.trading, 'pc', collectedAt);
   }
   if (parsed.data.tradingBrief) {
     await storeBrief(repo, stripForbiddenKeys(parsed.data.tradingBrief), 'pc', collectedAt, notifyTradesFail);

@@ -110,7 +110,8 @@ describe('telegram webhook /ask', () => {
   it('/macro sends every chunk of a long snapshot, each within Telegram limits', async () => {
     const sectors = Array.from({ length: 30 }, (_, i) => ({ ticker: `T${i}`, label: `섹터 ${i}`, price: 100, chg1d_pct: 1, note: '가'.repeat(110) }));
     const econ = Array.from({ length: 40 }, (_, i) => ({ date: '2026-11-07', time_kst: '22:30', name: `지표 ${i} ${'나'.repeat(100)}`, importance: 'high' }));
-    const snap = { ...parseBrief(rawBody({ sectors, econ }))!, receivedAt: new Date().toISOString(), source: 'vm' };
+    const checks = Array.from({ length: 20 }, (_, i) => ({ id: `c${i}`, label: `점검 ${i}`, status: 'warn', detail: '자세한 설명'.repeat(15) }));
+    const snap = { ...parseBrief(rawBody({ sectors, econ, trades: { overall: 'warn', checks } }))!, receivedAt: new Date().toISOString(), source: 'vm' };
     h.repo = fakeRepo({ meta: { 'trading:market': snap } }).repo;
     await post({ text: '/macro' });
     expect(h.sendMessage.mock.calls.length).toBeGreaterThan(1);
@@ -130,14 +131,14 @@ describe('telegram webhook /ask', () => {
     expect(h.sendMessage.mock.calls[0][0]).toContain('/ask 예산');
   });
 
-  it('/macro without a snapshot says so; with one it shows the full view', async () => {
+  it('/macro without a snapshot says so; with one it shows the market message', async () => {
     await post({ text: '/macro' });
     expect(h.sendMessage.mock.calls[0][0]).toContain('아직 받은 매크로 스냅샷이 없어요');
     const snap = { ...parseBrief(rawBody())!, receivedAt: new Date().toISOString(), source: 'vm' };
     h.repo = fakeRepo({ meta: { 'trading:market': snap } }).repo;
     await post({ text: '/macro' });
     const out = h.sendMessage.mock.calls[1][0];
-    expect(out).toContain('📈 매크로');
+    expect(out).toContain('시장·계좌</b>');
     expect(out).toContain('Sahm');
     expect(h.afterCbs).toHaveLength(0);
   });

@@ -1,6 +1,7 @@
 // Pure formatting for the trading account summary (app_meta 'trading:summary', written
 // by /api/ingest from scripts/lib/trading-summary.mjs). Framework-free for unit tests.
 import type { TradingAccountSummary, TradingSummary } from '@/lib/types';
+import type { BriefBody } from '@/lib/logic/market-brief';
 
 export const TRADING_SUMMARY_META_KEY = 'trading:summary';
 /** The project the local trading dashboard belongs to (same id the status probe uses). */
@@ -96,4 +97,57 @@ export function accountReturnText(a: TradingAccountSummary): string | null {
 /** Numeric value behind accountReturnText (for up/down colouring). */
 export function accountReturnValue(a: TradingAccountSummary): number | null {
   return a.cumReturnPct ?? a.sinceBaselinePct ?? null;
+}
+
+/** The PC collector only overwrites the summary when the stored one is older than this. */
+export const PC_SUMMARY_FALLBACK_HOURS = 6;
+
+/** Maps the VM's snake_case `accounts` section to the stored TradingSummary shape; null when it holds nothing usable. */
+export function accountsToSummary(a: BriefBody['accounts'], nowIso: string): TradingSummary | null {
+  if (!a || (a.items.length === 0 && (a.total_krw ?? null) === null)) return null;
+  // Missing, unparseable or future (> 10 min ahead) timestamps fall back to the receive time.
+  const t = a.collected_at ? Date.parse(a.collected_at) : NaN;
+  const at = Number.isFinite(t) && t <= Date.parse(nowIso) + 10 * 60_000 ? a.collected_at! : nowIso;
+  const seen = new Set<string>();
+  const items = a.items.filter((i) => !seen.has(i.id) && !!seen.add(i.id));
+  return {
+    collectedAt: at,
+    totalKrw: a.total_krw ?? null,
+    dayChangeKrw: a.day_change_krw ?? null,
+    dayChangePct: a.day_change_pct ?? null,
+    fxRate: a.fx_rate ?? null,
+    lastSyncOk: null,
+    points: a.points.map((p) => ({ date: p.date, totalKrw: p.total_krw })),
+    accounts: items.map((i) => ({
+      id: i.id,
+      label: i.label,
+      group: i.group ?? null,
+      currency: i.currency ?? null,
+      totalValue: i.total_value ?? null,
+      cumReturnPct: i.cum_return_pct ?? null,
+      sinceBaselinePct: i.since_baseline_pct ?? null,
+      baselineDate: i.baseline_date ?? null,
+      noData: i.no_data ?? (i.total_value == null && !i.reserve_usd),
+      reserveUsd: i.reserve_usd ?? null,
+      status: i.status ?? null,
+      dormantUntil: i.dormant_until ?? null,
+      lastRun: i.last_run ?? null,
+      nextDue: i.next_due ?? null,
+    })),
+  };
+}
+
+/** VM summaries win when not older than the stored one. The PC fallback writes over a missing one, a PC-written one
+ * (hourly refresh), or a VM one older than 6 h. */
+export function shouldWriteSummary(
+  stored: Pick<TradingSummary, 'collectedAt' | 'source'> | null,
+  incoming: Pick<TradingSummary, 'collectedAt'>,
+  source: 'vm' | 'pc',
+  nowIso: string
+): boolean {
+  if (!stored) return true;
+  if (source === 'vm') return !(Date.parse(incoming.collectedAt) < Date.parse(stored.collectedAt));
+  if (stored.source !== 'vm') return true;
+  const ageH = (Date.parse(nowIso) - Date.parse(stored.collectedAt)) / 3_600_000;
+  return !Number.isFinite(ageH) || ageH > PC_SUMMARY_FALLBACK_HOURS;
 }

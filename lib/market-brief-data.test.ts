@@ -69,3 +69,44 @@ describe('storeBrief', () => {
     });
   });
 });
+
+describe('storeBrief with an accounts section', () => {
+  const accounts = (collected_at: string, total_krw = 1000) => ({ collected_at, total_krw, items: [{ id: 'a', label: 'A', total_value: 1 }] });
+
+  it('writes trading:summary (VM) and keeps accounts out of trading:market', async () => {
+    const { repo, meta } = fakeRepo();
+    await storeBrief(repo, body({ accounts: accounts(DAY1) }), 'vm', DAY1);
+    expect(meta.get('trading:summary')).toMatchObject({ collectedAt: DAY1, totalKrw: 1000, accounts: [{ id: 'a', totalValue: 1 }] });
+    expect(JSON.stringify(meta.get('trading:market'))).not.toContain('accounts');
+  });
+
+  it('an older VM summary never replaces a newer stored one; a newer one does', async () => {
+    const { repo, meta } = fakeRepo({ meta: { 'trading:summary': { collectedAt: DAY1_LATER, totalKrw: 5, accounts: [] } } });
+    await storeBrief(repo, body({ accounts: accounts(DAY1) }), 'vm', DAY1_LATER);
+    expect(meta.get('trading:summary')).toMatchObject({ totalKrw: 5 });
+    await storeBrief(repo, body({ accounts: accounts('2026-11-07T10:00:00.000Z', 9) }), 'vm', '2026-11-07T10:00:00.000Z');
+    expect(meta.get('trading:summary')).toMatchObject({ totalKrw: 9 });
+  });
+
+  it('PC accounts only land over a missing or > 6 h old summary, independent of the market snapshot', async () => {
+    const fresh = fakeRepo({ meta: { 'trading:summary': { collectedAt: '2026-11-07T08:00:00.000Z', source: 'vm', totalKrw: 5, accounts: [] } } });
+    await storeBrief(fresh.repo, body({ accounts: accounts(DAY1_LATER, 7) }), 'pc', DAY1_LATER);
+    expect(fresh.meta.get('trading:summary')).toMatchObject({ totalKrw: 5 });
+    const old = fakeRepo({ meta: { 'trading:summary': { collectedAt: DAY1, source: 'vm', totalKrw: 5, accounts: [] } } });
+    await storeBrief(old.repo, body({ accounts: accounts(DAY1_LATER, 7) }), 'pc', DAY1_LATER);
+    expect(old.meta.get('trading:summary')).toMatchObject({ totalKrw: 7, source: 'pc' });
+  });
+
+  it('the hourly PC refresh is not blocked by a PC-written summary', async () => {
+    const { repo, meta } = fakeRepo({ meta: { 'trading:summary': { collectedAt: DAY1, source: 'pc', totalKrw: 5, accounts: [] } } });
+    await storeBrief(repo, body({ accounts: accounts('2026-11-07T01:00:00.000Z', 8) }), 'pc', '2026-11-07T01:00:00.000Z');
+    expect(meta.get('trading:summary')).toMatchObject({ totalKrw: 8, source: 'pc' });
+  });
+
+  it('a push whose items all failed validation never wipes stored accounts', async () => {
+    const stored = { collectedAt: DAY1, source: 'vm', totalKrw: 5, accounts: [{ id: 'a' }] };
+    const { repo, meta } = fakeRepo({ meta: { 'trading:summary': stored } });
+    await storeBrief(repo, body({ accounts: { collected_at: DAY1_LATER, total_krw: 9, items: [{ nope: 1 }] } }), 'vm', DAY1_LATER);
+    expect(meta.get('trading:summary')).toEqual(stored);
+  });
+});

@@ -7,7 +7,8 @@
 // Body shape (all leaf fields optional; a field with the wrong type is dropped, not a 400):
 //   { as_of, macro:{ composite, curve, hy, sahm, monthly_overheat, fear_greed, vix, ndx_rsi, rsiwatch, usdkrw, dxy, us10y,
 //       us30y, japan, liquidity, crypto, europe_dist_pct, brk_dist_pct, schd_dist_pct, leader, as_of } (flat),
-//     sectors[], strategy[], upcoming[], econ[], econ_error?, trades:{overall, checks[]} }
+//     sectors[], strategy[], upcoming[], econ[], econ_error?, trades:{overall, checks[]},
+//     accounts?:{collected_at, total_krw, day_change_*, fx_rate, points[], items[]} }
 import { z } from 'zod';
 import { dday, kstDateTime } from '@/lib/logic/dates';
 
@@ -18,6 +19,8 @@ export const MARKET_STALE_HOURS = 36;
 export const PC_FALLBACK_AFTER_HOURS = 6;
 
 export const FORBIDDEN_KEY = /amount|qty|quantity|value_krw|balance|account|holding|weight|pnl|평가|수량|금액/i;
+/** The one forbidden-looking key that is allow-listed: the account summary section (see `accountsSchema`). */
+const ALLOWED_FORBIDDEN_KEY = 'accounts';
 
 // A wrongly typed leaf becomes undefined instead of rejecting the whole push.
 const num = z.number().nullish().catch(undefined);
@@ -117,6 +120,42 @@ export const tradesSchema = z.object({
     .catch([]),
 });
 
+// Account summary pushed next to the market snapshot (mapped to TradingSummary, stored under `trading:summary`,
+// never kept inside `trading:market`). Totals and per-account values only; no holdings or quantities.
+const accountItemSchema = z.object({
+  id: z.string().max(60),
+  label: z.string().max(80),
+  group: str,
+  currency: str,
+  total_value: num,
+  cum_return_pct: num,
+  since_baseline_pct: num,
+  baseline_date: str,
+  reserve_usd: num,
+  status: str,
+  dormant_until: str,
+  no_data: bool,
+  last_run: str,
+  next_due: str,
+});
+
+/** Keeps the entries that validate on their own (one bad entry must not drop the list), capped at `max`. */
+const validEntries = <T extends z.ZodTypeAny>(item: T, max: number) =>
+  z.preprocess((v) => (Array.isArray(v) ? v.filter((x) => item.safeParse(x).success).slice(0, max) : []), z.array(item)).catch([]);
+
+// A timestamp without an offset would be read as UTC (the VM runs KST), so it is dropped and the receive time is used.
+const OFFSET_ISO = /^\d{4}-\d{2}-\d{2}T[\d:.]+(Z|[+-]\d{2}:?\d{2})$/;
+
+export const accountsSchema = obj({
+  collected_at: z.string().max(40).regex(OFFSET_ISO).nullish().catch(undefined),
+  total_krw: num,
+  day_change_krw: num,
+  day_change_pct: num,
+  fx_rate: num,
+  points: validEntries(z.object({ date: z.string().max(20), total_krw: z.number() }), 60),
+  items: validEntries(accountItemSchema, 20),
+});
+
 export const briefBodySchema = z.object({
   as_of: z.string().min(1).max(40),
   macro: macroSchema,
@@ -126,6 +165,7 @@ export const briefBodySchema = z.object({
   econ: z.array(econSchema).max(40).catch([]),
   econ_error: str,
   trades: tradesSchema.nullish().catch(undefined),
+  accounts: accountsSchema,
 });
 
 export type BriefBody = z.infer<typeof briefBodySchema>;
@@ -143,7 +183,7 @@ export function stripForbiddenKeys<T>(value: T): T {
   if (value && typeof value === 'object') {
     return Object.fromEntries(
       Object.entries(value as Record<string, unknown>)
-        .filter(([k]) => !FORBIDDEN_KEY.test(k))
+        .filter(([k]) => k === ALLOWED_FORBIDDEN_KEY || !FORBIDDEN_KEY.test(k))
         .map(([k, v]) => [k, stripForbiddenKeys(v)])
     ) as T;
   }

@@ -84,3 +84,48 @@ describe('snapshot helpers', () => {
     expect(brief().source).toBe('vm');
   });
 });
+
+describe('accounts section (allow-list vs forbidden keys)', () => {
+  const accounts = {
+    collected_at: '2026-11-07T00:00:00.000Z',
+    total_krw: 123_456_789,
+    day_change_krw: -1000,
+    day_change_pct: -0.1,
+    fx_rate: 1330,
+    points: [{ date: '2026-11-06', total_krw: 120_000_000 }],
+    items: [
+      { id: 'ibvr', label: 'IB+VR', group: null, currency: 'USD', total_value: 41234, cum_return_pct: 12.3, since_baseline_pct: null, baseline_date: null, reserve_usd: 18800, status: 'ok', last_run: '2026-11-06', next_due: '2026-11-13', account_no: '123-456', holdings: [{ qty: 3 }] },
+    ],
+  };
+
+  it('keeps `accounts` and its item ids but drops account_no/holdings/unknown keys', () => {
+    const body = parseBrief(rawBody({ accounts }))!;
+    expect(body.accounts?.total_krw).toBe(123_456_789);
+    expect(body.accounts?.items[0]).toMatchObject({ id: 'ibvr', label: 'IB+VR', total_value: 41234, reserve_usd: 18800 });
+    const json = JSON.stringify(body);
+    for (const leaked of ['account_no', '123-456', 'holdings', 'qty', 'ACCT-SECRET']) expect(json).not.toContain(leaked);
+  });
+
+  it('forbidden pattern is unchanged; only the exact key `accounts` is exempted in stripForbiddenKeys', () => {
+    for (const k of ['account', 'accounts', 'account_id', 'account_no', 'accountNumber', 'Account_Id', 'account_balances']) expect(FORBIDDEN_KEY.test(k)).toBe(true);
+    for (const k of ['total_krw', 'total_value', 'reserve_usd', 'since_baseline_pct', 'items']) expect(FORBIDDEN_KEY.test(k)).toBe(false);
+    expect(stripForbiddenKeys({ accounts: { items: [{ id: 'a', account_id: 'x' }] }, accountsList: 1, account_balances: [] })).toEqual({ accounts: { items: [{ id: 'a' }] } });
+  });
+
+  it('one bad item or point is dropped on its own; the rest of the list survives', () => {
+    const body = parseBrief(rawBody({ accounts: { total_krw: 1, points: [{ date: 'd', total_krw: 'x' }, { date: 'e', total_krw: 2 }], items: [{ label: 'no id' }, { id: 'ok', label: 'OK' }] } }))!;
+    expect(body.accounts?.items.map((i) => i.id)).toEqual(['ok']);
+    expect(body.accounts?.points).toEqual([{ date: 'e', total_krw: 2 }]);
+  });
+
+  it('collected_at without a UTC offset is dropped (it would be read as UTC)', () => {
+    expect(parseBrief(rawBody({ accounts: { total_krw: 1, collected_at: '2026-11-07T09:00:00' } }))!.accounts?.collected_at).toBeUndefined();
+    expect(parseBrief(rawBody({ accounts: { total_krw: 1, collected_at: '2026-11-07T09:00:00+09:00' } }))!.accounts?.collected_at).toBe('2026-11-07T09:00:00+09:00');
+  });
+
+  it('a malformed accounts section is dropped without failing the push', () => {
+    const body = parseBrief(rawBody({ accounts: [{ label: 'x' }] }))!;
+    expect(body.accounts).toBeUndefined();
+    expect(body.as_of).toBe('2026-11-06');
+  });
+});

@@ -303,6 +303,8 @@ export interface ProjectDetail {
 
 export interface TradingSummary {
   collectedAt: string;
+  /** Who wrote it: the trading VM push or the PC collector fallback (absent in older records = pc). */
+  source?: 'vm' | 'pc';
   totalKrw: number | null;
   dayChangeKrw: number | null;
   dayChangePct: number | null;

@@ -64,8 +64,8 @@ anon/authenticated get nothing) — see `docs/reviews/plan-advice.md` §5 for wh
 - `POST /api/trading/brief` (`TRADING_BRIEF_TOKEN`) — the trading VM pushes a **market-only** snapshot (macro/fx/rsi indicators,
   sectors, strategy states, upcoming/econ events, trade-check health; allow-list in `lib/logic/market-brief.ts`, forbidden-key filter,
   64KB cap) stored as `app_meta trading:market` (+ `trading:market:prev` rotated once per KST day). The PC collector's pull
-  (`scripts/lib/trading-market.mjs` -> `/api/ingest` `tradingBrief`) is a fallback that writes only when the stored one is > 6h old.
-  A trade check newly failing sends one Telegram alert. Digest 📈 매크로 block (`lib/telegram/macro.ts`) + `/macro`.
+  (`scripts/lib/trading-market.mjs` -> `/api/ingest` `tradingBrief`) is a fallback that writes only when the stored one is > 6h old. An optional `accounts` section of the push is mapped to `trading:summary` (VM wins if not older; the PC `trading` summary likewise writes only over one > 6h old) and is never kept in `trading:market`.
+  A trade check newly failing sends one Telegram alert. The morning digest is two messages: the to-do briefing, then 📈 시장·계좌 (`lib/telegram/market-digest.ts`: account summary + market sections + one Haiku paragraph from `lib/telegram/macro.ts`), the same text `/macro` shows.
 - `GET /api/export` (session required) — full JSON dump of every table (Supabase free tier has no
   automated backups).
 - `GET /api/cron/daily` (`CRON_SECRET`, called by Vercel — see `vercel.json`) — daily heartbeat.

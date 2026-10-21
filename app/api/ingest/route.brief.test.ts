@@ -78,3 +78,28 @@ describe('POST /api/ingest tradingBrief (PC fallback)', () => {
     expect(meta.has('trading:market')).toBe(false);
   });
 });
+
+describe('POST /api/ingest trading summary (PC fallback)', () => {
+  const summary = (total: number) => ({ collectedAt: new Date().toISOString(), totalKrw: total, dayChangeKrw: null, dayChangePct: null, fxRate: null, lastSyncOk: true, points: [], accounts: [] });
+  const postSummary = (total: number) =>
+    POST(
+      new Request('http://localhost/api/ingest', {
+        method: 'POST',
+        headers: { authorization: 'Bearer test-token', 'content-type': 'application/json' },
+        body: JSON.stringify({ statusItems: [], trading: summary(total) }),
+      })
+    );
+
+  it('writes when none is stored; keeps a VM summary younger than 6 hours; replaces an older one', async () => {
+    await postSummary(1);
+    expect(meta.get('trading:summary')).toMatchObject({ totalKrw: 1 });
+    meta.set('trading:summary', { ...summary(2), source: 'vm', collectedAt: new Date(Date.now() - 3_600_000).toISOString() });
+    await postSummary(3);
+    expect(meta.get('trading:summary')).toMatchObject({ totalKrw: 2 });
+    meta.set('trading:summary', { ...summary(2), source: 'vm', collectedAt: new Date(Date.now() - 7 * 3_600_000).toISOString() });
+    await postSummary(4);
+    expect(meta.get('trading:summary')).toMatchObject({ totalKrw: 4, source: 'pc' });
+    await postSummary(5); // hourly PC refresh over a PC-written summary
+    expect(meta.get('trading:summary')).toMatchObject({ totalKrw: 5 });
+  });
+});

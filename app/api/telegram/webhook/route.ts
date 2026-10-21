@@ -6,8 +6,11 @@ import { runAsk, type AskDeps } from '@/lib/ask/run';
 import { loadSpend } from '@/lib/ask/spend';
 import { cleanTaskTitle } from '@/lib/ask/title';
 import { loadBriefs } from '@/lib/market-brief-data';
+import type { TradingSummary } from '@/lib/types';
+import { TRADING_SUMMARY_META_KEY } from '@/lib/logic/trading';
 import { splitTelegram } from '@/lib/logic/ask-text';
-import { formatMacroFull, macroSentence } from '@/lib/telegram/macro';
+import { macroSentence } from '@/lib/telegram/macro';
+import { formatMarketBrief } from '@/lib/telegram/market-digest';
 import { budgetConfig, pace as paceOf } from '@/lib/logic/ask-budget';
 import { ASK_CONV_META_KEY, isFollowUp, type AskConv } from '@/lib/logic/ask-conv';
 import { handleCallback, handleFreeText, type AxDeps } from '@/lib/telegram/ax';
@@ -387,11 +390,12 @@ async function buildMacro(): Promise<string> {
   const repo = getRepo();
   const today = todayKST();
   const nowIso = new Date().toISOString();
-  const { current, prev } = await loadBriefs(repo);
+  const [{ current, prev }, summary] = await Promise.all([loadBriefs(repo), repo.getMeta<TradingSummary>(TRADING_SUMMARY_META_KEY).catch(() => null)]);
   const sentence = await macroSentence({ client: createAskClient(), repo, today }, current, prev, nowIso).catch(() => null);
   const footer = sentence ? `
 <i>${sentence.model.replace(/^claude-/, '').replace(/-\d+-\d+$/, '')}${sentence.usd === null ? '' : ` · $${sentence.usd.toFixed(3)}`}</i>` : '';
-  return formatMacroFull(current, today, nowIso, sentence?.text ?? null) + footer;
+  const out = formatMarketBrief({ brief: current, summary, today, nowIso, sentence: sentence?.text ?? null });
+  return (out ?? '아직 받은 매크로 스냅샷이 없어요') + footer;
 }
 
 async function buildBudget(): Promise<string> {

@@ -8,6 +8,8 @@ import {
   type BriefBody,
   type MarketBrief,
 } from '@/lib/logic/market-brief';
+import { TRADING_SUMMARY_META_KEY, accountsToSummary, shouldWriteSummary } from '@/lib/logic/trading';
+import type { TradingSummary } from '@/lib/types';
 import type { Repo } from '@/lib/repo';
 
 export type BriefRepo = Pick<Repo, 'getMeta' | 'setMeta'>;
@@ -20,16 +22,30 @@ export interface StoreResult {
   alerted: boolean;
 }
 
-/** Stores `body` as the current snapshot. Rotates the replaced one into `prev` once per KST day. The PC
+/** Writes a TradingSummary under `trading:summary` per the VM/PC precedence rule; true when written. */
+export async function storeSummary(repo: BriefRepo, summary: TradingSummary, source: 'vm' | 'pc', nowIso: string): Promise<boolean> {
+  const stored = await repo.getMeta<TradingSummary>(TRADING_SUMMARY_META_KEY);
+  if (!shouldWriteSummary(stored, summary, source, nowIso)) return false;
+  // A push whose account list came out empty never wipes a stored one.
+  if (summary.accounts.length === 0 && (stored?.accounts.length ?? 0) > 0) return false;
+  await repo.setMeta(TRADING_SUMMARY_META_KEY, { ...summary, source });
+  return true;
+}
+
+/** Stores the market part of `fullBody` as the current snapshot (its `accounts`, if any, become the account summary). Rotates the replaced one into `prev` once per KST day. The PC
  * fallback (`source: 'pc'`) only writes when the stored snapshot is missing or older than 6 h. */
 export async function storeBrief(
   repo: BriefRepo,
-  body: BriefBody,
+  fullBody: BriefBody,
   source: 'vm' | 'pc',
   nowIso: string,
   /** Sends the flip-to-fail alert; false keeps it pending so the next failing push retries. */
   notify?: (trades: NonNullable<BriefBody['trades']>) => Promise<boolean>
 ): Promise<StoreResult> {
+  // The account section goes to `trading:summary`; the market snapshot never keeps it.
+  const { accounts, ...body } = fullBody;
+  const summary = accountsToSummary(accounts, nowIso);
+  if (summary) await storeSummary(repo, summary, source, nowIso);
   const current = await repo.getMeta<MarketBrief>(MARKET_BRIEF_META_KEY);
   if (source === 'pc' && current && (Date.parse(nowIso) - Date.parse(current.receivedAt)) / 3_600_000 < PC_FALLBACK_AFTER_HOURS) {
     return { stored: false, flippedToFail: false, alerted: false };
