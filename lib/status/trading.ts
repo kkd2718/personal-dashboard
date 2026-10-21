@@ -4,6 +4,7 @@ if (typeof window !== 'undefined') {
 }
 
 import { todayKST } from '@/lib/logic/dates';
+import { alertItemId, alertTitle, type TradingAlert } from '@/lib/logic/trading-alert';
 import type { StatusItem } from '@/lib/status/types';
 import { memoize, withTimeout } from '@/lib/status/types';
 
@@ -12,11 +13,6 @@ const TIMEOUT_MS = 3000;
 // Degraded results (offline/partial/error) are not cached so the next load retries.
 const DEGRADED = new Set(['trading:offline', 'trading:partial', 'trading:error']);
 const cached = memoize<StatusItem[]>(5 * 60 * 1000, (items) => !items.some((i) => DEGRADED.has(i.id)));
-
-interface Alert {
-  severity: 'critical' | 'warn' | 'info';
-  message: string;
-}
 
 interface Daemon {
   label: string;
@@ -47,7 +43,7 @@ export async function tradingStatus(): Promise<StatusItem[]> {
   return cached('trading', async () => {
     try {
       const [alerts, health, overview] = await Promise.all([
-        getJson<{ alerts: Alert[] }>('/api/alerts'),
+        getJson<{ alerts: TradingAlert[] }>('/api/alerts'),
         getJson<{ daemons: Daemon[] }>('/api/health'),
         getJson<Overview>('/api/overview'),
       ]);
@@ -82,11 +78,11 @@ export async function tradingStatus(): Promise<StatusItem[]> {
 
       for (const a of alerts?.alerts ?? []) {
         items.push({
-          id: `trading:alert:${a.message}`,
+          id: alertItemId(a),
           severity: a.severity,
           source: 'trading',
           projectId: 'p-trading-system',
-          title: a.message,
+          title: alertTitle(a),
           detail: null,
           href: BASE_URL,
         });

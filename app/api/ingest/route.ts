@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { checkBearer } from '@/lib/auth/bearer';
 import { getRepo } from '@/lib/repo';
-import { newCriticalItems } from '@/lib/logic/status-diff';
+import { runStatusAlerts } from '@/lib/status-alerts-data';
+import { todayKST } from '@/lib/logic/dates';
 import { projectDetailMetaKey } from '@/lib/logic/project-detail';
 import { telegramConfig, sendMessage } from '@/lib/telegram/client';
 import { formatCriticalAlert } from '@/lib/telegram/format';
@@ -159,16 +160,16 @@ export async function POST(request: Request) {
     await repo.setMeta('integration:obsidian', { at: collectedAt, detail: n > 0 ? `메모 ${n}건 가져옴` : '확인함 · 새 메모 없음' });
   }
 
-  // Immediate alert on newly-critical status only (no hourly repeats) — a Telegram
-  // failure here never fails ingest itself.
-  let alerted = 0;
-  if (telegramConfig()) {
-    const newCritical = newCriticalItems(prev?.items ?? [], parsed.data.statusItems);
-    if (newCritical.length > 0) {
-      const result = await sendMessage(formatCriticalAlert(newCritical));
-      if (result.ok) alerted = newCritical.length;
-    }
-  }
+  // Alert once per critical issue (24 h cooldown per id, one follow-up task if it persists a day —
+  // lib/logic/status-alerts.ts). A Telegram or task failure here never fails ingest itself.
+  const { alerted, tasks } = await runStatusAlerts(
+    repo,
+    prev?.items ?? [],
+    parsed.data.statusItems,
+    collectedAt,
+    todayKST(),
+    telegramConfig() ? async (items) => (await sendMessage(formatCriticalAlert(items, true))).ok : null
+  );
 
-  return NextResponse.json({ ok: true, collectedAt, alerted });
+  return NextResponse.json({ ok: true, collectedAt, alerted, tasks });
 }

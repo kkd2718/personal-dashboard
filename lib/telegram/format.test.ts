@@ -289,6 +289,10 @@ describe('formatCriticalAlert', () => {
     ]);
     expect(result).toBe('🚨 a&lt;b&gt; — oops\n🚨 no detail');
   });
+
+  it('optionally ends with the follow-up-task hint', () => {
+    expect(formatCriticalAlert([statusItem({ title: 'x', detail: null })], true)).toBe('🚨 x\n내일까지 안 풀리면 할 일에 추가돼요');
+  });
 });
 
 describe('parseUpdate', () => {

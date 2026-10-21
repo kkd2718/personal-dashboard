@@ -28,6 +28,25 @@ function sinceLabel(lastRun, today) {
   return `${Math.floor(days / 7)}주째`;
 }
 
+const NUMBER = /\d+(?:[.,]\d+)*/g;
+
+/** Stable status-item id (mirrors lib/logic/trading-alert.ts): the alert's kind (+ state_id/label), else the
+ * message with its changing numbers removed — otherwise every hourly collect looks like a new critical alert. */
+export function alertItemId(a) {
+  if (a.kind) return `trading:alert:${a.kind}${a.state_id || a.label ? `:${a.state_id || a.label}` : ''}`;
+  return `trading:alert:${a.message.replace(NUMBER, '#')}`;
+}
+
+/** The alert text; a fresh sync-stale age (below its own threshold) means the last sync failed (mirrors lib/logic/trading-alert.ts). */
+export function alertTitle(a) {
+  if (a.kind === 'sync_stale' || (!a.kind && /마지막 동기화/.test(a.message))) {
+    const age = /(\d+(?:\.\d+)?)\s*시간\s*전/.exec(a.message);
+    const limit = /기준\s*(\d+(?:\.\d+)?)\s*시간/.exec(a.message);
+    if (age && limit && Number(age[1]) < Number(limit[1])) return '트레이딩 동기화 실패 (VM 접속)';
+  }
+  return a.message;
+}
+
 async function getJson(baseUrl, path) {
   try {
     const res = await fetch(`${baseUrl}${path}`, { signal: AbortSignal.timeout(TIMEOUT_MS) });
@@ -80,11 +99,11 @@ export async function tradingStatus(baseUrl, today) {
 
     for (const a of alerts?.alerts ?? []) {
       items.push({
-        id: `trading:alert:${a.message}`,
+        id: alertItemId(a),
         severity: a.severity,
         source: 'trading',
         projectId: 'p-trading-system',
-        title: a.message,
+        title: alertTitle(a),
         detail: null,
         href: baseUrl,
       });

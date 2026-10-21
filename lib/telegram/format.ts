@@ -298,8 +298,9 @@ export function formatDigest(input: DigestInput): string | null {
 }
 
 /** Immediate alert for newly-critical status items (see lib/logic/status-diff.ts). */
-export function formatCriticalAlert(items: StatusItem[]): string {
-  return items.map((i) => `🚨 ${escapeHtml(i.title)}${i.detail ? ` — ${escapeHtml(i.detail)}` : ''}`).join('\n');
+export function formatCriticalAlert(items: StatusItem[], taskHint = false): string {
+  const lines = items.map((i) => `🚨 ${escapeHtml(i.title)}${i.detail ? ` — ${escapeHtml(i.detail)}` : ''}`);
+  return (taskHint ? [...lines, '내일까지 안 풀리면 할 일에 추가돼요'] : lines).join('\n');
 }
 
 export interface TelegramMessage {
