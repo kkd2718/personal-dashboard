@@ -213,7 +213,7 @@ function sectorSection(brief: MarketBrief, note: string): string | null {
       // Fixed four columns ('–' for a missing one) so the header stays true; no data at all drops the line.
       const cols = [sgn(s.chg1d_pct, 1, '%'), sgn(s.dist_200d_pct, 1, '%'), sgn(s.rs_vs_ndx_20d_pct, 1, '%'), fmt(s.wrsi, 0)];
       if (cols.every((c) => c === null)) return null;
-      return `• ${name} ${cols.map((c) => c ?? '–').join(' · ')}${s.note ? `\n   <i>${e(clip(s.note, 40))}</i>` : ''}`;
+      return `• ${name} ${cols.map((c) => c ?? '–').join(' · ')}${s.note ? `\n   <i>${e(clip(s.note, 80))}</i>` : ''}`;
     }),
     note
   );
