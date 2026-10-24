@@ -13,6 +13,7 @@ import { useToast } from '@/components/ui/toast';
 import { resolveProjectItemAction, unresolveProjectItemAction } from '@/app/actions/project-checklist';
 import { DdayChip } from '@/components/dday-chip';
 import { EmptyState } from '@/components/ui/empty-state';
+import { ExpandableText } from '@/components/ui/expandable-text';
 import { projectColorClasses } from '@/lib/project-colors';
 import type { DueChecklist, DueChecklistItem } from '@/lib/logic/project-detail';
 import type { CalendarEvent, Deadline, Project, ReviewJob, Task } from '@/lib/types';
@@ -69,9 +70,7 @@ function Row({
       )}
       {project && <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${colors.dot}`} />}
       {isAgent && <Bot size={12} className="shrink-0 text-foreground/40" />}
-      <span className={`min-w-0 flex-1 truncate ${item.done ? 'text-foreground/40 line-through' : ''}`}>
-        {item.title}
-      </span>
+      <ExpandableText text={item.title} className={item.done ? 'text-foreground/40 line-through' : ''} />
       {label && (
         <span className="shrink-0 rounded-full bg-foreground/5 px-1.5 py-0.5 text-[10px] text-foreground/50">
           {label}
@@ -181,18 +180,13 @@ function ProjectItemRow({
 }) {
   const project = projects.find((p) => p.id === item.projectId);
   const colors = projectColorClasses(project?.color);
-  const body = (
-    <>
-      {project && <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${colors.dot}`} />}
-      <span className="min-w-0 flex-1 truncate">{item.text}</span>
-      <span className="max-w-[35%] shrink-0 truncate rounded-full bg-foreground/5 px-1.5 py-0.5 text-[10px] text-foreground/50">
-        {item.project}
-      </span>
-      {item.blocked && (
-        <span className="shrink-0 rounded bg-amber-500/15 px-1 text-[10px] text-amber-700 dark:text-amber-300">막힘</span>
-      )}
-      <DdayChip n={dday(item.due, today)} />
-    </>
+  const pill = (
+    <span
+      title={item.project}
+      className="block max-w-full truncate rounded-full bg-foreground/5 px-1.5 py-0.5 text-[10px] text-foreground/50"
+    >
+      {item.project}
+    </span>
   );
   const canResolve = !!item.projectId;
   return (
@@ -209,13 +203,20 @@ function ProjectItemRow({
       ) : (
         <ClipboardList size={14} className="shrink-0 text-foreground/40" />
       )}
+      {project && <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${colors.dot}`} />}
+      {/* The text toggles truncated/wrapped; the project page link stays on the pill. */}
+      <ExpandableText text={item.text} />
       {project ? (
-        <Link href={`/projects/${project.slug}`} className="flex min-w-0 flex-1 items-center gap-2 hover:underline" title="프로젝트 체크리스트 항목">
-          {body}
+        <Link href={`/projects/${project.slug}`} className="min-w-0 max-w-[35%] shrink-0 hover:underline" title={`${item.project} — 프로젝트 열기`}>
+          {pill}
         </Link>
       ) : (
-        <div className="flex min-w-0 flex-1 items-center gap-2">{body}</div>
+        <div className="min-w-0 max-w-[35%] shrink-0">{pill}</div>
       )}
+      {item.blocked && (
+        <span className="shrink-0 rounded bg-amber-500/15 px-1 text-[10px] text-amber-700 dark:text-amber-300">막힘</span>
+      )}
+      <DdayChip n={dday(item.due, today)} />
       {canResolve && (
         <button
           type="button"
@@ -236,10 +237,10 @@ function EventRow({ event }: { event: CalendarEvent }) {
   return (
     <li className="flex items-center gap-2 rounded-lg border border-border bg-surface-2 px-2.5 py-2 text-sm text-foreground/70">
       <CalendarDays size={14} className="shrink-0 text-foreground/40" />
-      <span className="min-w-0 flex-1 truncate">
+      <ExpandableText text={`${event.startTime ? `${event.startTime} ` : ''}${event.title}`}>
         {event.startTime && <span className="tnum mr-1">{event.startTime}</span>}
         {event.title}
-      </span>
+      </ExpandableText>
     </li>
   );
 }

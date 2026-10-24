@@ -63,6 +63,7 @@ export function RoutineStrip({ date, routines }: { date: string; routines: Routi
               <span className={`shrink-0 text-xs ${r.done ? 'text-green-600' : 'text-foreground/30'}`}>{r.done ? '✓' : '○'}</span>
             )}
             <span
+              title={r.label}
               className={`min-w-0 flex-1 truncate ${r.done && r.count === null ? 'text-foreground/40 line-through' : ''}`}
             >
               {r.url ? (

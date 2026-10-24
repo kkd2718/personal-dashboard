@@ -69,8 +69,8 @@ export function PaperLane({
                 >
                   <Chip className="shrink-0">{g.label}</Chip>
                   {/* name capped so the status line (리비전 D-20, 심사 N일째) always has room */}
-                  <span className="max-w-[40%] shrink-0 truncate font-medium">{p.shortName}</span>
-                  {line && <span className="min-w-0 flex-1 truncate text-right text-foreground/50">{line}</span>}
+                  <span title={p.shortName} className="max-w-[40%] shrink-0 truncate font-medium">{p.shortName}</span>
+                  {line && <span title={line} className="min-w-0 flex-1 truncate text-right text-foreground/50">{line}</span>}
                 </Link>
               );
             })
@@ -85,7 +85,7 @@ export function PaperLane({
                   href="/papers?tab=review"
                   className="flex items-center gap-2 rounded-lg border border-border p-2 text-xs hover:bg-foreground/5"
                 >
-                  <span className="min-w-0 flex-1 truncate">
+                  <span className="min-w-0 flex-1 truncate" title={`${r.journal}${r.manuscriptId ? ` ${r.manuscriptId}` : ''}`}>
                     {r.journal}
                     {r.manuscriptId ? ` ${r.manuscriptId}` : ''}
                   </span>

@@ -56,13 +56,13 @@ export function QueueLane({
                 >
                   <span className="flex min-w-0 items-center gap-1.5 font-medium">
                     <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${colors.dot}`} />
-                    <span className="truncate">{card.project.name}</span>
+                    <span className="truncate" title={card.project.name}>{card.project.name}</span>
                   </span>
 
 
                   {card.kind === 'queue' && (
                     <>
-                      <span className="truncate text-foreground/70">{card.milestone.title}</span>
+                      <span className="truncate text-foreground/70" title={card.milestone.title}>{card.milestone.title}</span>
                       {card.progress.total > 0 && (
                         <div className="flex items-center gap-2">
                           {card.progress.total >= 3 && (
@@ -78,7 +78,7 @@ export function QueueLane({
                       )}
                       {(card.nextTaskTitle || card.agentOpenCount > 0 || card.milestone.endDate) && (
                         <div className="flex flex-wrap items-center gap-1.5 text-foreground/40">
-                          {card.nextTaskTitle && <span className="min-w-0 truncate">다음: {card.nextTaskTitle}</span>}
+                          {card.nextTaskTitle && <span className="min-w-0 truncate" title={`다음: ${card.nextTaskTitle}`}>다음: {card.nextTaskTitle}</span>}
                           {card.agentOpenCount > 0 && (
                             <span className="flex shrink-0 items-center gap-0.5">
                               <Bot size={11} /> {card.agentOpenCount}
@@ -109,9 +109,9 @@ export function QueueLane({
                       </div>
                     ))}
 
-                  {card.kind === 'nextAction' && <span className="truncate text-foreground/50">다음: {card.nextAction}</span>}
+                  {card.kind === 'nextAction' && <span className="truncate text-foreground/50" title={`다음: ${card.nextAction}`}>다음: {card.nextAction}</span>}
 
-                  {card.kind === 'checklist' && <span className="min-w-0 truncate text-foreground/50">{card.line}</span>}
+                  {card.kind === 'checklist' && <span className="min-w-0 truncate text-foreground/50" title={card.line}>{card.line}</span>}
                 </Link>
               </li>
             );
