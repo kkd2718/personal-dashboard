@@ -207,11 +207,11 @@ function ProjectItemRow({
       {/* The text toggles truncated/wrapped; the project page link stays on the pill. */}
       <ExpandableText text={item.text} />
       {project ? (
-        <Link href={`/projects/${project.slug}`} className="min-w-0 max-w-[35%] shrink-0 hover:underline" title={`${item.project} — 프로젝트 열기`}>
+        <Link href={`/projects/${project.slug}`} className="min-w-0 max-w-[35%] hover:underline" title={`${item.project} — 프로젝트 열기`}>
           {pill}
         </Link>
       ) : (
-        <div className="min-w-0 max-w-[35%] shrink-0">{pill}</div>
+        <div className="min-w-0 max-w-[35%]">{pill}</div>
       )}
       {item.blocked && (
         <span className="shrink-0 rounded bg-amber-500/15 px-1 text-[10px] text-amber-700 dark:text-amber-300">막힘</span>
