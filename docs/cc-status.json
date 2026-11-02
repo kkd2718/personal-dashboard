@@ -1,7 +1,9 @@
 {
-  "updatedAt": "2026-10-24T10:50:00+09:00",
-  "focus": "아침 브리핑 2개 메시지 분리(할 일 / 📈 시장·계좌) 배포, VM 계좌 요약 수신",
+  "updatedAt": "2026-11-02T11:20:00+09:00",
+  "focus": "성능·반영 지연 개선 배포 완료 (서울 리전, cc-status 즉시 push, 배포 후 자동 새로고침)",
   "next": [
+    "체크 시 홈 재렌더 생략(C4) 여부 사용자 결정 대기",
+    "다음 프로젝트 세션 Stop 때 push-status 실반영 확인",
     "10/19 06:30 VM 전송 → 아침 브리핑 📈·🩺 확인",
     "(선택) 두 Apps Script에 새 Code.gs 재붙여넣기 — 답장 대기 첨부명 제거(서버에서 이미 차단)",
     "(선택) 브리핑 일부 항목 로드 실패 시 ⚠️ 안내 줄",
@@ -9,6 +11,14 @@
   ],
   "blockers": [],
   "done": [
+    {
+      "date": "2026-11-02",
+      "text": "Vercel 리전 iad1→icn1 + 홈 RSC 157→92KB·병렬 조회: 홈 3~5초→0.6초"
+    },
+    {
+      "date": "2026-11-02",
+      "text": "cc-status 즉시 push(Stop 훅→/api/agent-inbox/status), 수집기 로그·재시도, /api/version 자동 새로고침"
+    },
     {
       "date": "2026-10-24",
       "text": "홈 할 일: 잘린 제목 hover 전체 표시·탭 펼치기, 좁은 화면 프로젝트 칸 축소(60dc1ca·686906f)"
@@ -40,14 +50,6 @@
     {
       "date": "2026-10-18",
       "text": "메일 알림 Haiku 요약+[작업 준비 요청][답장 초안](48h 보관), VM→/api/trading/brief 매크로·섹터·전략·경제지표·매매 점검 아침 브리핑, /macro, /ask 한 화면 길이"
-    },
-    {
-      "date": "2026-10-18",
-      "text": "/ask 챗봇 배포 — 읽기 도구 13개, [적용] 제안(세션 전달·마감 추가), Jev 라우팅, 주기별 예산 장부·/budget, 할 일 제목 Haiku 정리"
-    },
-    {
-      "date": "2026-10-18",
-      "text": "텔레그램 새 할 일(task_create) 제안 추가 — 할 일:/todo: 접두사, 프로젝트 Jev 추정, 마감 날짜"
     }
   ],
   "checklist": [
@@ -267,6 +269,30 @@
       "status": "doing",
       "section": "AX",
       "owner": "agent"
+    },
+    {
+      "text": "서울 리전 + 홈 렌더 최적화",
+      "status": "done",
+      "section": "성능",
+      "owner": "agent"
+    },
+    {
+      "text": "cc-status 즉시 push + 수집기 로그/재시도",
+      "status": "done",
+      "section": "수집",
+      "owner": "agent"
+    },
+    {
+      "text": "배포 후 오래된 탭 자동 새로고침",
+      "status": "done",
+      "section": "성능",
+      "owner": "agent"
+    },
+    {
+      "text": "체크 시 재렌더 생략(C4) 결정",
+      "status": "todo",
+      "section": "성능",
+      "owner": "me"
     }
   ]
 }
