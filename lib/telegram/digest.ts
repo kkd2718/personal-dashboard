@@ -3,9 +3,8 @@
 import type { CalendarEvent, Deadline, Project, ProjectDetail, ReviewJob, Task, TradingSummary } from '@/lib/types';
 import { staleGoogleAccounts } from '@/lib/logic/integrations';
 import {
-  meChecklistDue,
   projectDetailMetaKey,
-  hiddenProjectItemKeys,
+  projectDueFromDetails,
   RESOLVED_PROJECT_ITEMS_META_KEY,
   type DueChecklist,
   type ResolvedProjectItems,
@@ -61,12 +60,12 @@ export async function loadProjectDue(
     Promise.all(projects.map((p) => repo.getMeta<ProjectDetail>(projectDetailMetaKey(p.id)))),
     repo.getMeta<ResolvedProjectItems>(RESOLVED_PROJECT_ITEMS_META_KEY),
   ]);
-  return meChecklistDue(
-    projects.map((p, i) => ({ projectId: p.id, projectName: p.name, status: details[i]?.status ?? null })),
-    today,
-    overdueDays,
-    hiddenProjectItemKeys(resolved, today)
-  );
+  const detailById: Record<string, ProjectDetail> = {};
+  projects.forEach((p, i) => {
+    const d = details[i];
+    if (d) detailById[p.id] = d;
+  });
+  return projectDueFromDetails(projects, detailById, resolved, today, overdueDays);
 }
 
 /** At most once per KST day (`force` bypasses the guard, still requires cron auth

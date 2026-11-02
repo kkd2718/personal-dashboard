@@ -1,5 +1,5 @@
 import { addDaysStr, relTime } from '@/lib/logic/dates';
-import type { CcStatus } from '@/lib/types';
+import type { CcStatus, Project, ProjectDetail } from '@/lib/types';
 
 export interface ChecklistSummary {
   doing: string[];
@@ -12,8 +12,46 @@ export interface ChecklistSummary {
 
 /** Meta key a project's detail blob (open items + CcStatus) is stored under — see
  * app/api/ingest/route.ts (write) and app/(main)/projects/[slug]/page.tsx (read). */
+export const PROJECT_DETAIL_META_PREFIX = 'project:detail:';
+
 export function projectDetailMetaKey(projectId: string): string {
-  return `project:detail:${projectId}`;
+  return `${PROJECT_DETAIL_META_PREFIX}${projectId}`;
+}
+
+/** Detail blob after a hook-pushed cc-status: only `status` changes, the collector's
+ * `openItems`/`collectedAt` are kept (or seeded when there was no blob yet). */
+export function mergePushedStatus(
+  existing: ProjectDetail | null,
+  projectId: string,
+  status: CcStatus,
+  nowIso: string
+): ProjectDetail {
+  return { projectId, collectedAt: existing?.collectedAt ?? nowIso, openItems: existing?.openItems ?? {}, status };
+}
+
+/** The collector's derived 체크리스트 bar metrics for a pushed status; null when there is no
+ * checklist or the project names its own 체크리스트 bar via backlogGlobs (label rule = parseBacklogEntry). */
+export function checklistBarMetrics(
+  status: CcStatus | null,
+  backlogGlobs: readonly string[] | null | undefined
+): Record<string, number> | null {
+  const items = status?.checklist;
+  if (!items || items.length === 0) return null;
+  for (const entry of backlogGlobs ?? []) {
+    const eq = entry.indexOf('=');
+    if (eq > 0 && !entry.slice(0, eq).includes('/') && entry.slice(0, eq).trim() === '체크리스트') return null;
+  }
+  const done = items.filter((c) => c.status === 'done').length;
+  return { 'bar:체크리스트:done': done, 'bar:체크리스트:open': items.length - done };
+}
+
+/** `listMetaByPrefix(PROJECT_DETAIL_META_PREFIX)` result keyed by project id (null/non-object values dropped). */
+export function detailsByProjectId(raw: Record<string, unknown>): Record<string, ProjectDetail> {
+  const out: Record<string, ProjectDetail> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (value && typeof value === 'object') out[key.slice(PROJECT_DETAIL_META_PREFIX.length)] = value as ProjectDetail;
+  }
+  return out;
 }
 
 /** "3시간 전 기록", or null when the status has no updatedAt to date it by. */
@@ -145,4 +183,23 @@ export function meChecklistDue(
   }
   out.overdue.sort((a, b) => a.due.localeCompare(b.due));
   return out;
+}
+
+/** `meChecklistDue` over every non-archived project given already-fetched details (home page
+ * and `loadProjectDue` share this so both agree on which items are due). */
+export function projectDueFromDetails(
+  projects: Project[],
+  detailById: Record<string, ProjectDetail>,
+  resolved: ResolvedProjectItems | null,
+  today: string,
+  overdueDays = 7
+): DueChecklist {
+  return meChecklistDue(
+    projects
+      .filter((p) => p.status !== 'archived')
+      .map((p) => ({ projectId: p.id, projectName: p.name, status: detailById[p.id]?.status ?? null })),
+    today,
+    overdueDays,
+    hiddenProjectItemKeys(resolved, today)
+  );
 }

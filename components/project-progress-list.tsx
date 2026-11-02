@@ -1,9 +1,16 @@
 import Link from 'next/link';
 import { projectActivitySentence, sortByRecency } from '@/lib/logic/home';
-import { backlogLabel, backlogProgress, progressLabel, projectProgress, shouldShowBacklogBar } from '@/lib/logic/progress';
+import {
+  backlogLabel,
+  backlogProgress,
+  progressLabel,
+  projectProgress,
+  shouldShowBacklogBar,
+  type TaskLite,
+} from '@/lib/logic/progress';
 import { projectColorClasses } from '@/lib/project-colors';
 import { EmptyState } from '@/components/ui/empty-state';
-import type { Project, ProjectActivity, Task } from '@/lib/types';
+import type { Project, ProjectActivity } from '@/lib/types';
 
 const MAX_ROWS = 6;
 
@@ -20,7 +27,7 @@ export function ProjectProgressList({
   activityList = [],
 }: {
   projects: Project[];
-  tasks: Task[];
+  tasks: TaskLite[];
   activityList?: ProjectActivity[];
 }) {
   const activityByProjectId = new Map(activityList.map((a) => [a.projectId, a]));

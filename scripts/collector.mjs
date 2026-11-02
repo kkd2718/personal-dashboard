@@ -17,6 +17,8 @@ import { loadEnvFile } from './lib/env.mjs';
 import { encodeProjectDir, isWslPath, toWslPath } from './lib/project-dir.mjs';
 import { countBacklog, countJsonProgress, extractSection, listOpenItems, parseBacklogEntry } from './lib/backlog.mjs';
 import { parseCcStatus } from './lib/cc-status.mjs';
+import { fetchWithRetry } from './lib/net-retry.mjs';
+import { appendRunLog, formatRunLogLine } from './lib/run-log.mjs';
 import { tradingSummary } from './lib/trading-summary.mjs';
 import { tradingMarketBrief } from './lib/trading-market.mjs';
 import { tradingStatus } from './lib/trading-probe.mjs';
@@ -38,9 +40,31 @@ const TRADING_URL = env.TRADING_URL ?? 'http://127.0.0.1:8899';
 const OBSIDIAN_VAULT = env.OBSIDIAN_VAULT;
 const OBSIDIAN_INBOX = env.OBSIDIAN_INBOX || '00_memo/📥 CC Inbox.md';
 
-if (!CLOUD_URL || !INGEST_TOKEN) {
-  console.error('CLOUD_URL / INGEST_TOKEN not set in .env.local. See .env.example.');
-  process.exit(1);
+const LOG_FILE = path.join(ROOT, '.data', 'collector.log');
+
+/** A failed run stage, logged as `stage=<stage> reason="<reason>"` by the top-level handler. */
+class StageError extends Error {
+  constructor(stage, reason) {
+    super(reason);
+    this.stage = stage;
+  }
+}
+
+// Max attempts any network stage needed this run (1 = no retry).
+let attempts = 1;
+
+/** fetch with network retry; tracks `attempts`. Retried calls re-send the same request. */
+async function fetchRetried(url, init, timeoutMs) {
+  let calls = 0;
+  try {
+    const { res } = await fetchWithRetry(() => {
+      calls += 1;
+      return fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
+    });
+    return res;
+  } finally {
+    attempts = Math.max(attempts, calls);
+  }
 }
 
 function isEnoent(err) {
@@ -397,16 +421,19 @@ async function syncObsidianInbox() {
 }
 
 async function main() {
+  if (!CLOUD_URL || !INGEST_TOKEN) throw new StageError('env', 'CLOUD_URL / INGEST_TOKEN not set');
+
   let projects;
   try {
-    const res = await fetch(`${CLOUD_URL.replace(/\/$/, '')}/api/collector/config`, {
-      headers: { authorization: `Bearer ${INGEST_TOKEN}` },
-    });
-    if (!res.ok) throw new Error(`config fetch failed: ${res.status} ${await res.text()}`);
+    const res = await fetchRetried(
+      `${CLOUD_URL.replace(/\/$/, '')}/api/collector/config`,
+      { headers: { authorization: `Bearer ${INGEST_TOKEN}` } },
+      15000
+    );
+    if (!res.ok) throw new StageError('config', `${res.status}`);
     ({ projects } = await res.json());
   } catch (e) {
-    console.error(`Failed to fetch collector config: ${e instanceof Error ? e.message : e}`);
-    process.exit(1);
+    throw e instanceof StageError ? e : new StageError('config', e instanceof Error ? e.message : String(e));
   }
 
   const today = todayKST();
@@ -444,18 +471,38 @@ async function main() {
   await writeFile(path.join(ROOT, '.data', 'collector-last.json'), JSON.stringify(payload, null, 2), 'utf-8');
 
   try {
-    const res = await fetch(`${CLOUD_URL.replace(/\/$/, '')}/api/ingest`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${INGEST_TOKEN}` },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+    const res = await fetchRetried(
+      `${CLOUD_URL.replace(/\/$/, '')}/api/ingest`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${INGEST_TOKEN}` },
+        body: JSON.stringify(payload),
+      },
+      30000
+    );
+    if (!res.ok) throw new StageError('ingest', `${res.status} ${(await res.text()).slice(0, 150)}`);
     console.log(`Collected ${validActivity.length}/${projects.length} project(s), ${statusItems.length} status item(s). Ingest ok.`);
   } catch (e) {
-    console.error(`Ingest failed: ${e instanceof Error ? e.message : e}`);
-    process.exit(1);
+    throw e instanceof StageError ? e : new StageError('ingest', e instanceof Error ? e.message : String(e));
   }
 
+  return {
+    projects: projects.length,
+    collected: validActivity.length,
+    details: projectDetails.length,
+    statusItems: statusItems.length,
+    obsidian: obsidian.imported,
+  };
 }
 
-await main();
+const t0 = Date.now();
+try {
+  const counts = await main();
+  await appendRunLog(LOG_FILE, formatRunLogLine({ at: new Date().toISOString(), ok: true, counts, attempts, ms: Date.now() - t0 }));
+} catch (e) {
+  const stage = e instanceof StageError ? e.stage : 'unknown';
+  const reason = e instanceof Error ? e.message : String(e);
+  await appendRunLog(LOG_FILE, formatRunLogLine({ at: new Date().toISOString(), ok: false, stage, reason, attempts, ms: Date.now() - t0 }));
+  console.error(`Collector failed at ${stage}: ${reason}`);
+  process.exitCode = 1;
+}

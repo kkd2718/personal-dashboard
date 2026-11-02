@@ -20,13 +20,19 @@ import { LaneCard } from '@/components/home/lane-card';
 import { HomeLanes } from '@/components/home/home-lanes';
 import { StatusWarnChip } from '@/components/home/status-warn-chip';
 import { tagCounts } from '@/lib/logic/notes';
-import { checklist, checklistItemCount } from '@/lib/logic/checklist';
+import { checklist, checklistItemCount, checklistTasks } from '@/lib/logic/checklist';
 import { buildQueueLaneCards, deadlineCounts, headerCountLabel, nextDeadlineAfterWeek } from '@/lib/logic/home';
 import { WORK_SHIFTS_META_KEY, type WorkShiftsMeta } from '@/lib/logic/work';
-import { projectDetailMetaKey } from '@/lib/logic/project-detail';
-import { loadProjectDue } from '@/lib/telegram/digest';
+import {
+  PROJECT_DETAIL_META_PREFIX,
+  RESOLVED_PROJECT_ITEMS_META_KEY,
+  detailsByProjectId,
+  projectDueFromDetails,
+  type ResolvedProjectItems,
+} from '@/lib/logic/project-detail';
 import { addDaysStr, startOfSundayWeek, todayKST } from '@/lib/logic/dates';
-import { CALENDAR_VISIBLE_META_KEY, filterVisibleEvents, todayCalendarEvents } from '@/lib/logic/calendar';
+import { CALENDAR_VISIBLE_META_KEY, calendarNotes, filterVisibleEvents, todayCalendarEvents } from '@/lib/logic/calendar';
+import { cachedNotes, cachedPapers, cachedProjects, cachedReviews } from '@/lib/repo/request-cache';
 
 // D-day / status probes depend on "now"; never cache this page.
 export const dynamic = 'force-dynamic';
@@ -49,6 +55,9 @@ export default async function HomePage({
 }) {
   const { tab } = await searchParams;
   const repo = getRepo();
+  const today = todayKST();
+  const projectsP = cachedProjects();
+  // Single DB stage: every read (incl. all project:detail blobs and the status panel) runs in parallel.
   const [
     projects,
     tasks,
@@ -66,43 +75,47 @@ export default async function HomePage({
     routineItems,
     routineHistory,
     routineCounts,
+    rawDetails,
+    resolvedItems,
+    status,
   ] = await Promise.all([
-    repo.listProjects(),
+    projectsP,
     repo.listTasks(),
     repo.listMilestones(),
     repo.listDeadlines(),
-    repo.listReviews(),
-    repo.listPapers(),
-    repo.listNotes(),
+    cachedReviews(),
+    cachedPapers(),
+    cachedNotes(),
     repo.listProjectActivity(),
     repo.listReviewCandidates('pending'),
-    repo.listCalendarEvents(addDaysStr(todayKST(), -60), addDaysStr(todayKST(), 180)),
+    repo.listCalendarEvents(addDaysStr(today, -60), addDaysStr(today, 180)),
     repo.getMeta<string[]>(CALENDAR_VISIBLE_META_KEY),
     repo.getMeta<TradingSummary>(TRADING_SUMMARY_META_KEY),
     repo.getMeta<WorkShiftsMeta>(WORK_SHIFTS_META_KEY),
     loadRoutineItems(repo),
     loadRoutineDoneHistory(repo),
-    loadRoutineCounts(repo, todayKST()),
+    loadRoutineCounts(repo, today),
+    repo.listMetaByPrefix(PROJECT_DETAIL_META_PREFIX),
+    repo.getMeta<ResolvedProjectItems>(RESOLVED_PROJECT_ITEMS_META_KEY),
+    projectsP.then((p) => getStatusPanelData(repo, p)),
   ]);
-  // One Promise.all of getMeta calls for the distinct project ids behind the queue
-  // lane's active projects or a paper (§4: home lanes prefer the checklist line).
+  // Details for the distinct project ids behind the queue lane's active projects or a
+  // paper (§4: home lanes prefer the checklist line); projectDue sees every project's.
+  const allDetails = detailsByProjectId(rawDetails);
   const detailProjectIds = [
     ...new Set([
       ...projects.filter((p) => p.status === 'active').map((p) => p.id),
       ...papers.map((p) => p.projectId).filter((id): id is string => !!id),
     ]),
   ];
-  const detailList = await Promise.all(detailProjectIds.map((id) => repo.getMeta<ProjectDetail>(projectDetailMetaKey(id))));
   const details: Record<string, ProjectDetail> = {};
-  detailProjectIds.forEach((id, i) => {
-    const d = detailList[i];
-    if (d) details[id] = d;
-  });
+  for (const id of detailProjectIds) if (allDetails[id]) details[id] = allDetails[id];
+  const projectDue = projectDueFromDetails(projects, allDetails, resolvedItems, today);
 
-  const [status, projectDue] = await Promise.all([getStatusPanelData(repo, projects), loadProjectDue(repo, todayKST())]);
   const activeProjects = projects.filter((p) => p.status === 'active');
   const activeMilestoneIds = milestones.filter((m) => m.status === 'active').map((m) => m.id);
-  const today = todayKST();
+  // Client panels get only what they render: open + done-today tasks, plotted notes.
+  const panelTasks = checklistTasks(tasks, today);
   const visibleEvents = filterVisibleEvents(calendarEvents, visibleCalendars);
   const todayEvents = todayCalendarEvents(visibleEvents.filter((e) => e.startDate <= today && e.endDate >= today));
   const routineRows: RoutineRow[] = routineStatus(routineItems, routineHistory[today] ?? [], today, routineCounts).map(
@@ -161,7 +174,7 @@ export default async function HomePage({
             checkedAt={status.checkedAt}
             remote={status.remote}
             projects={projects}
-            tasks={tasks}
+            tasks={tasks.map(({ projectId, status }) => ({ projectId, status }))}
             activityList={activityList}
           />
         </div>
@@ -179,7 +192,7 @@ export default async function HomePage({
         milestones={milestones}
         deadlines={deadlines}
         reviews={reviews}
-        notes={notes}
+        notes={calendarNotes(notes)}
         googleEvents={visibleEvents}
         projects={projects}
         workShifts={workMeta?.shifts ?? []}
@@ -226,7 +239,7 @@ export default async function HomePage({
             <RoutineStrip date={today} routines={routineRows} />
             <ChecklistPanel
               bare
-              initialTasks={tasks}
+              initialTasks={panelTasks}
               deadlines={deadlines}
               reviews={reviews}
               projects={activeProjects}

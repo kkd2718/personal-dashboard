@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   calendarEvents,
+  calendarNotes,
   calendarVisibilityOptions,
   filterVisibleEvents,
   isHolidayCalendar,
@@ -208,5 +209,33 @@ describe('filterVisibleEvents (Addendum A)', () => {
   it('an empty explicit visible set still keeps holidays', () => {
     const result = filterVisibleEvents([primary, lab, holiday], []);
     expect(result.map((e) => e.id)).toEqual([holiday.id]);
+  });
+});
+
+describe('calendarNotes', () => {
+  const note = (overrides: Partial<Note>): Note => ({
+    id: 'n',
+    body: 'b',
+    kind: 'memo',
+    status: 'inbox',
+    projectId: null,
+    tags: [],
+    date: '2026-09-24',
+    pinned: false,
+    source: 'web',
+    deliveredAt: null,
+    taskId: null,
+    externalId: null,
+    createdAt: '2026-09-20T00:00:00Z',
+    updatedAt: '2026-09-20T00:00:00Z',
+    ...overrides,
+  });
+
+  it('keeps dated inbox/sent notes, drops undated/done/archived', () => {
+    const kept = [note({ id: 'a' }), note({ id: 'b', status: 'sent' })];
+    const all = [...kept, note({ id: 'c', date: null }), note({ id: 'd', status: 'done' }), note({ id: 'e', status: 'archived' })];
+    expect(calendarNotes(all).map((n) => n.id)).toEqual(['a', 'b']);
+    const data = { milestones: [], tasks: [], deadlines: [], reviews: [] };
+    expect(calendarEvents('2026-09-01', { ...data, notes: calendarNotes(all) })).toEqual(calendarEvents('2026-09-01', { ...data, notes: all }));
   });
 });

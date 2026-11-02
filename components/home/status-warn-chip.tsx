@@ -6,7 +6,8 @@ import { Popover } from '@/components/ui/popover';
 import { Sheet } from '@/components/ui/sheet';
 import { StatusPanel, urgentOnly } from '@/components/status-panel';
 import { ProjectProgressList } from '@/components/project-progress-list';
-import type { Project, ProjectActivity, Task } from '@/lib/types';
+import type { TaskLite } from '@/lib/logic/progress';
+import type { Project, ProjectActivity } from '@/lib/types';
 import type { StatusItem } from '@/lib/status/types';
 
 /**
@@ -27,7 +28,7 @@ export function StatusWarnChip({
   checkedAt: string;
   remote: boolean;
   projects: Project[];
-  tasks: Task[];
+  tasks: TaskLite[];
   activityList: ProjectActivity[];
 }) {
   const [popoverOpen, setPopoverOpen] = useState(false);

@@ -2,7 +2,32 @@
 // (see cc-inbox.mjs), split out so the decision logic is unit-testable without
 // stdin/git/fs plumbing.
 
+import { createHash } from 'node:crypto';
+
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** sha256 hex of a parsed cc-status (change detector for the status push). */
+export function statusContentHash(parsedStatus) {
+  return createHash('sha256').update(JSON.stringify(parsedStatus)).digest('hex');
+}
+
+/** Short stable id of a repo root (case/slash-insensitive) for the push record/lock file names. */
+export function statusPushKey(root) {
+  const norm = root.trim().replace(/\\/g, '/').toLowerCase().replace(/\/+$/, '');
+  return createHash('sha256').update(norm).digest('hex').slice(0, 16);
+}
+
+/**
+ * Whether a cc-status push is due: not for an unmanaged dir (marker projectId null),
+ * not without a hash, not when the last pushed hash is the same.
+ * @param {{ markerProjectId: string | null | undefined, hash: string | null, pushedHash: string | null | undefined }} args
+ * @returns {boolean}
+ */
+export function shouldPushStatus({ markerProjectId, hash, pushedHash }) {
+  if (markerProjectId === null) return false;
+  if (!hash || hash === pushedHash) return false;
+  return true;
+}
 
 /**
  * "없음" (no file/updatedAt/mtime yet), "최근 갱신" (< 1 day old), or "N일 전 갱신".

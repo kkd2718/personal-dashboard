@@ -103,6 +103,11 @@ function assignLanes(milestones: Milestone[]): Map<string, number> {
   return lanes;
 }
 
+/** Notes `calendarEvents` can plot: dated and neither archived nor done. */
+export function calendarNotes(notes: Note[]): (Note & { date: string })[] {
+  return notes.filter((n): n is Note & { date: string } => !!n.date && n.status !== 'archived' && n.status !== 'done');
+}
+
 /**
  * Builds the month-grid range bars and day points for the calendar.
  * `monthStart` is any 'YYYY-MM-DD' date in the target month (first day recommended).
@@ -180,8 +185,7 @@ export function calendarEvents(
       projectId: null,
     });
   }
-  for (const n of data.notes ?? []) {
-    if (!n.date || n.status === 'archived' || n.status === 'done') continue;
+  for (const n of calendarNotes(data.notes ?? [])) {
     addPoint(n.date, { id: n.id, title: n.body, kind: 'memo', projectId: n.projectId });
   }
 

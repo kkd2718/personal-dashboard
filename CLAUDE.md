@@ -61,6 +61,13 @@ anon/authenticated get nothing) — see `docs/reviews/plan-advice.md` §5 for wh
   active/paused projects to probe (paths, backlogGlobs).
 - `GET /api/agent-inbox`, `POST /api/agent-inbox/done` (`AGENT_TOKEN`) — phase 2a: SessionStart hook
   (`scripts/cc-inbox.mjs`) delivers a project's open agent tasks + sent memos into its Claude session.
+- `POST /api/agent-inbox/status` (`AGENT_TOKEN`) — the Stop/SessionStart hook spawns a detached
+  `cc-inbox.mjs push-status <root>` when a project's `docs/cc-status.json` changed (hash record in tmpdir), so
+  checklists reach `project:detail:<id>` (status only; openItems kept) + the 체크리스트 bar without waiting for the
+  hourly PC collector (which stops while the PC sleeps). Collector runs log one line to `.data/collector.log` and
+  retry network errors (PC just woke).
+- `GET /api/version` (session) — build version (`CC_APP_VERSION` from next.config: deployment id / commit SHA);
+  `components/version-watcher.tsx` reloads a stale tab after a deploy (banner instead when a text field has input).
 - `POST /api/trading/brief` (`TRADING_BRIEF_TOKEN`) — the trading VM pushes a **market-only** snapshot (macro/fx/rsi indicators,
   sectors, strategy states, upcoming/econ events, trade-check health; allow-list in `lib/logic/market-brief.ts`, forbidden-key filter,
   64KB cap) stored as `app_meta trading:market` (+ `trading:market:prev` rotated once per KST day). The PC collector's pull

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { backlogLabel, backlogProgress, labeledBars, labeledBarText, progress, progressLabel, shouldShowBacklogBar } from './progress';
+import { backlogLabel, backlogProgress, labeledBars, labeledBarText, progress, progressLabel, projectProgress, shouldShowBacklogBar } from './progress';
 import type { Project, ProjectActivity, Task } from '@/lib/types';
 
 function task(status: Task['status']): Task {
@@ -138,5 +138,15 @@ describe('labeledBars', () => {
   it('empty without activity or bar metrics', () => {
     expect(labeledBars(undefined)).toEqual([]);
     expect(labeledBars(act({ backlogOpen: 3 }))).toEqual([]);
+  });
+});
+
+describe('projectProgress with slim tasks', () => {
+  it('accepts {projectId,status} only', () => {
+    expect(projectProgress('p1', [{ projectId: 'p1', status: 'done' }, { projectId: 'p1', status: 'todo' }, { projectId: 'p2', status: 'done' }])).toEqual({
+      done: 1,
+      total: 2,
+      pct: 50,
+    });
   });
 });

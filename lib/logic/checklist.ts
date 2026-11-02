@@ -8,6 +8,12 @@ function kstDate(iso: string): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(iso));
 }
 
+/** The tasks `checklist()` can ever show: everything not done, plus tasks done today (KST).
+ * Lets the home page send the client panel only these instead of the full task history. */
+export function checklistTasks(tasks: Task[], today: string): Task[] {
+  return tasks.filter((t) => t.status !== 'done' || (!!t.doneAt && kstDate(t.doneAt) === today));
+}
+
 export interface ChecklistItem {
   id: string;
   title: string;

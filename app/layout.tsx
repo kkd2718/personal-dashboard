@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 import './globals.css';
 import { themeInitScript } from '@/components/theme-toggle';
+import { VersionWatcher } from '@/components/version-watcher';
 
 export const metadata: Metadata = {
   title: 'Command Center',
@@ -36,6 +37,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       </head>
       <body className="min-h-dvh antialiased" suppressHydrationWarning>
         {children}
+        <VersionWatcher />
       </body>
     </html>
   );

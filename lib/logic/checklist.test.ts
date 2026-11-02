@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checklist, checklistItemCount } from './checklist';
+import { checklist, checklistItemCount, checklistTasks } from './checklist';
 import type { Deadline, ReviewJob, Task } from '@/lib/types';
 
 const today = '2026-09-25'; // Friday; Sunday-start week Sun 09-20..Sat 09-26
@@ -165,5 +165,25 @@ describe('checklist assignee split', () => {
     const c = checklist([], [deadline], [review], today);
     expect(c.me.today).toHaveLength(2);
     expect(c.agent.today).toHaveLength(0);
+  });
+});
+
+describe('checklistTasks', () => {
+  const now = '2026-09-25';
+  const mixed = [
+    task({ id: 'open', dueDate: now }),
+    task({ id: 'doing', status: 'doing' }),
+    task({ id: 'doneToday', status: 'done', doneAt: '2026-09-24T16:30:00Z' }), // 01:30 KST on the 25th
+    task({ id: 'doneYesterday', status: 'done', doneAt: '2026-09-24T14:00:00Z' }), // 23:00 KST on the 24th
+    task({ id: 'doneNoStamp', status: 'done', doneAt: null }),
+    task({ id: 'agent', assignee: 'agent', dueDate: '2026-09-24' }),
+  ];
+
+  it('keeps open and done-today tasks, drops other done ones', () => {
+    expect(checklistTasks(mixed, now).map((t) => t.id)).toEqual(['open', 'doing', 'doneToday', 'agent']);
+  });
+
+  it('does not change what checklist() shows', () => {
+    expect(checklist(checklistTasks(mixed, now), [], [], now)).toEqual(checklist(mixed, [], [], now));
   });
 });

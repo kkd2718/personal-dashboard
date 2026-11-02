@@ -1,15 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import {
+  checklistBarMetrics,
   checklistLine,
   checklistSummary,
+  detailsByProjectId,
   isStatusStale,
+  mergePushedStatus,
   meChecklistDue,
   projectDetailMetaKey,
+  projectDueFromDetails,
   pruneResolved,
   resolvedItemKey,
   statusAgeLabel,
 } from './project-detail';
-import type { CcChecklistItem, CcStatus } from '@/lib/types';
+import type { CcChecklistItem, CcStatus, Project, ProjectDetail } from '@/lib/types';
 
 const status = (updatedAt: string | null): CcStatus => ({ updatedAt, focus: null, next: [], blockers: [], done: [], checklist: [] });
 
@@ -194,5 +198,94 @@ describe('hiddenProjectItemKeys', () => {
     };
     expect([...hiddenProjectItemKeys(map, '2026-10-18')].sort()).toEqual(['k1', 'k2']);
     expect(hiddenProjectItemKeys(null, '2026-10-18').size).toBe(0);
+  });
+});
+
+describe('mergePushedStatus', () => {
+  const S = withChecklist([item({ text: 'x' })]);
+  const NOW = '2026-11-02T01:00:00.000Z';
+
+  it('seeds a detail blob when none exists', () => {
+    expect(mergePushedStatus(null, 'p1', S, NOW)).toEqual({ projectId: 'p1', collectedAt: NOW, openItems: {}, status: S });
+  });
+
+  it('keeps collectedAt and openItems of an existing blob', () => {
+    const existing: ProjectDetail = {
+      projectId: 'p1',
+      collectedAt: '2026-11-01T08:00:00.000Z',
+      openItems: { 코드: ['a'] },
+      status: status('2026-10-01T00:00:00Z'),
+    };
+    expect(mergePushedStatus(existing, 'p1', S, NOW)).toEqual({ ...existing, status: S });
+  });
+});
+
+describe('checklistBarMetrics', () => {
+  const three = withChecklist([item({ status: 'done' }), item({}), item({ status: 'doing' })]);
+  const bar = { 'bar:체크리스트:done': 1, 'bar:체크리스트:open': 2 };
+
+  it('counts done vs open', () => {
+    expect(checklistBarMetrics(three, [])).toEqual(bar);
+    expect(checklistBarMetrics(three, ['docs/BACKLOG.md#코드'])).toEqual(bar);
+    expect(checklistBarMetrics(three, ['docs/a=b/x.md'])).toEqual(bar); // '/' before '=' -> not a label
+  });
+
+  it('is null when the project names its own 체크리스트 bar, or there is no checklist', () => {
+    expect(checklistBarMetrics(three, ['체크리스트=docs/X.md'])).toBeNull();
+    expect(checklistBarMetrics(withChecklist([]), [])).toBeNull();
+    expect(checklistBarMetrics(null, [])).toBeNull();
+  });
+});
+
+describe('detailsByProjectId', () => {
+  it('strips the prefix and drops non-object values', () => {
+    const d1 = { projectId: 'p1', collectedAt: 'c', openItems: {}, status: null };
+    expect(detailsByProjectId({ 'project:detail:p1': d1, 'project:detail:p2': null, 'project:detail:p3': 'x' })).toEqual({ p1: d1 });
+  });
+});
+
+describe('projectDueFromDetails', () => {
+  const project = (id: string, over: Partial<Project> = {}): Project => ({
+    id,
+    slug: id,
+    name: id,
+    group: 'app',
+    subgroup: null,
+    status: 'active',
+    summary: '',
+    nextAction: null,
+    links: [],
+    paths: [],
+    aliases: [],
+    backlogGlobs: [],
+    pinned: false,
+    sort: 0,
+    color: 'blue',
+    updatedAt: '2026-11-01',
+    ...over,
+  });
+  const detail = (id: string, items: CcChecklistItem[]): ProjectDetail => ({
+    projectId: id,
+    collectedAt: 'c',
+    openItems: {},
+    status: withChecklist(items),
+  });
+  const today = '2026-11-02';
+
+  it('skips archived projects, hides resolved items, honors snooze', () => {
+    const projects = [project('a'), project('b', { status: 'archived' }), project('c')];
+    const details = {
+      a: detail('a', [item({ text: 'keep', due: today }), item({ text: 'gone', due: today }), item({ text: 'snoozed', due: today })]),
+      b: detail('b', [item({ text: 'archived', due: today })]),
+      c: detail('c', [item({ text: 'tomorrow', due: '2026-11-03' })]),
+    };
+    const resolved = {
+      'a::gone': { state: 'done' as const, at: today, noteId: null },
+      'a::snoozed': { state: 'snooze' as const, at: '2026-10-30', noteId: null, until: '2026-11-01' }, // until past -> shown
+    };
+    const out = projectDueFromDetails(projects, details, resolved, today);
+    expect(out.today.map((i) => i.text)).toEqual(['keep', 'snoozed']);
+    expect(out.tomorrow.map((i) => i.text)).toEqual(['tomorrow']);
+    expect(out.overdue).toEqual([]);
   });
 });

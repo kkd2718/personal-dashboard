@@ -5,6 +5,7 @@ import { getRepo } from '@/lib/repo';
 import { runStatusAlerts } from '@/lib/status-alerts-data';
 import { todayKST } from '@/lib/logic/dates';
 import { projectDetailMetaKey } from '@/lib/logic/project-detail';
+import { ccStatusSchema } from '@/lib/logic/cc-status-schema';
 import { telegramConfig, sendMessage } from '@/lib/telegram/client';
 import { formatCriticalAlert } from '@/lib/telegram/format';
 import { notifyTradesFail } from '@/lib/telegram/trades-alert';
@@ -35,23 +36,6 @@ const projectActivitySchema = z.object({
   memoryDigest: z.string().nullable(),
   metrics: z.record(z.string(), z.union([z.number(), z.string()])),
   collectedAt: z.string(),
-});
-
-const ccChecklistItemSchema = z.object({
-  text: z.string().max(200),
-  status: z.enum(['todo', 'doing', 'blocked', 'done']),
-  section: z.string().max(40).nullable(),
-  owner: z.enum(['me', 'agent']),
-  due: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
-});
-
-const ccStatusSchema = z.object({
-  updatedAt: z.string().nullable(),
-  focus: z.string().max(200).nullable(),
-  next: z.array(z.string().max(200)).max(8),
-  blockers: z.array(z.string().max(200)).max(8),
-  done: z.array(z.object({ date: z.string().nullable(), text: z.string().max(200) })).max(10),
-  checklist: z.array(ccChecklistItemSchema).max(120),
 });
 
 const projectDetailSchema = z.object({

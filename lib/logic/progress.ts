@@ -7,7 +7,7 @@ export interface Progress {
 }
 
 /** done/total/pct over a task list (caller filters to the relevant scope). */
-export function progress(tasks: Task[]): Progress {
+export function progress(tasks: Pick<Task, 'status'>[]): Progress {
   const total = tasks.length;
   const done = tasks.filter((t) => t.status === 'done').length;
   return { done, total, pct: total === 0 ? null : Math.round((100 * done) / total) };
@@ -17,7 +17,10 @@ export function milestoneProgress(milestone: Milestone, tasks: Task[]): Progress
   return progress(tasks.filter((t) => t.milestoneId === milestone.id));
 }
 
-export function projectProgress(projectId: string, tasks: Task[]): Progress {
+/** The two task fields progress math reads — lets the home page ship slim objects to client components. */
+export type TaskLite = Pick<Task, 'projectId' | 'status'>;
+
+export function projectProgress(projectId: string, tasks: TaskLite[]): Progress {
   return progress(tasks.filter((t) => t.projectId === projectId));
 }
 
@@ -72,7 +75,7 @@ export function backlogLabel(p: Progress): string {
 
 /** Shown as a second bar under the task-based progress bar (never merged with it):
  * only for projects with no tasks, or app-group projects, and only when non-empty. */
-export function shouldShowBacklogBar(project: Project, tasks: Task[], backlog: Progress | null): boolean {
+export function shouldShowBacklogBar(project: Project, tasks: Pick<Task, 'projectId'>[], backlog: Progress | null): boolean {
   if (!backlog || backlog.total === 0) return false;
   const hasTasks = tasks.some((t) => t.projectId === project.id);
   return !hasTasks || project.group === 'app';

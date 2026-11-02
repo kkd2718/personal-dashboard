@@ -6,7 +6,10 @@ import {
   promptHookOutput,
   protocolBlock,
   recentlyChecked,
+  shouldPushStatus,
   shouldRemind,
+  statusContentHash,
+  statusPushKey,
   statusStateText,
 } from './cc-hook.mjs';
 
@@ -99,5 +102,32 @@ describe('cacheIsStale', () => {
     expect(cacheIsStale(undefined, 10000)).toBe(true);
     expect(cacheIsStale(iso, 10000)).toBe(false);
     expect(cacheIsStale(iso, 40000)).toBe(true);
+  });
+});
+
+describe('status push helpers', () => {
+  const S = { updatedAt: null, focus: 'f', next: [], blockers: [], done: [], checklist: [{ text: 'a', status: 'todo', section: null, owner: 'me' }] };
+
+  it('statusContentHash is a stable sha256 that changes with content', () => {
+    const h = statusContentHash(S);
+    expect(h).toMatch(/^[0-9a-f]{64}$/);
+    expect(statusContentHash(structuredClone(S))).toBe(h);
+    const changed = structuredClone(S);
+    changed.checklist[0].status = 'done';
+    expect(statusContentHash(changed)).not.toBe(h);
+  });
+
+  it('statusPushKey ignores case, slash style and trailing slash', () => {
+    expect(statusPushKey('C:\\Work\\A\\')).toBe(statusPushKey('c:/work/a'));
+    expect(statusPushKey('c:/work/a')).not.toBe(statusPushKey('/home/u/a'));
+    expect(statusPushKey('c:/work/a')).toHaveLength(16);
+  });
+
+  it('shouldPushStatus', () => {
+    expect(shouldPushStatus({ markerProjectId: null, hash: 'h', pushedHash: undefined })).toBe(false);
+    expect(shouldPushStatus({ markerProjectId: undefined, hash: 'h', pushedHash: undefined })).toBe(true);
+    expect(shouldPushStatus({ markerProjectId: 'p1', hash: 'h', pushedHash: 'h' })).toBe(false);
+    expect(shouldPushStatus({ markerProjectId: 'p1', hash: null, pushedHash: null })).toBe(false);
+    expect(shouldPushStatus({ markerProjectId: 'p1', hash: 'h2', pushedHash: 'h1' })).toBe(true);
   });
 });

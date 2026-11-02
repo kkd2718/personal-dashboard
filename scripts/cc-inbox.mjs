@@ -11,6 +11,7 @@
 //   node cc-inbox.mjs prompt          # UserPromptSubmit: local cache only (no network); prints items not yet shown
 //   node cc-inbox.mjs refresh <sid> <cwd>  # internal: detached by `prompt`, refetches the inbox into the cache
 //   node cc-inbox.mjs stop            # Stop: reads {session_id, cwd, stop_hook_active} from stdin
+//   node cc-inbox.mjs push-status <root>   # internal: detached by hook/stop, POSTs docs/cc-status.json when it changed
 //   node cc-inbox.mjs list [path]     # manual: same lookup as hook, always prints (for debugging)
 //   node cc-inbox.mjs done <id>       # marks a task or note done
 import path from 'node:path';
@@ -27,7 +28,10 @@ import {
   newInboxItems,
   promptHookOutput,
   protocolBlock,
+  shouldPushStatus,
   shouldRemind,
+  statusContentHash,
+  statusPushKey,
   statusStateText,
 } from './lib/cc-hook.mjs';
 
@@ -40,6 +44,8 @@ const HOOK_TIMEOUT_MS = 3000;
 const GIT_TIMEOUT_MS = 2000;
 const REFRESH_FETCH_MS = 5000;
 const REFRESH_LOCK_MS = 15000;
+const PUSH_FETCH_MS = 5000;
+const PUSH_LOCK_MS = 30000;
 
 const execFileAsync = promisify(execFile);
 
@@ -194,6 +200,80 @@ async function hasCommitsSince(root, sinceIso) {
   }
 }
 
+function pushRecordPath(root) {
+  return path.join(os.tmpdir(), `cc-status-pushed-${statusPushKey(root)}.json`);
+}
+
+function pushLockPath(root) {
+  return path.join(os.tmpdir(), `cc-status-push-${statusPushKey(root)}.lock`);
+}
+
+/** Parsed docs/cc-status.json + its content hash, or null when missing/unparseable. */
+async function readStatusWithHash(root) {
+  try {
+    const status = parseCcStatus(await readFile(ccStatusPath(root), 'utf-8'));
+    return status ? { status, hash: statusContentHash(status) } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Spawns a detached `push-status` when the project's cc-status changed since the last
+ * push. File I/O only (no network in this process); never throws, never prints.
+ * `markerProjectId`: null = unmanaged dir, undefined = no marker. */
+async function maybeSpawnStatusPush({ markerProjectId, root, cwd }) {
+  try {
+    if (markerProjectId === null) return;
+    const base = root || (await gitTopLevel(cwd || process.cwd()));
+    const cur = await readStatusWithHash(base);
+    if (!cur) return;
+    let pushedHash = null;
+    try {
+      pushedHash = JSON.parse(await readFile(pushRecordPath(base), 'utf-8'))?.hash ?? null;
+    } catch {
+      // no record yet
+    }
+    if (!shouldPushStatus({ markerProjectId, hash: cur.hash, pushedHash })) return;
+    const lock = pushLockPath(base);
+    const st = await stat(lock).catch(() => null);
+    if (st && Date.now() - st.mtimeMs < PUSH_LOCK_MS) return;
+    await writeFile(lock, String(Date.now()), 'utf-8');
+    spawn(process.execPath, [SCRIPT_PATH, 'push-status', base], {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+    }).unref();
+  } catch {
+    // best-effort — the collector still picks the file up hourly
+  }
+}
+
+/** Internal (`push-status <root>`): POSTs the cc-status to /api/agent-inbox/status and
+ * records the pushed hash. Prints only the HTTP status — never the token or body. */
+async function runPushStatus(root) {
+  try {
+    const { CLOUD_URL, AGENT_TOKEN } = env();
+    if (!root || !CLOUD_URL || !AGENT_TOKEN) return;
+    const cur = await readStatusWithHash(root);
+    if (!cur) return;
+    const res = await fetch(`${CLOUD_URL.replace(/\/$/, '')}/api/agent-inbox/status`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${AGENT_TOKEN}` },
+      body: JSON.stringify({ path: root, status: cur.status }),
+      signal: AbortSignal.timeout(PUSH_FETCH_MS),
+    });
+    if (res.ok) {
+      await writeFile(pushRecordPath(root), JSON.stringify({ hash: cur.hash, at: new Date().toISOString() }), 'utf-8');
+    }
+    console.log(`push-status: ${res.status}`);
+  } catch {
+    console.log('push-status: error');
+  } finally {
+    if (root) await unlink(pushLockPath(root)).catch(() => {});
+    process.exit(0);
+  }
+}
+
 async function runHookOrList({ verbose }) {
   let cwd;
   let sessionId;
@@ -249,6 +329,8 @@ async function runHookOrList({ verbose }) {
     });
     await writeCache(sessionId, cwd, data); // baseline so the first prompt injects only newer items
   }
+  // Hook mode only: catches edits from sessions that ended without a Stop.
+  if (!verbose) await maybeSpawnStatusPush({ markerProjectId: data.project.id, root, cwd });
 }
 
 /** UserPromptSubmit: file I/O only — injects inbox items from the local cache that
@@ -331,10 +413,12 @@ async function runStop() {
       return;
     }
     const { session_id: sessionId, cwd, stop_hook_active: stopHookActive } = JSON.parse(stdinText);
+    const marker = sessionId ? await readMarker(sessionId) : null;
+    // Push before the stop_hook_active return: the turn after the nudge is the one that refreshes the file.
+    await maybeSpawnStatusPush({ markerProjectId: marker ? marker.projectId : undefined, root: marker?.root, cwd });
     if (stopHookActive) return;
     if (!sessionId) return;
 
-    const marker = await readMarker(sessionId);
     if (!marker || !marker.projectId || marker.reminded) return;
 
     const root = marker.root || cwd || process.cwd();
@@ -390,11 +474,13 @@ if (cmd === 'hook') {
   await runRefresh(arg, process.argv[4]);
 } else if (cmd === 'stop') {
   await runStop();
+} else if (cmd === 'push-status') {
+  await runPushStatus(arg);
 } else if (cmd === 'list') {
   await runHookOrList({ verbose: true });
 } else if (cmd === 'done') {
   await runDone(arg);
 } else {
-  console.error('Usage: node cc-inbox.mjs hook|prompt|refresh|stop|list [path]|done <id>');
+  console.error('Usage: node cc-inbox.mjs hook|prompt|refresh|stop|push-status <root>|list [path]|done <id>');
   process.exit(1);
 }
