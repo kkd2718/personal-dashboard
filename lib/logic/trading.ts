@@ -41,12 +41,12 @@ function md(date: string): string {
   return `${Number(m)}/${Number(d)}`;
 }
 
-/** Account state in a few words: '10/1 시작' (dormant), '데이터 없음', '다음 9/28', or the raw status. */
+/** Account state in a few words: '10/1 시작' (dormant), '데이터 없음', '정상', or the raw status. */
 export function accountStateText(a: TradingAccountSummary, today: string): string {
   if (a.dormantUntil && a.dormantUntil > today) return `${md(a.dormantUntil)} 시작`;
   if (a.noData) return '데이터 없음';
   if (a.status && a.status !== 'ok') return a.status;
-  return a.nextDue ? `다음 ${md(a.nextDue)}` : '정상';
+  return '정상';
 }
 
 /** Home card line: '1억 2,346만원 · 오늘 +0.4% · 운용 3/4'. */

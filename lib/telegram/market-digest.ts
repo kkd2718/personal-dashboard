@@ -68,7 +68,6 @@ function accountLine(a: TradingAccountSummary, today: string): string {
     ret,
     state,
     a.totalValue !== null && a.reserveUsd ? `예비금 $${(a.reserveUsd / 1000).toFixed(1)}k` : null,
-    !dormant && a.nextDue ? `다음 ${md(a.nextDue)}` : null,
   ])}`;
 }
 

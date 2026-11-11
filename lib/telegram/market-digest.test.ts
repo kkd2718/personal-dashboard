@@ -26,8 +26,8 @@ describe('formatMarketBrief with the live VM payload', () => {
 
   it('account section: totals, 1-week change, one line per account, reserve, dormant', () => {
     expect(out).toContain('총 1억 2,346만원 · 오늘 -123만원 (-1.0%) · 1주 +2.9%');
-    expect(out).toContain('• IB+VR: $41,234 · 누적 +12.3% · 정상 · 예비금 $18.8k · 다음 10/23');
-    expect(out).toContain('• ISA: 2,534만원 · 기준일(8/1) 대비 +1.5% · ⚠️ stale · 다음 10/30');
+    expect(out).toContain('• IB+VR: $41,234 · 누적 +12.3% · 정상 · 예비금 $18.8k');
+    expect(out).toContain('• ISA: 2,534만원 · 기준일(8/1) 대비 +1.5% · ⚠️ stale');
     expect(out).toContain('• IRP: 11/1 시작');
     expect(out).not.toMatch(/<b>💰 계좌<\/b> <i>/);
   });

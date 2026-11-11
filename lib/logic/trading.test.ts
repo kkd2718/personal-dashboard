@@ -30,7 +30,7 @@ describe('trading formatting', () => {
     expect(accountValueText(acct({ totalValue: null, reserveUsd: 16000 }))).toBe('$16,000 대기');
     expect(accountStateText(acct({ dormantUntil: '2026-10-01', noData: true }), '2026-09-27')).toBe('10/1 시작');
     expect(accountStateText(acct({ noData: true }), '2026-09-27')).toBe('데이터 없음');
-    expect(accountStateText(acct({}), '2026-09-27')).toBe('다음 9/28');
+    expect(accountStateText(acct({}), '2026-09-27')).toBe('정상');
   });
 
   it('one line counts running accounts (dormant/no-data excluded)', () => {
